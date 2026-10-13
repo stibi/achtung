@@ -1,0 +1,30 @@
+{
+  "receiver": "achtung-example-prod",
+  "status": "resolved",
+  "alerts": [
+    {
+      "status": "resolved",
+      "labels": {
+        "alertname": "KubePodCrashLooping",
+        "container": "api",
+        "namespace": "example-prod",
+        "pod": "api-7c9d8b6f5-x2k4q",
+        "severity": "warning"
+      },
+      "annotations": {
+        "summary": "Pod is crash looping."
+      },
+      "startsAt": "2026-10-13T08:15:30.123Z",
+      "endsAt": "2026-10-13T08:42:00Z",
+      "generatorURL": "https://prometheus.example.com/graph?g0.expr=up",
+      "fingerprint": "5f0a2c3e9b1d4e7a"
+    }
+  ],
+  "groupLabels": { "namespace": "example-prod" },
+  "commonLabels": { "alertname": "KubePodCrashLooping", "namespace": "example-prod" },
+  "commonAnnotations": { "summary": "Pod is crash looping." },
+  "externalURL": "https://alertmanager.example.com",
+  "version": "4",
+  "groupKey": "{}/{namespace=\"example-prod\"}:{namespace=\"example-prod\"}",
+  "truncatedAlerts": 0
+}

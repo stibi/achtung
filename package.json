@@ -1,0 +1,15 @@
+{
+  "name": "achtung",
+  "private": true,
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "prepare": "lefthook install",
+    "check": "pnpm --recursive --filter './server' run check"
+  },
+  "devDependencies": {
+    "lefthook": "^2.2.1"
+  }
+}

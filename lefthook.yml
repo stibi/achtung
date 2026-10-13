@@ -1,0 +1,13 @@
+# Git hooks for every contributor and every agent (Claude, Codex, humans).
+# Installed automatically by `pnpm install` (the root `prepare` script).
+pre-commit:
+  jobs:
+    - name: server-check
+      root: server/
+      glob: "server/**"
+      run: pnpm run check
+
+commit-msg:
+  jobs:
+    - name: conventional-commit
+      run: scripts/check-commit-msg.sh {1}

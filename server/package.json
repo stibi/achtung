@@ -1,0 +1,37 @@
+{
+  "name": "@achtung/server",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "dev": "node --watch src/main.ts",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run arch && pnpm run deadcode && pnpm run dupes && pnpm run test",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "fix": "biome check --write .",
+    "arch": "depcruise src --config .dependency-cruiser.cjs",
+    "deadcode": "knip",
+    "dupes": "jscpd src",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:mutation": "stryker run"
+  },
+  "dependencies": {
+    "fastify": "^5.12.5",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@stryker-mutator/core": "^10.0.0",
+    "@stryker-mutator/vitest-runner": "^10.0.0",
+    "@types/node": "^24.19.2",
+    "dependency-cruiser": "^18.6.0",
+    "jscpd": "^5.4.1",
+    "knip": "^6.41.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
+  }
+}

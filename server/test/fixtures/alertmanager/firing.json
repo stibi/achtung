@@ -1,0 +1,48 @@
+{
+  "receiver": "achtung-example-prod",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "KubePodCrashLooping",
+        "container": "api",
+        "namespace": "example-prod",
+        "pod": "api-7c9d8b6f5-x2k4q",
+        "severity": "warning"
+      },
+      "annotations": {
+        "description": "Pod example-prod/api-7c9d8b6f5-x2k4q (api) is in waiting state (reason: \"CrashLoopBackOff\").",
+        "runbook_url": "https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodcrashlooping",
+        "summary": "Pod is crash looping."
+      },
+      "startsAt": "2026-10-13T08:15:30.123Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "https://prometheus.example.com/graph?g0.expr=max_over_time%28kube_pod_container_status_waiting_reason%5B5m%5D%29+%3E%3D+1",
+      "fingerprint": "5f0a2c3e9b1d4e7a"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "TargetDown",
+        "job": "example-exporter",
+        "namespace": "example-prod",
+        "severity": "critical"
+      },
+      "annotations": {
+        "summary": "One or more targets are unreachable."
+      },
+      "startsAt": "2026-10-13T08:20:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "",
+      "fingerprint": "a1b2c3d4e5f60718"
+    }
+  ],
+  "groupLabels": { "namespace": "example-prod" },
+  "commonLabels": { "namespace": "example-prod" },
+  "commonAnnotations": {},
+  "externalURL": "https://alertmanager.example.com",
+  "version": "4",
+  "groupKey": "{}/{namespace=\"example-prod\"}:{namespace=\"example-prod\"}",
+  "truncatedAlerts": 0
+}

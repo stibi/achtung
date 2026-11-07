@@ -113,12 +113,15 @@ the domain model is missing a concept. Discuss it and record an ADR.
 ## macOS client (`macos/`)
 
 - The Xcode project is generated from `project.yml` with XcodeGen and is not committed.
-- `Packages/AchtungDomain`: the alert model, mirroring `server/src/domain/alert.ts`. No
-  UI and no I/O.
+- `Packages/AchtungDomain`: the alert model, mirroring `server/src/domain/alert.ts`, and
+  the client's `Inbox`: received occurrences, read state and the "seen until" marker
+  behind "new since last time". Read state is local to the client (ADR 0002). No UI and
+  no I/O.
 - `Packages/AchtungAPI` *(planned)*: the API client, generated from `api/openapi.yaml`.
-- `Achtung/`: the app target, a SwiftUI shell with three columns (channels, alert list,
-  detail). It shows sample data until `AchtungAPI` exists. Views only; logic goes into a
-  package.
+- `Achtung/`: the app target, a SwiftUI shell. The sidebar lists Live and the channels.
+  Live is one stream of every alert with all its details. A channel is a list with a
+  detail pane. Until `AchtungAPI` exists, it shows sample data, and a sample feed
+  stands in for the server's event stream. Views only; logic goes into a package.
 - Package dependencies enforce the layering. The compiler rejects imports a package
   hasn't declared.
 - The domain and API packages must build on Linux, so they can't import AppKit or

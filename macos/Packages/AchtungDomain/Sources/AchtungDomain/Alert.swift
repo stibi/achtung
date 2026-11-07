@@ -74,4 +74,8 @@ public struct IncomingAlert: Sendable, Hashable {
         self.links = links
         self.state = state
     }
+
+    public var isFiring: Bool {
+        if case .firing = state { true } else { false }
+    }
 }

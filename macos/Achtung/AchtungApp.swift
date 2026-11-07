@@ -4,7 +4,8 @@ import SwiftUI
 struct AchtungApp: App {
     var body: some Scene {
         WindowGroup {
-            InboxView(channels: SampleData.channels)
+            InboxView(inbox: SampleData.inbox())
+                .frame(minWidth: 900, minHeight: 500)
         }
     }
 }

@@ -27,6 +27,21 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --dir server run check
 
+  image:
+    name: Server image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Built only, never pushed: releases are built and pushed by the deployment's own CI.
+      - run: docker build --build-arg VERSION=ci --build-arg GIT_COMMIT=${{ github.sha }} -t achtung:ci .
+      - name: Starts and fails fast without a database
+        run: |
+          if docker run --rm --read-only achtung:ci > out.log 2>&1; then
+            echo "expected a configuration error"; exit 1
+          fi
+          grep -q DATABASE_URL out.log
+
   macos:
     name: macOS check
     # macos-latest has only Xcode 26, which can't target macOS 27. See ADR 0004.

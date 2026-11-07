@@ -1,0 +1,11 @@
+# The image needs only package manifests, server/src and server/drizzle (see Dockerfile).
+**/node_modules
+.git
+macos
+api
+docs
+**/coverage
+**/reports
+**/.stryker-tmp
+.env
+.env.*

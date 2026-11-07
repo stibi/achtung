@@ -28,6 +28,10 @@ pnpm --dir server run test:mutation # mutation tests (slow; runs nightly in CI)
 
 Tests need Docker: they start a real Postgres with Testcontainers.
 
+The server image is built from the root `Dockerfile` (`docker build .`). It holds the
+sources and production dependencies, runs as the `node` user and works with a read-only
+root filesystem. CI builds it on every push but never publishes it.
+
 `check` must pass before you finish. A Stop hook and the pre-commit hook enforce this. When
 a check fails, fix the cause. Never weaken a rule, raise a threshold, or add an ignore to
 get a change through. If you believe a rule is wrong, stop and say why.

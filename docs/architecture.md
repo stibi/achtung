@@ -125,6 +125,8 @@ the domain model is missing a concept. Discuss it and record an ADR.
   step. Because of that, only erasable syntax is allowed (no `enum` and no
   `namespace`), enforced by `erasableSyntaxOnly`. `tsc` only type-checks.
 - Relative imports use the `.ts` extension.
+- Deployed as one container image (`Dockerfile`). It applies migrations on startup and
+  writes nothing to disk, so it runs with a read-only root filesystem.
 - Configuration comes from the environment (`src/config.ts`): `DATABASE_URL` (required),
   `HOST`, `PORT`, `LOG_LEVEL`.
 - Logs are structured JSON from pino (through Fastify). `/healthz` reports liveness and

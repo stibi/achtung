@@ -136,17 +136,38 @@ the domain model is missing a concept. Discuss it and record an ADR.
 ## macOS client (`macos/`)
 
 - The Xcode project is generated from `project.yml` with XcodeGen and is not committed.
-- `Packages/AchtungDomain`: the alert model, mirroring `server/src/domain/alert.ts`, and
-  the client's `Inbox`: received occurrences, read state and the "seen until" marker
-  behind "new since last time". Read state is local to the client (ADR 0002). No UI and
-  no I/O.
-- `Packages/AchtungAPI` *(planned)*: the API client, generated from `api/openapi.yaml`.
-- `Achtung/`: the app target, a SwiftUI shell. The sidebar lists Live and the channels.
-  Live is one stream of every alert with all its details. A channel is a list with a
-  detail pane. Until `AchtungAPI` exists, it shows sample data, and a sample feed
-  stands in for the server's event stream. Views only; logic goes into a package.
+- `Packages/AchtungDomain`: the model, mirroring `server/src/domain/` (`Channel`,
+  `Occurrence`, `IncomingAlert`, events), plus client-only rules: `OccurrenceList`
+  (pages and refreshes merged in the server's `(lastEventAt, id)` order) and `ReadState`.
+  No UI and no I/O.
+- `Packages/AchtungAPI`: the server client. swift-openapi-generator's build plugin
+  generates it from `Sources/AchtungAPI/openapi.yaml`, a symlink to `api/openapi.yaml`,
+  so nothing generated is committed and the spec has one copy. The generated code is
+  `internal`; `Mapping.swift` turns it into AchtungDomain types, and failures into
+  `ServerError`. The app never sees a generated type. Requests bypass the HTTP cache.
+- `Achtung/`: the app target, SwiftUI. The sidebar lists the channels (badge: firing
+  count; dot: something happened since the user last looked at that channel). A channel is a list, newest change first and
+  paged by `nextCursor`, with a detail pane that loads the occurrence's events and the
+  alert's other occurrences. `InboxModel` is the only code that talks to the server; the
+  views only read it. `SampleData` exists for SwiftUI previews.
+- No push yet: the app refreshes every 30 seconds and whenever it becomes active. A
+  refresh reloads the channels and asks the selected channel for everything changed
+  since a minute before its newest known `lastEventAt`. The server stamps `lastEventAt`
+  before its transaction commits, so a change can appear after a later-stamped one; the
+  overlap catches it, and merging by id makes it harmless.
+- Read state (ADR 0002) is per server and stored in `UserDefaults`. It holds server
+  times only, so the Mac's clock doesn't matter. An occurrence is read when the user has
+  opened it at its current `lastEventAt`, so a fire, resolve or reopen makes it unread
+  again and a repeat notification doesn't. "New since last visit" means a `lastEventAt`
+  after the newest event the client had loaded when the app last went to the
+  background.
+- The server address is a setting (Settings window). The app allows plain HTTP (ATS
+  exception in the generated Info.plist): instances are self-hosted and protected by the
+  operator's network, not by TLS (ADR 0002).
+- A cross-channel Live view needs a server feed of every channel's occurrences, which
+  the API doesn't have yet.
 - Package dependencies enforce the layering. The compiler rejects imports a package
   hasn't declared.
 - The domain and API packages must build on Linux, so they can't import AppKit or
   SwiftUI. Enforced by a SwiftLint custom rule (`macos/.swiftlint.yml`) and by a CI job
-  that runs `swift test` for the package on Linux.
+  that runs `swift test` for both packages on Linux.

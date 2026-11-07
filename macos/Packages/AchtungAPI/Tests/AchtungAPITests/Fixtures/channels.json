@@ -1,0 +1,24 @@
+{
+  "channels": [
+    {
+      "slug": "crm-prod",
+      "firing": 2,
+      "lastEventAt": "2026-11-07T21:14:19.526Z"
+    },
+    {
+      "slug": "legal-machine-dev",
+      "firing": 2,
+      "lastEventAt": "2026-11-07T21:14:19.553Z"
+    },
+    {
+      "slug": "legal-machine-prod",
+      "firing": 1,
+      "lastEventAt": "2026-11-07T21:14:19.643Z"
+    },
+    {
+      "slug": "onepost-prod",
+      "firing": 0,
+      "lastEventAt": "2026-11-07T21:14:19.669Z"
+    }
+  ]
+}

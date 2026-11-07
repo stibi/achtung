@@ -54,10 +54,12 @@ jobs:
       - run: macos/scripts/check.sh
 
   macos-domain-linux:
-    name: AchtungDomain on Linux
+    name: Swift packages on Linux
     runs-on: ubuntu-latest
     container: swift:6.4.2-noble@sha256:bca121f6eb59fd80340d1296887b2698ed8f3eb9eca7d80c181f8af769dc7ee0
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: swift test --package-path macos/Packages/AchtungDomain
+      # Also resolves the spec symlink (Sources/AchtungAPI/openapi.yaml -> api/openapi.yaml).
+      - run: swift test --package-path macos/Packages/AchtungAPI

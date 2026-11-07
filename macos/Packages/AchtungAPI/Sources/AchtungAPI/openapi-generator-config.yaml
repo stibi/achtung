@@ -1,0 +1,11 @@
+# Generated code stays internal: the package maps it to AchtungDomain types, so the app
+# never sees it. Only the client API is generated, not the ingest webhooks.
+# openapi.yaml is a symlink to the repo's api/openapi.yaml.
+generate:
+  - types
+  - client
+accessModifier: internal
+namingStrategy: idiomatic
+filter:
+  tags:
+    - client

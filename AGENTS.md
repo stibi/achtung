@@ -73,9 +73,18 @@ brew install xcodegen swiftlint periphery   # once; Xcode provides swift and swi
 macos/scripts/check.sh              # format, lint, package tests, app build and tests, dead code
 swift format format -i --recursive macos/Achtung macos/Packages/*/{Package.swift,Sources,Tests}   # auto-fix formatting
 swift test --package-path macos/Packages/AchtungDomain             # domain tests (also on Linux)
+swift test --package-path macos/Packages/AchtungAPI                # API mapping tests (also on Linux)
 cd macos && xcodegen generate && open Achtung.xcodeproj           # work in Xcode
 ```
 
 `check.sh` must pass before you finish, like the server's `check`. The Stop hook and the
-pre-commit hook run it only on macOS. On Linux only the `AchtungDomain` tests run, so CI
-is the gate for everything else. Tooling and CI choices: ADR 0004.
+pre-commit hook run it only on macOS. On Linux only the package tests run, so CI is the
+gate for everything else. Tooling and CI choices: ADR 0004.
+
+`AchtungAPI` is generated at build time from `api/openapi.yaml` (through a symlink) by
+swift-openapi-generator's build plugin; no generated code is committed. The first build
+in Xcode asks you to trust the plugin ("Trust & Enable"); `check.sh` passes
+`-skipPackagePluginValidation` instead. When the spec changes, rebuild and fix the
+mapping in `Packages/AchtungAPI/Sources/AchtungAPI/Mapping.swift`. Its tests use JSON
+fixtures in `Packages/AchtungAPI/Tests/AchtungAPITests/Fixtures/`, captured from a real
+server (no real hostnames).

@@ -4,3 +4,5 @@ project: Achtung.xcodeproj
 schemes:
   - Achtung
 strict: true
+# Previews are how SampleData is used (#Preview blocks); count them as references.
+retain_swift_ui_previews: true

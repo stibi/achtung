@@ -12,6 +12,7 @@ server/.migrations-check.*/
 macos/**/*.xcodeproj/
 macos/**/.build/
 macos/**/.swiftpm/
+macos/Achtung/Info.plist
 DerivedData/
 
 # Claude Code local settings

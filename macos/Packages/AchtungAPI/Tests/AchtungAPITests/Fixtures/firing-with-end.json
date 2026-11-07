@@ -1,0 +1,67 @@
+{
+  "occurrences": [
+    {
+      "id": 4,
+      "channel": "crm-prod",
+      "source": "alertmanager",
+      "sourceKey": "c0ffee0000000001",
+      "status": "firing",
+      "severity": "warning",
+      "title": "PostgresReplicationLag",
+      "summary": "Replica is 45s behind primary.",
+      "labels": {
+        "severity": "warning",
+        "alertname": "PostgresReplicationLag",
+        "namespace": "example-prod"
+      },
+      "annotations": {
+        "summary": "Replica is 45s behind primary."
+      },
+      "links": [
+        {
+          "kind": "source",
+          "url": "https://prometheus.example.com/graph"
+        }
+      ],
+      "startsAt": "2026-11-07T18:00:00.000Z",
+      "endsAt": "2026-11-07T21:00:00.000Z",
+      "firstReceivedAt": "2026-11-07T21:14:19.526Z",
+      "lastReceivedAt": "2026-11-07T21:14:19.526Z",
+      "lastEventAt": "2026-11-07T21:14:19.526Z",
+      "notificationCount": 1
+    },
+    {
+      "id": 1,
+      "channel": "crm-prod",
+      "source": "alertmanager",
+      "sourceKey": "5f0a2c3e9b1d4e7a",
+      "status": "resolved",
+      "severity": "warning",
+      "title": "KubePodCrashLooping",
+      "summary": "Pod is crash looping.",
+      "labels": {
+        "pod": "api-7c9d8b6f5-x2k4q",
+        "severity": "warning",
+        "alertname": "KubePodCrashLooping",
+        "container": "api",
+        "namespace": "example-prod"
+      },
+      "annotations": {
+        "summary": "Pod is crash looping."
+      },
+      "links": [
+        {
+          "kind": "source",
+          "url": "https://prometheus.example.com/graph?g0.expr=up"
+        }
+      ],
+      "startsAt": "2026-10-13T08:15:30.123Z",
+      "endsAt": "2026-10-13T08:42:00.000Z",
+      "firstReceivedAt": "2026-11-07T21:14:19.384Z",
+      "lastReceivedAt": "2026-11-07T21:14:19.484Z",
+      "lastEventAt": "2026-11-07T21:14:19.484Z",
+      "notificationCount": 2
+    }
+  ],
+  "nextCursor": "WyIyMDI2LTExLTA3VDIxOjE0OjE5LjQ4NFoiLDFd"
+}

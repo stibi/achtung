@@ -1,32 +1,49 @@
 import AchtungDomain
 import SwiftUI
 
-/// A channel's alerts, newest first. Entries received since the user last left the app sit
-/// above a "new" divider.
+/// A channel's occurrences, most recently changed first. What changed since the user last
+/// left the app sits above a "new" divider. Scrolling to the end loads older pages.
 struct AlertList: View {
-    let entries: [InboxEntry]
-    let inbox: Inbox
-    @Binding var selection: OccurrenceID?
+    let occurrences: [Occurrence]
+    let readState: ReadState
+    let hasOlder: Bool
+    /// The last successful refresh; a failed page load retries after the next one.
+    let lastUpdated: Date?
+    let loadOlder: () async -> Void
+    @Binding var selection: Int?
 
     var body: some View {
-        if entries.isEmpty {
+        if occurrences.isEmpty && !hasOlder {
             AllClearView()
         } else {
-            let newEntries = entries.filter { inbox.isNew($0) }
+            let newOnes = occurrences.filter { readState.isNew($0) }
             List(selection: $selection) {
-                rows(newEntries)
-                if let seenUntil = inbox.seenUntil, !newEntries.isEmpty {
+                rows(newOnes)
+                if let seenUntil = readState.seenUntil, !newOnes.isEmpty {
                     NewDivider(seenUntil: seenUntil)
                 }
-                rows(entries.filter { !inbox.isNew($0) })
+                rows(occurrences.filter { !readState.isNew($0) })
+                if hasOlder {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .task(id: [occurrences.count, lastUpdated] as [AnyHashable?]) {
+                            await loadOlder()
+                        }
+                }
             }
-            .animation(.default, value: entries.map(\.id))
+            .animation(.default, value: occurrences.map(\.id))
         }
     }
 
-    private func rows(_ entries: [InboxEntry]) -> some View {
-        ForEach(entries) { entry in
-            AlertRow(entry: entry, isRead: inbox.isRead(entry.id))
+    private func rows(_ occurrences: [Occurrence]) -> some View {
+        ForEach(occurrences) { occurrence in
+            AlertRow(occurrence: occurrence, isRead: readState.isRead(occurrence))
         }
     }
+}
+
+#Preview {
+    AlertList(
+        occurrences: SampleData.occurrences, readState: SampleData.readState, hasOlder: false,
+        lastUpdated: nil, loadOlder: {}, selection: .constant(nil))
 }

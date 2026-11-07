@@ -25,7 +25,9 @@ for package in Packages/*/; do
 done
 
 step "xcodebuild build test"
-xcodebuild build test -quiet \
+# AchtungAPI uses swift-openapi-generator's build plugin. Xcode asks to trust a plugin
+# once; scripts and CI can't answer, so they skip that prompt.
+xcodebuild build test -quiet -skipPackagePluginValidation \
   -project Achtung.xcodeproj -scheme Achtung -destination platform=macOS \
   -derivedDataPath "$derived_data" COMPILER_INDEX_STORE_ENABLE=YES
 

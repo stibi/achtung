@@ -1,0 +1,31 @@
+{
+  "occurrences": [
+    {
+      "id": 2,
+      "channel": "crm-prod",
+      "source": "alertmanager",
+      "sourceKey": "a1b2c3d4e5f60718",
+      "status": "firing",
+      "severity": "critical",
+      "title": "TargetDown",
+      "summary": "One or more targets are unreachable.",
+      "labels": {
+        "job": "example-exporter",
+        "severity": "critical",
+        "alertname": "TargetDown",
+        "namespace": "example-prod"
+      },
+      "annotations": {
+        "summary": "One or more targets are unreachable."
+      },
+      "links": [],
+      "startsAt": "2026-10-13T08:20:00.000Z",
+      "endsAt": null,
+      "firstReceivedAt": "2026-11-07T21:14:19.384Z",
+      "lastReceivedAt": "2026-11-07T21:14:19.384Z",
+      "lastEventAt": "2026-11-07T21:14:19.384Z",
+      "notificationCount": 1
+    }
+  ],
+  "nextCursor": null
+}

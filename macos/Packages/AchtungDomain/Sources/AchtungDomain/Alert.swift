@@ -1,20 +1,12 @@
 import Foundation
 
-/// Mirrors `server/src/domain/alert.ts`. Keep the two in sync until the API client is
-/// generated from `api/openapi.yaml`.
+/// Mirrors `server/src/domain/alert.ts`. AchtungAPI maps the server's responses to these
+/// types, so the compiler flags any drift from `api/openapi.yaml` in that mapping.
 public enum Severity: String, Sendable, Hashable {
     case critical
     case warning
     case info
     case unknown
-
-    /// Maps a source's free-form severity to Achtung's. Anything unrecognized is `.unknown`.
-    /// Mirrors the server's `parseSeverity`; the app has no caller until the API client
-    /// decodes severities from the server.
-    public init(parsing value: String?) {
-        let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        self = normalized.flatMap(Severity.init(rawValue:)) ?? .unknown
-    }
 }
 
 public struct AlertLink: Sendable, Hashable {

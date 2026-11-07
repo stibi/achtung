@@ -1,33 +1,45 @@
+import AchtungAPI
 import AchtungDomain
 import SwiftUI
 
-/// The detail pane of a channel.
+/// Everything about one occurrence: what the source reported, what Achtung tracked, and
+/// its history once `detail` has loaded.
 struct AlertDetailView: View {
-    let alert: IncomingAlert
+    let occurrence: Occurrence
+    /// Nil while the history is loading, or when it failed to load.
+    let detail: OccurrenceDetail?
+    let detailProblem: ServerError?
+
+    private var alert: IncomingAlert { occurrence.alert }
 
     var body: some View {
         ScrollView {
-            AlertDetails(alert: alert)
-                .padding(24)
-        }
-    }
-}
-
-/// Everything about one alert: header, links, annotations and labels. Shared by the
-/// channel detail pane and the Live cards.
-struct AlertDetails: View {
-    let alert: IncomingAlert
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            AlertHeader(alert: alert)
-            if !alert.links.isEmpty {
-                LinkButtons(links: alert.links)
+            VStack(alignment: .leading, spacing: 24) {
+                AlertHeader(alert: alert)
+                if !alert.links.isEmpty {
+                    LinkButtons(links: alert.links)
+                }
+                KeyValueSection(title: "Annotations", values: alert.annotations)
+                KeyValueSection(title: "Labels", values: alert.labels)
+                OccurrenceFacts(occurrence: occurrence)
+                if let detail {
+                    OccurrenceHistory(detail: detail)
+                } else if let detailProblem {
+                    Label(
+                        "History unavailable: \(detailProblem.title). Retrying soon.",
+                        systemImage: "exclamationmark.icloud"
+                    )
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .help(detailProblem.detail)
+                } else {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                }
             }
-            KeyValueSection(title: "Annotations", values: alert.annotations)
-            KeyValueSection(title: "Labels", values: alert.labels)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(24)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

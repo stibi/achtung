@@ -18,6 +18,8 @@ settings:
 packages:
   AchtungDomain:
     path: Packages/AchtungDomain
+  AchtungAPI:
+    path: Packages/AchtungAPI
 targets:
   Achtung:
     type: application
@@ -25,6 +27,15 @@ targets:
     sources: [Achtung]
     dependencies:
       - package: AchtungDomain
+      - package: AchtungAPI
+    # XcodeGen writes this Info.plist (gitignored); Xcode merges the INFOPLIST_KEY_*
+    # settings into it. Plain HTTP is allowed because instances are self-hosted and
+    # protected by the operator's network, not by TLS (ADR 0002).
+    info:
+      path: Achtung/Info.plist
+      properties:
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.stibi.achtung
@@ -41,3 +52,4 @@ schemes:
     test:
       targets:
         - package: AchtungDomain/AchtungDomainTests
+        - package: AchtungAPI/AchtungAPITests

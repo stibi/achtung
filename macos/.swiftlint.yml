@@ -26,11 +26,11 @@ disabled_rules:
   - opening_brace
 
 custom_rules:
-  domain_no_ui_imports:
-    name: No UI imports in AchtungDomain
-    included: "Packages/AchtungDomain/.*\\.swift$"
+  packages_no_ui_imports:
+    name: No UI imports in the packages
+    included: "Packages/.*\\.swift$"
     regex: "^\\s*(@\\w+\\s+)*import\\s+(\\w+\\s+)?(SwiftUI|AppKit|Cocoa)\\b"
     message: >-
-      AchtungDomain must build on Linux, so it can't import SwiftUI or AppKit. Move UI
-      code to the app target (macos/Achtung/).
+      AchtungDomain and AchtungAPI must build on Linux, so they can't import SwiftUI or
+      AppKit. Move UI code to the app target (macos/Achtung/).
     severity: error

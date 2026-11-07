@@ -5,12 +5,15 @@ const envSchema = z.object({
   HOST: z.string().min(1).default("0.0.0.0"),
   PORT: z.coerce.number().int().min(1).max(65_535).default(8080),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
+  DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
 });
 
 export interface Config {
   readonly host: string;
   readonly port: number;
   readonly logLevel: z.infer<typeof envSchema>["LOG_LEVEL"];
+  /** postgres://user:password@host:5432/database */
+  readonly databaseUrl: string;
 }
 
 export function loadConfig(
@@ -20,5 +23,10 @@ export function loadConfig(
   if (!result.success) {
     throw new Error(`Invalid configuration:\n${z.prettifyError(result.error)}`);
   }
-  return { host: result.data.HOST, port: result.data.PORT, logLevel: result.data.LOG_LEVEL };
+  return {
+    host: result.data.HOST,
+    port: result.data.PORT,
+    logLevel: result.data.LOG_LEVEL,
+    databaseUrl: result.data.DATABASE_URL,
+  };
 }

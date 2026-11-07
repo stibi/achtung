@@ -2,6 +2,7 @@ node_modules/
 coverage/
 reports/
 .stryker-tmp/
+server/.migrations-check.*/
 *.log
 .env
 .env.*

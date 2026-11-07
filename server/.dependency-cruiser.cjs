@@ -56,6 +56,33 @@ module.exports = {
       to: { path: "^src/sources/[^/]+/", pathNot: "^src/sources/[^/]+/index\\.ts$" },
     },
     {
+      name: "db-only-uses-domain",
+      severity: "error",
+      comment:
+        "src/db maps between Postgres and domain types. It may import src/domain and its own " +
+        "folder only. Business rules belong in src/services; HTTP concerns in src/http.",
+      from: { path: "^src/db/" },
+      to: { path: "^src/", pathNot: ["^src/db/", "^src/domain/"] },
+    },
+    {
+      name: "services-below-http",
+      severity: "error",
+      comment:
+        "Services are called by src/http, never the other way round. Pass what the service " +
+        "needs as plain arguments instead of importing HTTP code.",
+      from: { path: "^src/services/" },
+      to: { path: "^src/http/" },
+    },
+    {
+      name: "http-goes-through-services",
+      severity: "error",
+      comment:
+        "Routes must not touch storage directly. Add or extend a use case in src/services and " +
+        "call that; src/main.ts wires the database into it.",
+      from: { path: "^src/http/" },
+      to: { path: "^src/db/" },
+    },
+    {
       name: "config-is-leaf",
       severity: "error",
       comment:

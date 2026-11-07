@@ -2,9 +2,10 @@
 
 A self-hosted alert inbox with a native macOS client.
 
-> **Status:** early development. The server ingests Alertmanager webhooks into Postgres.
-> The client API and the macOS client don't exist yet. Open questions are listed at the
-> end.
+> **Status:** early development. The server ingests Alertmanager webhooks into Postgres
+> and serves a read-only client API ([`api/openapi.yaml`](api/openapi.yaml)). Live
+> updates (SSE), acknowledgement and the macOS client's API connection are next. Open
+> questions are listed at the end.
 
 ## The problem
 

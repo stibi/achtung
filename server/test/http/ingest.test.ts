@@ -1,21 +1,9 @@
-import { describe, expect, it, onTestFinished } from "vitest";
-import { buildApp } from "../../src/http/app.ts";
-import { ingestNotification } from "../../src/services/ingest.ts";
-import { alertmanagerSource } from "../../src/sources/alertmanager/index.ts";
-import { createTestDatabase } from "../database.ts";
+import { describe, expect, it } from "vitest";
+import { appWithDatabase } from "../app.ts";
 import { loadFixture } from "../fixtures.ts";
 
 async function testApp(logLines: Record<string, unknown>[] = []) {
-  const { db } = await createTestDatabase();
-  const app = buildApp({
-    logLevel: "warn",
-    logStream: { write: (line) => logLines.push(JSON.parse(line) as Record<string, unknown>) },
-    sources: [alertmanagerSource],
-    ingest: (notification) => ingestNotification(db, notification),
-    checkReady: async () => {},
-  });
-  onTestFinished(() => app.close());
-  return app;
+  return (await appWithDatabase(logLines)).app;
 }
 
 const firing = loadFixture("alertmanager", "firing") as object;
@@ -59,6 +47,20 @@ describe("POST /ingest/alertmanager/{channel}", () => {
         body: expect.objectContaining({ version: "3" }),
       }),
     );
+  });
+
+  it("says why a body that is not JSON was rejected", async () => {
+    const app = await testApp();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/ingest/alertmanager/example-prod",
+      headers: { "content-type": "application/json" },
+      payload: '{"version": "4",',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: expect.stringMatching(/JSON/i) });
   });
 
   it("warns when the source dropped alerts from the notification", async () => {

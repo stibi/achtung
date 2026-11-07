@@ -49,6 +49,9 @@ export const occurrences = pgTable(
     links: jsonb().$type<readonly AlertLink[]>().notNull(),
     firstReceivedAt: timestamptz().notNull(),
     lastReceivedAt: timestamptz().notNull(),
+    // The default only serves replicas from before this column during a rolling deploy;
+    // current code always sets it.
+    lastEventAt: timestamptz().notNull().defaultNow(),
     notificationCount: integer().notNull().default(1),
   },
   (table) => [
@@ -58,6 +61,12 @@ export const occurrences = pgTable(
       table.source,
       table.sourceKey,
       table.startsAt,
+    ),
+    // Channel lists, newest change first, paginated by (last_event_at, id).
+    index("occurrences_channel_last_event").on(
+      table.channelId,
+      table.lastEventAt.desc(),
+      table.id.desc(),
     ),
     check(
       "occurrences_end_matches_status",

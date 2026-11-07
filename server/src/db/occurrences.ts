@@ -65,6 +65,8 @@ export async function insertOccurrence(
       ...alertFields(alert),
       firstReceivedAt: now,
       lastReceivedAt: now,
+      // Every new occurrence gets an event (fired, or resolved when the firing was missed).
+      lastEventAt: now,
     })
     .onConflictDoNothing()
     .returning({ id: occurrences.id });
@@ -114,4 +116,5 @@ export async function recordEvent(
   now: Date,
 ): Promise<void> {
   await tx.insert(events).values({ occurrenceId, kind, recordedAt: now });
+  await tx.update(occurrences).set({ lastEventAt: now }).where(eq(occurrences.id, occurrenceId));
 }

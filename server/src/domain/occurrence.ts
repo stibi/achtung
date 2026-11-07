@@ -1,4 +1,5 @@
-import type { AlertState } from "./alert.ts";
+import type { AlertState, IncomingAlert } from "./alert.ts";
+import type { ChannelSlug } from "./channel.ts";
 
 type OccurrenceStatus = AlertState["status"];
 
@@ -23,4 +24,22 @@ export function eventFor(
   // Same startsAt firing again after a resolve: Alertmanager's resolve_timeout ended it
   // too early, so this is the same occurrence coming back, not a new one.
   return current === null ? "fired" : "reopened";
+}
+
+/** An occurrence as Achtung stores it: what the source reported plus what Achtung tracks. */
+export type Occurrence = IncomingAlert & {
+  readonly id: number;
+  readonly channel: ChannelSlug;
+  readonly source: string;
+  readonly firstReceivedAt: Date;
+  readonly lastReceivedAt: Date;
+  /** When the last event (fired, resolved, reopened) happened. Repeats don't move it. */
+  readonly lastEventAt: Date;
+  readonly notificationCount: number;
+};
+
+export interface OccurrenceEvent {
+  readonly id: number;
+  readonly kind: EventKind;
+  readonly recordedAt: Date;
 }

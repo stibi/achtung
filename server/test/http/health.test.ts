@@ -1,11 +1,12 @@
 import { describe, expect, it, onTestFinished } from "vitest";
 import { buildApp } from "../../src/http/app.ts";
+import { unusedServices } from "../app.ts";
 
 function testApp(checkReady: () => Promise<void>) {
   const app = buildApp({
     logLevel: "silent",
     sources: [],
-    ingest: () => Promise.reject(new Error("ingest is not used by health checks")),
+    services: unusedServices,
     checkReady,
   });
   onTestFinished(() => app.close());

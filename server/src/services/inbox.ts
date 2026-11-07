@@ -1,0 +1,87 @@
+import type { Database } from "../db/client.ts";
+import {
+  findChannelId,
+  findOccurrence,
+  listChannelOverviews,
+  listEvents,
+  listOccurrences,
+  listOtherOccurrences,
+} from "../db/queries.ts";
+import type { AlertState } from "../domain/alert.ts";
+import type { ChannelSlug } from "../domain/channel.ts";
+import type { Occurrence, OccurrenceEvent } from "../domain/occurrence.ts";
+
+/** A place in a channel's list, newest change first. The next page starts after it. */
+export interface ListPosition {
+  readonly lastEventAt: Date;
+  readonly id: number;
+}
+
+export interface OccurrenceFilter {
+  readonly status: AlertState["status"] | null;
+  readonly after: ListPosition | null;
+  readonly limit: number;
+}
+
+export interface ChannelOverview {
+  readonly slug: string;
+  /** Occurrences in this channel that are firing now. */
+  readonly firing: number;
+  /** Latest event in the channel; null for a channel without occurrences. */
+  readonly lastEventAt: Date | null;
+}
+
+export type OccurrencePage =
+  | {
+      readonly found: true;
+      readonly occurrences: readonly Occurrence[];
+      /** Where the next page starts; null when this is the last page. */
+      readonly next: ListPosition | null;
+    }
+  | { readonly found: false };
+
+export interface OccurrenceDetail {
+  readonly occurrence: Occurrence;
+  /** Oldest first. */
+  readonly events: readonly OccurrenceEvent[];
+  /** Earlier and later occurrences of the same alert, newest first. */
+  readonly otherOccurrences: readonly Occurrence[];
+}
+
+const otherOccurrencesShown = 20;
+
+export function listChannels(db: Database): Promise<ChannelOverview[]> {
+  return listChannelOverviews(db);
+}
+
+export async function listChannelOccurrences(
+  db: Database,
+  slug: ChannelSlug,
+  filter: OccurrenceFilter,
+): Promise<OccurrencePage> {
+  const channelId = await findChannelId(db, slug);
+  if (channelId === null) {
+    return { found: false };
+  }
+  // One extra row tells whether another page follows, without a count query.
+  const rows = await listOccurrences(db, channelId, { ...filter, limit: filter.limit + 1 });
+  const page = rows.slice(0, filter.limit);
+  const last = page.at(-1);
+  const next =
+    rows.length > filter.limit && last !== undefined
+      ? { lastEventAt: last.lastEventAt, id: last.id }
+      : null;
+  return { found: true, occurrences: page, next };
+}
+
+export async function getOccurrence(db: Database, id: number): Promise<OccurrenceDetail | null> {
+  const occurrence = await findOccurrence(db, id);
+  if (occurrence === null) {
+    return null;
+  }
+  const [events, otherOccurrences] = await Promise.all([
+    listEvents(db, id),
+    listOtherOccurrences(db, occurrence, otherOccurrencesShown),
+  ]);
+  return { occurrence, events, otherOccurrences };
+}

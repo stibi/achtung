@@ -1,0 +1,346 @@
+openapi: 3.0.3
+info:
+  title: Achtung
+  description: "Self-hosted alert inbox. No authentication: see ADR 0002."
+  version: 0.1.0
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    Channel:
+      type: object
+      properties:
+        slug:
+          type: string
+        firing:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+          description: Occurrences in the channel that are firing now
+        lastEventAt:
+          nullable: true
+          description: Latest event in the channel
+          type: string
+          format: date-time
+      required:
+        - slug
+        - firing
+        - lastEventAt
+    Occurrence:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        channel:
+          type: string
+        source:
+          type: string
+        sourceKey:
+          type: string
+          description: Identity of the alert in its source, e.g. a fingerprint
+        status:
+          type: string
+          enum:
+            - firing
+            - resolved
+        severity:
+          type: string
+          enum:
+            - critical
+            - warning
+            - info
+            - unknown
+        title:
+          type: string
+        summary:
+          nullable: true
+          type: string
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        annotations:
+          type: object
+          additionalProperties:
+            type: string
+        links:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+                enum:
+                  - source
+                  - runbook
+                  - dashboard
+              url:
+                type: string
+            required:
+              - kind
+              - url
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          nullable: true
+          description: Set exactly when the status is resolved
+          type: string
+          format: date-time
+        firstReceivedAt:
+          type: string
+          format: date-time
+        lastReceivedAt:
+          type: string
+          format: date-time
+        lastEventAt:
+          type: string
+          format: date-time
+          description: Last time it fired, resolved or reopened
+        notificationCount:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+      required:
+        - id
+        - channel
+        - source
+        - sourceKey
+        - status
+        - severity
+        - title
+        - summary
+        - labels
+        - annotations
+        - links
+        - startsAt
+        - endsAt
+        - firstReceivedAt
+        - lastReceivedAt
+        - lastEventAt
+        - notificationCount
+    Event:
+      type: object
+      properties:
+        id:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        kind:
+          type: string
+          enum:
+            - fired
+            - resolved
+            - reopened
+        recordedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - kind
+        - recordedAt
+    OccurrenceDetail:
+      type: object
+      properties:
+        occurrence:
+          $ref: "#/components/schemas/Occurrence"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+          description: Oldest first
+        otherOccurrences:
+          type: array
+          items:
+            $ref: "#/components/schemas/Occurrence"
+          description: Other occurrences of the same alert, newest first, at most 20
+      required:
+        - occurrence
+        - events
+        - otherOccurrences
+    ChannelList:
+      type: object
+      properties:
+        channels:
+          type: array
+          items:
+            $ref: "#/components/schemas/Channel"
+      required:
+        - channels
+    OccurrencePage:
+      type: object
+      properties:
+        occurrences:
+          type: array
+          items:
+            $ref: "#/components/schemas/Occurrence"
+        nextCursor:
+          nullable: true
+          description: Pass as cursor for the next page; null on the last
+          type: string
+      required:
+        - occurrences
+        - nextCursor
+    IngestSummary:
+      type: object
+      properties:
+        alerts:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        new:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+          description: Occurrences that fired or reopened
+        resolved:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - alerts
+        - new
+        - resolved
+paths:
+  /ingest/alertmanager/{channel}:
+    post:
+      operationId: ingestAlertmanager
+      summary: Webhook for alertmanager. The body is the source's own payload.
+      tags:
+        - ingest
+      parameters:
+        - schema:
+            type: string
+          in: path
+          name: channel
+          required: true
+          description: Created on first use
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestSummary"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/channels:
+    get:
+      operationId: listChannels
+      summary: All channels, by name, with what is firing in each
+      tags:
+        - client
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChannelList"
+  /api/channels/{slug}/occurrences:
+    get:
+      operationId: listChannelOccurrences
+      summary: A channel's occurrences, most recently changed first
+      tags:
+        - client
+      parameters:
+        - schema:
+            type: string
+            enum:
+              - firing
+              - resolved
+          in: query
+          name: status
+          required: false
+        - schema:
+            type: string
+          in: query
+          name: cursor
+          required: false
+          description: nextCursor from the previous page
+        - schema:
+            default: 50
+            type: integer
+            minimum: 1
+            maximum: 200
+          in: query
+          name: limit
+          required: false
+        - schema:
+            type: string
+          in: path
+          name: slug
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OccurrencePage"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/occurrences/{id}:
+    get:
+      operationId: getOccurrence
+      summary: One occurrence with its history and the alert's other occurrences
+      tags:
+        - client
+      parameters:
+        - schema:
+            type: integer
+            minimum: 0
+            exclusiveMinimum: true
+            maximum: 9007199254740991
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OccurrenceDetail"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"

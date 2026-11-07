@@ -2,7 +2,7 @@ import { loadConfig } from "./config.ts";
 import { openDatabase, ping } from "./db/client.ts";
 import { migrateDatabase } from "./db/migrate.ts";
 import { buildApp } from "./http/app.ts";
-import { ingestNotification } from "./services/ingest.ts";
+import { servicesFor } from "./services/index.ts";
 import { alertmanagerSource } from "./sources/alertmanager/index.ts";
 
 const config = loadConfig();
@@ -10,7 +10,7 @@ const { pool, db } = openDatabase(config.databaseUrl);
 const app = buildApp({
   logLevel: config.logLevel,
   sources: [alertmanagerSource],
-  ingest: (notification) => ingestNotification(db, notification),
+  services: servicesFor(db),
   checkReady: () => ping(pool),
 });
 

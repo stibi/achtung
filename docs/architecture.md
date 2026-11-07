@@ -18,7 +18,7 @@ Alertmanager ──POST /ingest/alertmanager/{channel}──▶ http ──▶ s
 macOS client ◀──── REST API + Server-Sent Events ───── http
 ```
 
-Planned parts not built yet: the client API and SSE. When you add one, follow the layer
+Planned parts not built yet: SSE and acknowledgement. When you add one, follow the layer
 rules below and update this file.
 
 ## Server layers (`server/src/`)
@@ -81,7 +81,8 @@ the domain model is missing a concept. Discuss it and record an ADR.
 
 ## Ingest and storage
 
-- `POST /ingest/{source}/{channel}`, one route per source adapter. A channel is created
+- `POST /ingest/{source}/{channel}`, one route per source adapter (also in
+  `api/openapi.yaml`, under the `ingest` tag). A channel is created
   on its first notification ([ADR 0005](adr/0005-ingest-channels-and-migrations.md)).
   Names must match `^[a-z0-9][a-z0-9-]{0,62}$`, anything else is a 404. An invalid
   payload is a 400 and is logged with its body. Success is a 200 with
@@ -98,6 +99,25 @@ the domain model is missing a concept. Discuss it and record an ADR.
   `pnpm run db:generate` and committed. `pnpm run check` fails when the schema has
   changes without a migration. The server applies pending migrations at startup, under
   a Postgres advisory lock so replicas can start together.
+
+## Client API
+
+- Routes under `/api/` (`src/http/api.ts`), all read-only for now:
+  - `GET /api/channels`: channels by name, with how many occurrences are firing and the
+    latest event time.
+  - `GET /api/channels/{slug}/occurrences?status=&cursor=&limit=`: newest change first,
+    ordered by `(lastEventAt, id)`. A repeat notification does not move an occurrence; a
+    fire, resolve or reopen does. `nextCursor` is opaque; pass it back as `cursor`.
+  - `GET /api/occurrences/{id}`: the occurrence, its events (oldest first) and the
+    alert's other occurrences (newest first, up to 20).
+- Errors are `{ "error": "…" }`: 400 for invalid input (including a cursor the server
+  never issued), 404 for an unknown channel or occurrence.
+- "New since last visit" is computed by the client from `lastEventAt` and its own read
+  state (ADR 0002). The server keeps no per-client state.
+- The Zod schemas in `src/http/api-schemas.ts` validate every response and generate
+  `api/openapi.yaml` (`src/http/openapi.ts` tidies it for the Swift generator). The file
+  is committed; `check` fails when it is out of date, and `pnpm run api:generate`
+  rewrites it. Its diff is the API change to review.
 
 ## Runtime
 

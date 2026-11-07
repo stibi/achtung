@@ -18,7 +18,7 @@ change decisions gets deleted.
    `acknowledge`. Avoid generic pattern names like `Manager`, `Helper`, `Util`,
    `Handler2` or `data`.
 6. **Finish or don't start.** No TODOs, stubs, commented-out code or half-done
-   features. If something is out of scope, leave it out and mention it in the PR.
+   features. If something is out of scope, leave it out and mention it in the commit message.
 7. **Follow the existing pattern.** Find the closest existing example and match its
    shape. If the pattern is wrong, change it everywhere in a separate change. Don't
    fork it.

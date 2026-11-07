@@ -50,7 +50,9 @@ get a change through. If you believe a rule is wrong, stop and say why.
 - **Record decisions.** If a change departs from an ADR, write a new ADR in the same
   change. When you add a tool or command, update this file.
 - **Commits** use Conventional Commits, e.g. `feat(server): …`, `fix(macos): …`,
-  `docs: …`. The commit-msg hook enforces this.
+  `docs: …`. The commit-msg hook enforces this. Work lands directly on `main`, with no
+  branches or pull requests. Several agents may push, so `git pull --rebase` before you
+  push.
 - **Review.** Before calling non-trivial work done, run the `reviewer` subagent on the
   diff and fix what it finds that is real.
 

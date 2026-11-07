@@ -26,3 +26,23 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --dir server run check
+
+  macos:
+    name: macOS check
+    # macos-latest has only Xcode 26, which can't target macOS 27. See ADR 0004.
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: sudo xcode-select --switch /Applications/Xcode_27.2.app
+      - run: brew install xcodegen swiftlint periphery
+      - run: macos/scripts/check.sh
+
+  macos-domain-linux:
+    name: AchtungDomain on Linux
+    runs-on: ubuntu-latest
+    container: swift:6.4.2-noble@sha256:bca121f6eb59fd80340d1296887b2698ed8f3eb9eca7d80c181f8af769dc7ee0
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: swift test --package-path macos/Packages/AchtungDomain

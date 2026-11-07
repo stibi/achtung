@@ -6,6 +6,13 @@ pre-commit:
       root: server/
       glob: "server/**"
       run: pnpm run check
+    - name: macos
+      root: macos/
+      glob: "macos/**"
+      # The app builds only on macOS; elsewhere CI covers it.
+      skip:
+        - run: test "$(uname -s)" != Darwin
+      run: scripts/check.sh
 
 commit-msg:
   jobs:

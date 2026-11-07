@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Stop hook: Claude may not finish while the server has uncommitted changes that fail
-# `pnpm check`. Exit 2 blocks the stop and hands the failure output back to Claude.
+# `pnpm check`, or (on macOS only) macos/ has changes that fail macos/scripts/check.sh.
+# Exit 2 blocks the stop and hands the failure output back to Claude.
 # After 3 consecutive blocks in a session the stop is allowed, so Claude can explain a
 # problem it can't fix instead of looping. The pre-commit hook and CI still gate it.
 set -euo pipefail
@@ -12,7 +13,15 @@ cd "$root"
 counter="$(git rev-parse --git-path "achtung-stop-blocks-$session")"
 max_blocks=3
 
-if [[ -z "$(git status --porcelain -- server)" ]] || output=$(pnpm --dir server run check 2>&1); then
+failed=""
+output=""
+if [[ -n "$(git status --porcelain -- server)" ]] && ! output=$(pnpm --dir server run check 2>&1); then
+  failed="pnpm check fails in server/"
+elif [[ "$(uname -s)" == Darwin && -n "$(git status --porcelain -- macos)" ]] &&
+  ! output=$(macos/scripts/check.sh 2>&1); then
+  failed="macos/scripts/check.sh fails"
+fi
+if [[ -z "$failed" ]]; then
   rm -f "$counter"
   exit 0
 fi
@@ -25,7 +34,7 @@ fi
 echo "$blocks" >"$counter"
 
 {
-  echo "pnpm check fails in server/ (block $blocks of $max_blocks). Fix the root cause before"
+  echo "$failed (block $blocks of $max_blocks). Fix the root cause before"
   echo "finishing; do not disable or weaken checks. If you can't fix it, or a rule is wrong"
   echo "for this case, explain why to the user and stop."
   echo

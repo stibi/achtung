@@ -1,0 +1,36 @@
+# Run with --strict (scripts/check.sh does), so every warning fails the check.
+# Limits match the server's Biome config (docs/adr/0003-quality-enforcement.md).
+included:
+  - Achtung
+  - Packages
+excluded:
+  - Packages/*/.build
+
+opt_in_rules:
+  - force_unwrapping
+
+cyclomatic_complexity:
+  warning: 12
+function_body_length:
+  warning: 60
+file_length:
+  warning: 300
+line_length:
+  warning: 100 # same as .swift-format
+force_cast: error
+force_unwrapping: error
+
+# swift format owns layout; these SwiftLint rules disagree with it.
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+
+custom_rules:
+  domain_no_ui_imports:
+    name: No UI imports in AchtungDomain
+    included: "Packages/AchtungDomain/.*\\.swift$"
+    regex: "^\\s*(@\\w+\\s+)*import\\s+(\\w+\\s+)?(SwiftUI|AppKit|Cocoa)\\b"
+    message: >-
+      AchtungDomain must build on Linux, so it can't import SwiftUI or AppKit. Move UI
+      code to the app target (macos/Achtung/).
+    severity: error

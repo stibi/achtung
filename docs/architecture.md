@@ -78,11 +78,17 @@ the domain model is missing a concept. Discuss it and record an ADR.
   `/readyz` reports readiness. Until there is a database, readiness is the same as
   liveness.
 
-## macOS client (`macos/`, planned)
+## macOS client (`macos/`)
 
 - The Xcode project is generated from `project.yml` with XcodeGen and is not committed.
-- Packages: `AchtungDomain` (models, no UI), `AchtungAPI` (generated from
-  `api/openapi.yaml`), and `AchtungApp` (SwiftUI). Package dependencies enforce the
-  layering. The compiler rejects imports a package hasn't declared.
+- `Packages/AchtungDomain`: the alert model, mirroring `server/src/domain/alert.ts`. No
+  UI and no I/O.
+- `Packages/AchtungAPI` *(planned)*: the API client, generated from `api/openapi.yaml`.
+- `Achtung/`: the app target, a SwiftUI shell with three columns (channels, alert list,
+  detail). It shows sample data until `AchtungAPI` exists. Views only; logic goes into a
+  package.
+- Package dependencies enforce the layering. The compiler rejects imports a package
+  hasn't declared.
 - The domain and API packages must build on Linux, so they can't import AppKit or
-  SwiftUI.
+  SwiftUI. Enforced by a SwiftLint custom rule (`macos/.swiftlint.yml`) and by a CI job
+  that runs `swift test` for the package on Linux.

@@ -1,0 +1,43 @@
+# XcodeGen spec. Run `xcodegen generate` (scripts/check.sh does); never edit or commit the
+# generated Achtung.xcodeproj.
+name: Achtung
+options:
+  bundleIdPrefix: io.github.stibi
+  # 27.0, not 27.2: CI runs on the `xcode-27` runner image, whose OS is macOS 27.0.x.
+  deploymentTarget:
+    macOS: "27.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  AchtungDomain:
+    path: Packages/AchtungDomain
+targets:
+  Achtung:
+    type: application
+    platform: macOS
+    sources: [Achtung]
+    dependencies:
+      - package: AchtungDomain
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.stibi.achtung
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Achtung
+        # Ad-hoc signing, so the app builds anywhere without a developer team.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+schemes:
+  Achtung:
+    build:
+      targets:
+        Achtung: all
+    test:
+      targets:
+        - package: AchtungDomain/AchtungDomainTests

@@ -1,0 +1,6 @@
+# Dead code. scripts/check.sh runs this with --skip-build against the index store that
+# xcodebuild just wrote, so the app isn't built twice.
+project: Achtung.xcodeproj
+schemes:
+  - Achtung
+strict: true

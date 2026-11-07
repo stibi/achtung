@@ -128,7 +128,8 @@ the domain model is missing a concept. Discuss it and record an ADR.
 - Deployed as one container image (`Dockerfile`). It applies migrations on startup and
   writes nothing to disk, so it runs with a read-only root filesystem.
 - Configuration comes from the environment (`src/config.ts`): `DATABASE_URL` (required),
-  `HOST`, `PORT`, `LOG_LEVEL`.
+  `HOST`, `PORT`, `LOG_LEVEL`. The standard libpq variables (`PGPASSWORD`, …) fill in what
+  `DATABASE_URL` leaves out, so a password never needs URL-encoding.
 - Logs are structured JSON from pino (through Fastify). `/healthz` reports liveness and
   `/readyz` reports readiness, which fails with a 503 while the database is unreachable.
 

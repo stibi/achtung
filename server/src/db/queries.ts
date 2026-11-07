@@ -75,15 +75,16 @@ export async function findChannelId(db: Database, slug: ChannelSlug): Promise<nu
   return row?.id ?? null;
 }
 
+/** Newest change first; `channelId` null lists every channel. */
 export async function listOccurrences(
   db: Database,
-  channelId: number,
+  channelId: number | null,
   { status, after, limit }: OccurrenceFilter,
 ): Promise<Occurrence[]> {
   const rows = await selectOccurrences(
     db,
     and(
-      eq(occurrences.channelId, channelId),
+      channelId === null ? undefined : eq(occurrences.channelId, channelId),
       status === null ? undefined : eq(occurrences.status, status),
       after === null
         ? undefined

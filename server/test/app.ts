@@ -12,6 +12,7 @@ export const unusedServices: Services = {
   ingest: unused,
   listChannels: unused,
   listChannelOccurrences: unused,
+  listOccurrences: unused,
   getOccurrence: unused,
 };
 

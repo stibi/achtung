@@ -108,6 +108,9 @@ the domain model is missing a concept. Discuss it and record an ADR.
   - `GET /api/channels/{slug}/occurrences?status=&cursor=&limit=`: newest change first,
     ordered by `(lastEventAt, id)`. A repeat notification does not move an occurrence; a
     fire, resolve or reopen does. `nextCursor` is opaque; pass it back as `cursor`.
+  - `GET /api/occurrences?status=&cursor=&limit=`: the same list across every channel,
+    in the same order and with the same paging; each occurrence's `channel` says where
+    it belongs. This feeds the client's Live view.
   - `GET /api/occurrences/{id}`: the occurrence, its events (oldest first) and the
     alert's other occurrences (newest first, up to 20).
 - Errors are `{ "error": "…" }`: 400 for invalid input (including a cursor the server
@@ -164,8 +167,8 @@ the domain model is missing a concept. Discuss it and record an ADR.
 - The server address is a setting (Settings window). The app allows plain HTTP (ATS
   exception in the generated Info.plist): instances are self-hosted and protected by the
   operator's network, not by TLS (ADR 0002).
-- A cross-channel Live view needs a server feed of every channel's occurrences, which
-  the API doesn't have yet.
+- A cross-channel Live view can use `GET /api/occurrences`, the feed of every
+  channel's occurrences.
 - Package dependencies enforce the layering. The compiler rejects imports a package
   hasn't declared.
 - The domain and API packages must build on Linux, so they can't import AppKit or

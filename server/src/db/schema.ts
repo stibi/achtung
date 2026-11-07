@@ -68,6 +68,15 @@ export const occurrences = pgTable(
       table.lastEventAt.desc(),
       table.id.desc(),
     ),
+    // The cross-channel list (GET /api/occurrences), in the same order.
+    index("occurrences_last_event").on(table.lastEventAt.desc(), table.id.desc()),
+    // ...and that list filtered by status (?status=), so firing rows aren't found by
+    // scanning past every resolved one.
+    index("occurrences_status_last_event").on(
+      table.status,
+      table.lastEventAt.desc(),
+      table.id.desc(),
+    ),
     check(
       "occurrences_end_matches_status",
       sql`(${table.status} = 'firing') = (${table.endsAt} is null)`,

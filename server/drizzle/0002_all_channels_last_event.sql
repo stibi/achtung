@@ -1,0 +1,2 @@
+CREATE INDEX "occurrences_last_event" ON "occurrences" USING btree ("last_event_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "occurrences_status_last_event" ON "occurrences" USING btree ("status","last_event_at" DESC NULLS LAST,"id" DESC NULLS LAST);

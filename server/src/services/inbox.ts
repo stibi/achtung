@@ -31,13 +31,14 @@ export interface ChannelOverview {
   readonly lastEventAt: Date | null;
 }
 
-export type OccurrencePage =
-  | {
-      readonly found: true;
-      readonly occurrences: readonly Occurrence[];
-      /** Where the next page starts; null when this is the last page. */
-      readonly next: ListPosition | null;
-    }
+export interface OccurrencePage {
+  readonly occurrences: readonly Occurrence[];
+  /** Where the next page starts; null when this is the last page. */
+  readonly next: ListPosition | null;
+}
+
+export type ChannelOccurrencePage =
+  | ({ readonly found: true } & OccurrencePage)
   | { readonly found: false };
 
 export interface OccurrenceDetail {
@@ -58,11 +59,27 @@ export async function listChannelOccurrences(
   db: Database,
   slug: ChannelSlug,
   filter: OccurrenceFilter,
-): Promise<OccurrencePage> {
+): Promise<ChannelOccurrencePage> {
   const channelId = await findChannelId(db, slug);
   if (channelId === null) {
     return { found: false };
   }
+  return { found: true, ...(await pageOf(db, channelId, filter)) };
+}
+
+/** Every channel's occurrences in one list, in the same order as a channel's. */
+export function listAllOccurrences(
+  db: Database,
+  filter: OccurrenceFilter,
+): Promise<OccurrencePage> {
+  return pageOf(db, null, filter);
+}
+
+async function pageOf(
+  db: Database,
+  channelId: number | null,
+  filter: OccurrenceFilter,
+): Promise<OccurrencePage> {
   // One extra row tells whether another page follows, without a count query.
   const rows = await listOccurrences(db, channelId, { ...filter, limit: filter.limit + 1 });
   const page = rows.slice(0, filter.limit);
@@ -71,7 +88,7 @@ export async function listChannelOccurrences(
     rows.length > filter.limit && last !== undefined
       ? { lastEventAt: last.lastEventAt, id: last.id }
       : null;
-  return { found: true, occurrences: page, next };
+  return { occurrences: page, next };
 }
 
 export async function getOccurrence(db: Database, id: number): Promise<OccurrenceDetail | null> {

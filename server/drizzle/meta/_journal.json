@@ -15,6 +15,13 @@
       "when": 1794085855797,
       "tag": "0001_last_event_at",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794091734534,
+      "tag": "0002_all_channels_last_event",
+      "breakpoints": true
     }
   ]
 }

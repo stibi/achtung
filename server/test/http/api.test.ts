@@ -316,3 +316,24 @@ describe("GET /api/occurrences", () => {
     expect(body).toEqual({ error: expect.any(String) });
   });
 });
+
+describe("caching", () => {
+  it.each([
+    ["a list", "/api/channels"],
+    ["an error", "/api/occurrences?cursor=bm9wZQ"],
+  ])("tells clients and proxies not to store %s", async (_, url) => {
+    const { app } = await appWithDatabase();
+
+    const response = await app.inject({ method: "GET", url });
+
+    expect(response.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("leaves routes outside the client API alone", async () => {
+    const { app } = await appWithDatabase();
+
+    const response = await app.inject({ method: "GET", url: "/healthz" });
+
+    expect(response.headers["cache-control"]).toBeUndefined();
+  });
+});

@@ -90,9 +90,16 @@ function toPageBody(page: OccurrencePage) {
 }
 
 export function registerApiRoutes(app: FastifyInstance, inbox: Inbox): void {
-  const api = app.withTypeProvider<ZodTypeProvider>();
-  registerChannelRoutes(api, inbox);
-  registerOccurrenceRoutes(api, inbox);
+  // Its own plugin, so the hook covers these routes only.
+  app.register(async (scope) => {
+    // An inbox is stale the moment it is stored: no client or proxy should cache it.
+    scope.addHook("onRequest", async (_request, reply) => {
+      reply.header("cache-control", "no-store");
+    });
+    const api = scope.withTypeProvider<ZodTypeProvider>();
+    registerChannelRoutes(api, inbox);
+    registerOccurrenceRoutes(api, inbox);
+  });
 }
 
 type Api = FastifyInstance<

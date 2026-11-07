@@ -117,6 +117,13 @@ the domain model is missing a concept. Discuss it and record an ADR.
   never issued), 404 for an unknown channel or occurrence.
 - "New since last visit" is computed by the client from `lastEventAt` and its own read
   state (ADR 0002). The server keeps no per-client state.
+- Known limitation: `lastEventAt` is stamped before the ingest transaction commits, so
+  two concurrent changes can commit in the opposite order to their timestamps. A client
+  marker set between the two commits misses the earlier-stamped change. The client
+  overlaps refreshes by a minute; "new since last visit" can still miss it. Accepted for
+  now (rare at alert volume). The fix is to stamp under a lock taken at the start of
+  each ingest that changes something, or to add a change counter that is incremented
+  under that lock. A plain sequence has the same race.
 - The Zod schemas in `src/http/api-schemas.ts` validate every response and generate
   `api/openapi.yaml` (`src/http/openapi.ts` tidies it for the Swift generator). The file
   is committed; `check` fails when it is out of date, and `pnpm run api:generate`

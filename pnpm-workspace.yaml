@@ -1,4 +1,11 @@
 packages:
   - server
+# Build scripts are opt-in. The denied ones are optional native speedups (ssh2,
+# cpu-features: Docker over SSH in Testcontainers), binary checks (esbuild, used by
+# drizzle-kit) or postinstall notices; everything works without them.
 allowBuilds:
   lefthook: true
+  cpu-features: false
+  esbuild: false
+  protobufjs: false
+  ssh2: false

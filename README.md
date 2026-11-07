@@ -2,9 +2,9 @@
 
 A self-hosted alert inbox with a native macOS client.
 
-> **Status:** early development. The server skeleton and the Alertmanager payload adapter
-> exist. Ingest, storage, the client API and the macOS client don't exist yet. Open
-> questions are listed at the end.
+> **Status:** early development. The server ingests Alertmanager webhooks into Postgres.
+> The client API and the macOS client don't exist yet. Open questions are listed at the
+> end.
 
 ## The problem
 
@@ -52,7 +52,7 @@ their own instance.
 |---|---|
 | **Source** | A system that sends alerts. Alertmanager is the first one, and the design must allow others (Grafana, Uptime Kuma, GitHub, cron/backup jobs, custom scripts…). Each source has an adapter that converts its payload to the internal model. |
 | **Channel** | A named stream of alerts, usually one per app or environment (`crm-prod`, `legal-machine-dev`, …). Each channel has its own webhook endpoint. |
-| **Alert** | The normalized internal record. It has a stable identity (for Alertmanager, the `fingerprint`), a status (`firing` / `resolved`), severity, labels, annotations, timestamps, links back to the source, and the raw payload for debugging. |
+| **Alert** | The normalized internal record. It has a stable identity (for Alertmanager, the `fingerprint`), a status (`firing` / `resolved`), severity, labels, annotations, timestamps and links back to the source. |
 | **Event** | Something that happened to an alert: it started firing, it resolved, it fired again, it was acknowledged. Events make up the alert's history. |
 | **Read state** | What this client has already seen, per channel. It is stored locally in the macOS app and powers "new since last time". |
 
@@ -120,19 +120,21 @@ array of `alerts`. Each alert has `status`, `labels`, `annotations`, `startsAt`,
 
 - **Notifications when the app is closed:** APNs push needs an Apple Developer account and
   a relay. Without APNs, system notifications only arrive while the client is running.
-- **Retention:** how long resolved alerts and their history are kept.
+- **Retention:** how long resolved alerts and their history are kept, and whether to keep
+  raw payloads for debugging (not stored for now, because repeat notifications would
+  make them grow without bound).
 - **Silences:** whether to create Alertmanager silences from the client, and how,
   given that the server has no auth.
 
 ## Development
 
-Requirements: Node.js and pnpm (versions in `.tool-versions` and `package.json`). Docker
-will be needed for the Postgres integration tests, and a Mac for the client.
+Requirements: Node.js and pnpm (versions in `.tool-versions` and `package.json`), Docker
+for the tests (they run against a real Postgres), and a Mac for the client.
 
 ```bash
 pnpm install                  # dependencies and git hooks
 pnpm --dir server run check   # all quality checks and tests
-pnpm --dir server run dev     # run the server on :8080
+DATABASE_URL=postgres://… pnpm --dir server run dev   # run the server on :8080
 ```
 
 The project is developed mostly by coding agents. Their rules are in

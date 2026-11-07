@@ -17,12 +17,15 @@ Tool versions are pinned in `.tool-versions`. Use pnpm, never npm or yarn.
 
 ```bash
 pnpm install                        # also installs git hooks (lefthook)
-pnpm --dir server run check         # typecheck, lint, architecture, dead code, duplication, tests
+pnpm --dir server run check         # typecheck, lint, architecture, migrations, dead code, duplication, tests
 pnpm --dir server run fix           # auto-fix formatting and lint
 pnpm --dir server exec vitest run test/sources/alertmanager.test.ts   # a single test file
-pnpm --dir server run dev           # run the server locally (node --watch, no build step)
+pnpm --dir server run db:generate   # write a migration after changing src/db/schema.ts
+pnpm --dir server run dev           # run the server locally (needs DATABASE_URL; no build step)
 pnpm --dir server run test:mutation # mutation tests (slow; runs nightly in CI)
 ```
+
+Tests need Docker: they start a real Postgres with Testcontainers.
 
 `check` must pass before you finish. A Stop hook and the pre-commit hook enforce this. When
 a check fails, fix the cause. Never weaken a rule, raise a threshold, or add an ignore to

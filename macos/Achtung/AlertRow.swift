@@ -33,7 +33,7 @@ struct AlertRow: View {
                     Text(summary)
                         .font(.subheadline)
                         .foregroundStyle(isRead ? .tertiary : .secondary)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if !alert.isFiring {
                     StatusPill(alert: alert)

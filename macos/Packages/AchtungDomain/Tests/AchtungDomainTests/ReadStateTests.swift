@@ -119,3 +119,53 @@ import Testing
         try JSONDecoder().decode(ReadState.self, from: stored)
     }
 }
+
+@Test func everythingAtOrBeforeTheBaselineIsRead() {
+    var state = ReadState()
+    state.setBaselineIfMissing(Fixture.minutes(5))
+
+    #expect(state.isRead(Fixture.occurrence(id: 1, lastEventAt: Fixture.minutes(4))))
+    #expect(state.isRead(Fixture.occurrence(id: 2, lastEventAt: Fixture.minutes(5))))
+    // A fire, resolve or reopen after the baseline makes it unread, as before.
+    #expect(!state.isRead(Fixture.occurrence(id: 2, lastEventAt: Fixture.minutes(6))))
+}
+
+@Test func theBaselineIsSetOnce() {
+    var state = ReadState()
+    state.setBaselineIfMissing(Fixture.minutes(5))
+    state.setBaselineIfMissing(Fixture.minutes(9))
+
+    #expect(state.baseline == Fixture.minutes(5))
+}
+
+@Test func aStoredStateWithoutABaselineGetsOneOnFirstUse() throws {
+    var state = ReadState()
+    state.markRead(Fixture.occurrence(id: 7, lastEventAt: Fixture.minutes(8)))
+    var stored =
+        try JSONSerialization.jsonObject(with: JSONEncoder().encode(state)) as? [String: Any]
+    stored?.removeValue(forKey: "baseline")
+    let migrated = try JSONDecoder().decode(
+        ReadState.self, from: JSONSerialization.data(withJSONObject: try #require(stored)))
+    #expect(migrated.baseline == nil)
+
+    var updated = migrated
+    updated.setBaselineIfMissing(Fixture.minutes(5))
+
+    #expect(updated.baseline == Fixture.minutes(5))
+    #expect(updated.isRead(Fixture.occurrence(id: 7, lastEventAt: Fixture.minutes(8))))
+    #expect(updated.isRead(Fixture.occurrence(id: 1, lastEventAt: Fixture.minutes(3))))
+}
+
+@Test func firstUnreadIsTheNewestChangeNotYetRead() {
+    var state = ReadState()
+    let list = [3, 2, 1].map {
+        Fixture.occurrence(id: $0, lastEventAt: Fixture.minutes(Double($0)))
+    }
+    state.markRead(list[0])
+
+    #expect(state.firstUnread(in: list)?.id == 2)
+
+    state.markRead(list[1])
+    state.markRead(list[2])
+    #expect(state.firstUnread(in: list) == nil)
+}

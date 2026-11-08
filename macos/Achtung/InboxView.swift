@@ -2,8 +2,8 @@ import AchtungDomain
 import AppKit
 import SwiftUI
 
-/// Live and the channels in the sidebar. Live is one stream of every channel's
-/// occurrences, each with all its details; a channel is a list with a detail pane.
+/// Live and the channels in the sidebar (`InboxSidebar`). Live is one stream of every
+/// channel's occurrences, each with all its details; a channel is a list with a detail pane.
 ///
 /// There is no server push yet, so the inbox refreshes every 30 seconds and right away
 /// whenever the app becomes active.
@@ -13,7 +13,9 @@ struct InboxView: View {
     @State private var model: InboxModel
     @State private var selectedScope: OccurrenceScope? = .allChannels
     @State private var selectedID: Int?
-    @State private var collapsedInstances: Set<String> = []
+    /// A channel just opened whose first unread occurrence is still to be selected, after
+    /// its first refresh.
+    @State private var selectFirstUnreadIn: OccurrenceScope?
 
     init(baseURL: URL) {
         _model = State(initialValue: InboxModel(baseURL: baseURL))
@@ -29,7 +31,7 @@ struct InboxView: View {
 
     var body: some View {
         NavigationSplitView {
-            sidebar
+            InboxSidebar(model: model, selection: $selectedScope)
         } detail: {
             content
         }
@@ -42,8 +44,13 @@ struct InboxView: View {
                 selectedScope = .allChannels
             }
         }
+        // Opening a channel selects its first unread occurrence, newest change first, once
+        // the first refresh has brought its list up to date (a cached one may be stale).
         .onChange(of: selectedScope) {
             selectedID = nil
+            if case .channel = selectedScope {
+                selectFirstUnreadIn = selectedScope
+            }
         }
         // Also fires when a refresh brings a newer version of the open occurrence: the user
         // is looking at it, so it stays read.
@@ -55,6 +62,9 @@ struct InboxView: View {
         .task(id: selectedScope) {
             while !Task.isCancelled {
                 await model.refresh(selectedScope, visiting: NSApp.isActive)
+                if !Task.isCancelled {
+                    selectFirstUnread()
+                }
                 do {
                     try await Task.sleep(for: Self.refreshInterval)
                 } catch {
@@ -83,69 +93,12 @@ struct InboxView: View {
         }
     }
 
-    private var sidebar: some View {
-        List(selection: $selectedScope) {
-            sidebarRow(
-                "Live", systemImage: "dot.radiowaves.left.and.right",
-                firing: model.channels.reduce(0) { $0 + $1.firing },
-                hasNews: model.channels.contains { model.readState.hasNews($0) }
-            )
-            .tag(OccurrenceScope.allChannels)
-            // Each instance (the sending system, ADR 0006) with its channels underneath.
-            Section("Channels") {
-                ForEach(Instance.grouping(model.channels)) { instance in
-                    DisclosureGroup(isExpanded: expanded(instance)) {
-                        ForEach(instance.channels) { channel in
-                            sidebarRow(
-                                channel.id.slug, systemImage: "number", firing: channel.firing,
-                                hasNews: model.readState.hasNews(channel)
-                            )
-                            .tag(OccurrenceScope.channel(channel.id))
-                        }
-                    } label: {
-                        sidebarRow(
-                            instance.name, systemImage: "server.rack", firing: instance.firing,
-                            hasNews: instance.channels.contains { model.readState.hasNews($0) })
-                    }
-                }
-            }
-        }
-        .navigationSplitViewColumnWidth(min: 200, ideal: 220)
-        .safeAreaInset(edge: .bottom) {
-            if let problem = model.problem {
-                ConnectionBanner(problem: problem, lastUpdated: model.lastUpdated)
-            }
-        }
-    }
-
-    /// Instances start expanded; the user can fold any of them away.
-    private func expanded(_ instance: Instance) -> Binding<Bool> {
-        Binding(
-            get: { !collapsedInstances.contains(instance.name) },
-            set: { isExpanded in
-                if isExpanded {
-                    collapsedInstances.remove(instance.name)
-                } else {
-                    collapsedInstances.insert(instance.name)
-                }
-            })
-    }
-
-    /// Badge: what is firing. Dot: something happened since the user last looked.
-    private func sidebarRow(_ title: String, systemImage: String, firing: Int, hasNews: Bool)
-        -> some View
-    {
-        HStack {
-            Label(title, systemImage: systemImage)
-            Spacer()
-            if hasNews {
-                Circle()
-                    .fill(Color.accentColor)
-                    .frame(width: 7, height: 7)
-                    .help("Changed since you last looked")
-            }
-        }
-        .badge(firing)
+    private func selectFirstUnread() {
+        guard let scope = selectFirstUnreadIn, scope == selectedScope,
+            let list = model.lists[scope]
+        else { return }
+        selectedID = model.readState.firstUnread(in: list.occurrences)?.id
+        selectFirstUnreadIn = nil
     }
 
     @ViewBuilder private var content: some View {
@@ -163,8 +116,9 @@ struct InboxView: View {
             case .channel(let channel):
                 // HSplitView sizes its panes to their ideal height unless told to fill.
                 HSplitView {
+                    // A fixed width; summaries wrap rather than get cut off.
                     channelList(.channel(channel))
-                        .frame(minWidth: 300, idealWidth: 380, maxWidth: 480, maxHeight: .infinity)
+                        .frame(minWidth: 380, idealWidth: 380, maxWidth: 380, maxHeight: .infinity)
                     occurrenceDetail
                         .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
                 }

@@ -18,6 +18,10 @@ final class InboxModel {
     private(set) var problem: ServerError?
     private(set) var lastUpdated: Date?
 
+    /// How many occurrences of the all-channels feed a refresh loads at most to count
+    /// what's unread. Past the cap, counts cover only the newest occurrences.
+    static let unreadBacklogCap = 2000
+
     /// Where each list's next older page starts; absent once the oldest is loaded.
     private var olderCursors: [OccurrenceScope: String] = [:]
     private var loadingOlder: Set<OccurrenceScope> = []
@@ -38,17 +42,30 @@ final class InboxModel {
         olderCursors[scope] != nil
     }
 
-    /// Reloads the channels and fetches what changed in `scope` since the last refresh.
+    /// Instances and channels with their unread counts, in sidebar order. Counted from the
+    /// all-channels feed, which every refresh loads down to the read baseline.
+    var sidebar: [Instance] {
+        Instance.sidebar(
+            channels: channels, occurrences: lists[.allChannels]?.occurrences ?? [],
+            readState: readState)
+    }
+
+    /// Reloads the channels and the all-channels feed (it holds what the unread counts are
+    /// made of), and fetches what changed in a selected channel since the last refresh.
     /// `visiting` means the user has the list on screen in the active app, so whatever the
     /// refresh brings counts as seen for the sidebar dots of the channels it showed.
     func refresh(_ scope: OccurrenceScope?, visiting: Bool) async {
         do throws(ServerError) {
             channels = try await server.channels()
-            if let scope {
+            setBaselineIfMissing()
+            try await update(.allChannels)
+            // The open channel's list before the backlog, which can take many pages.
+            if case .channel = scope, let scope {
                 try await update(scope)
-                if visiting {
-                    markVisited(scope)
-                }
+            }
+            try await loadUnreadBacklog()
+            if visiting, let scope {
+                markVisited(scope)
             }
             problem = nil
             lastUpdated = .now
@@ -60,14 +77,8 @@ final class InboxModel {
     }
 
     func loadOlder(in scope: OccurrenceScope) async {
-        guard let cursor = olderCursors[scope], loadingOlder.insert(scope).inserted else {
-            return
-        }
-        defer { loadingOlder.remove(scope) }
         do throws(ServerError) {
-            let page = try await server.occurrences(in: scope, after: cursor)
-            lists[scope, default: OccurrenceList()].merge(page.occurrences)
-            olderCursors[scope] = page.nextCursor
+            try await loadOlderPage(in: scope)
         } catch {
             guard !Task.isCancelled else { return }
             problem = error
@@ -101,6 +112,41 @@ final class InboxModel {
     func markSeen() {
         guard let latest = channels.compactMap(\.lastEventAt).max() else { return }
         readState.markSeen(upTo: latest)
+        saveReadState()
+    }
+
+    /// Loads the next older page of `scope`. False when none is left or one is already
+    /// loading (Live's scrolling and the unread backlog share the feed).
+    @discardableResult
+    private func loadOlderPage(in scope: OccurrenceScope) async throws(ServerError) -> Bool {
+        guard let cursor = olderCursors[scope], loadingOlder.insert(scope).inserted else {
+            return false
+        }
+        defer { loadingOlder.remove(scope) }
+        let page = try await server.occurrences(in: scope, after: cursor)
+        lists[scope, default: OccurrenceList()].merge(page.occurrences)
+        olderCursors[scope] = page.nextCursor
+        return true
+    }
+
+    /// Pages the all-channels feed back to the read baseline: anything older is read, so
+    /// then every occurrence that can be unread is loaded and counted. Stops at the cap.
+    private func loadUnreadBacklog() async throws(ServerError) {
+        guard let baseline = readState.baseline else { return }
+        while let loaded = lists[.allChannels]?.occurrences,
+            loaded.count < Self.unreadBacklogCap,
+            let oldest = loaded.last?.lastEventAt, oldest > baseline
+        {
+            // Nothing left, or Live's scrolling is loading the next page already.
+            guard try await loadOlderPage(in: .allChannels) else { return }
+        }
+    }
+
+    /// On the first refresh with unread counts, everything up to the newest event on the
+    /// server counts as read. A server without events yet has no backlog to hide.
+    private func setBaselineIfMissing() {
+        guard readState.baseline == nil else { return }
+        readState.setBaselineIfMissing(channels.compactMap(\.lastEventAt).max() ?? .distantPast)
         saveReadState()
     }
 
@@ -149,7 +195,7 @@ final class InboxModel {
 
     private static func loadReadState(from defaults: UserDefaults, key: String) -> ReadState {
         guard let data = defaults.data(forKey: key) else { return ReadState() }
-        // A format from an older build starts over: everything shows as unread once.
+        // A format from an older build starts over; the next refresh sets a new baseline.
         return (try? JSONDecoder().decode(ReadState.self, from: data)) ?? ReadState()
     }
 }

@@ -15,11 +15,15 @@ enum Fixture {
             id: ChannelID(instance: instance, slug: slug), firing: firing, lastEventAt: lastEventAt)
     }
 
-    static func occurrence(id: Int, lastEventAt: Date) -> Occurrence {
+    static func occurrence(
+        id: Int, lastEventAt: Date,
+        channel: ChannelID = ChannelID(instance: "onprem", slug: "infra"),
+        severity: Severity = .critical
+    ) -> Occurrence {
         Occurrence(
-            id: id, channel: ChannelID(instance: "onprem", slug: "infra"), source: "alertmanager",
+            id: id, channel: channel, source: "alertmanager",
             alert: IncomingAlert(
-                sourceKey: "key-\(id)", severity: .critical, title: "Alert \(id)", summary: nil,
+                sourceKey: "key-\(id)", severity: severity, title: "Alert \(id)", summary: nil,
                 labels: [:], annotations: [:], startsAt: start, links: [], state: .firing),
             firstReceivedAt: start, lastReceivedAt: lastEventAt, lastEventAt: lastEventAt,
             notificationCount: 1)

@@ -165,29 +165,42 @@ the domain model is missing a concept. Discuss it and record an ADR.
   so nothing generated is committed and the spec has one copy. The generated code is
   `internal`; `Mapping.swift` turns it into AchtungDomain types, and failures into
   `ServerError`. The app never sees a generated type. Requests bypass the HTTP cache.
-- `Achtung/`: the app target, SwiftUI. The sidebar lists Live, then each instance with
-  its channels underneath (badge: firing count, summed per instance; dot: something
-  happened since the user last looked). Live (`GET /api/occurrences`) is one stream of
+- `Achtung/`: the app target, SwiftUI. The sidebar (`InboxSidebar`) lists Live, then
+  each instance with its channels underneath. Each row has a trailing badge with its
+  unread occurrences and, next to the name in white on red, its unread critical ones
+  (hidden at 0); an instance shows the sums of its channels, Live the sums of all. A row
+  with nothing unread is greyed out, and a dot means something happened since the user
+  last looked. Instances with anything unread come first, then the rest, each group by
+  name; channels inside an instance follow the same rule (`Instance.sidebar` in
+  AchtungDomain holds these rules). Live (`GET /api/occurrences`) is one stream of
   every channel's occurrences, each as a card with all its details and its instance and
   channel; clicking a card marks it read, and visiting Live counts as visiting every
   channel whose newest change it has loaded. A channel
   (`GET /api/instances/{instance}/channels/{slug}/occurrences`; the deprecated route by
-  name alone is not used) is a list, with a detail pane that loads the occurrence's
-  events and the alert's other occurrences. If the open channel disappears, for example
+  name alone is not used) is a list in a fixed-width column (summaries wrap), with a
+  detail pane that loads the occurrence's events and the alert's other occurrences.
+  Opening a channel selects its first unread occurrence, if any. If the open channel disappears, for example
   because the operator moved it to another instance, the view switches to Live. Both are newest change first and paged by `nextCursor`; `OccurrenceScope`
   (all channels or one) selects the route. `InboxModel` is the only code that talks to the server; the
   views only read it. `SampleData` exists for SwiftUI previews.
 - No push yet: the app refreshes every 30 seconds and whenever it becomes active. A
-  refresh reloads the channels and asks the selected list for everything changed
-  since a minute before its newest known `lastEventAt`. The server stamps `lastEventAt`
+  refresh reloads the channels and the all-channels feed, plus the selected channel's
+  list, asking each for everything changed since a minute before its newest known
+  `lastEventAt`. The unread counts are made from the feed: `GET /api/channels` has no
+  unread information (read state is the client's), so every refresh also pages the feed
+  back to the read baseline, at most 2000 occurrences; past that, counts cover only the
+  newest ones. The server stamps `lastEventAt`
   before its transaction commits, so a change can appear after a later-stamped one; the
   overlap catches it, and merging by id makes it harmless.
 - Read state (ADR 0002) is per server and stored in `UserDefaults`. It holds server
   times only, so the Mac's clock doesn't matter. Channel visits are keyed by
   `ChannelID`; visits stored before instances existed, keyed by name alone, are dropped
-  on load (read marks and the last-visit marker are kept). An occurrence is read when the user has
-  opened it at its current `lastEventAt`, so a fire, resolve or reopen makes it unread
-  again and a repeat notification doesn't. "New since last visit" means a `lastEventAt`
+  on load (read marks and the last-visit marker are kept). An occurrence is read when the
+  user has opened it at its current `lastEventAt`, or when its `lastEventAt` is at or
+  before the baseline; a fire, resolve or reopen after that makes it unread again, and a
+  repeat notification doesn't. The baseline is set once, on the first refresh after
+  unread counts arrived (also for a migrated stored state), to the newest `lastEventAt`
+  on the server, so an existing backlog doesn't all show as unread. "New since last visit" means a `lastEventAt`
   after the newest event the client had loaded when the app last went to the
   background.
 - The server address is a setting (Settings window). The app allows plain HTTP (ATS

@@ -1,9 +1,10 @@
 import Foundation
 
 /// What this client has seen. It lives only on this Mac (ADR 0002) and is keyed on the
-/// server's `lastEventAt`: a fire, resolve or reopen makes an occurrence unread and new
-/// again, a repeat notification doesn't. Every time stored here is a server time, so the
-/// Mac's clock never matters.
+/// server's `lastEventAt`: a fire, resolve, reopen or resend (the server's hourly record of
+/// a repeat for an alert that still fires) makes an occurrence unread again; other repeat
+/// notifications don't. Every time stored here is a server time, so the Mac's clock never
+/// matters.
 public struct ReadState: Sendable, Codable, Equatable {
     /// For each occurrence the user opened, its `lastEventAt` at that moment.
     private var readUpTo: [Int: Date] = [:]
@@ -52,7 +53,8 @@ public struct ReadState: Sendable, Codable, Equatable {
     }
 
     /// Read when the user opened it at its current `lastEventAt`, or when it last changed
-    /// at or before the baseline. A fire, resolve or reopen after either makes it unread.
+    /// at or before the baseline. A fire, resolve, reopen or resend after either makes it
+    /// unread.
     public func isRead(_ occurrence: Occurrence) -> Bool {
         if let baseline, occurrence.lastEventAt <= baseline {
             return true

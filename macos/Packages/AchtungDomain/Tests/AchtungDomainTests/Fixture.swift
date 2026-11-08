@@ -18,7 +18,7 @@ enum Fixture {
     static func occurrence(
         id: Int, lastEventAt: Date,
         channel: ChannelID = ChannelID(instance: "onprem", slug: "infra"),
-        severity: Severity = .critical
+        severity: Severity = .critical, lastEventKind: OccurrenceEvent.Kind = .fired
     ) -> Occurrence {
         Occurrence(
             id: id, channel: channel, source: "alertmanager",
@@ -26,6 +26,6 @@ enum Fixture {
                 sourceKey: "key-\(id)", severity: severity, title: "Alert \(id)", summary: nil,
                 labels: [:], annotations: [:], startsAt: start, links: [], state: .firing),
             firstReceivedAt: start, lastReceivedAt: lastEventAt, lastEventAt: lastEventAt,
-            notificationCount: 1)
+            lastEventKind: lastEventKind, notificationCount: 1)
     }
 }

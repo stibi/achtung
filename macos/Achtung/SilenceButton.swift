@@ -30,7 +30,7 @@ struct SilenceButton: View {
                 .foregroundStyle(.secondary)
                 .background(.quaternary, in: .rect(cornerRadius: 6))
                 .help(
-                    "Silenced in Alertmanager until \(silenceEnd(until)). "
+                    "Silenced in Alertmanager until \(timeOrDate(until)). "
                         + "Expire it in Alertmanager.")
         } else {
             HStack(spacing: 8) {
@@ -97,18 +97,11 @@ struct SilencedPill: View {
     let until: Date
 
     var body: some View {
-        Label("Silenced until \(silenceEnd(until))", systemImage: "bell.slash.fill")
+        Label("Silenced until \(timeOrDate(until))", systemImage: "bell.slash.fill")
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
             .foregroundStyle(.secondary)
             .background(.quaternary, in: Capsule())
     }
-}
-
-/// The time alone when the silence ends today, else the date too.
-func silenceEnd(_ date: Date) -> String {
-    Calendar.current.isDateInToday(date)
-        ? date.formatted(date: .omitted, time: .shortened)
-        : date.formatted(date: .abbreviated, time: .shortened)
 }

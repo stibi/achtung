@@ -50,6 +50,51 @@ struct StatusPill: View {
     }
 }
 
+/// "Resent 14:05" in the alert header: the source repeated this still-firing alert, which
+/// made it unread again. The accent colour, like the unread dot it replaces.
+struct ResentPill: View {
+    let date: Date
+
+    var body: some View {
+        Label("Resent \(timeOrDate(date))", systemImage: "arrow.clockwise")
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .foregroundStyle(Color.accentColor)
+            .background(Color.accentColor.opacity(0.15), in: Capsule())
+            .help(Self.explanation)
+    }
+
+    static let explanation =
+        "Alertmanager sent this alert again while it still fires. It isn't new: it counts as "
+        + "unread again because it's still not fixed."
+}
+
+/// Where a row or card shows that it's unread: a dot for something new, a circular arrow
+/// for a resend of an alert that was already there. Nothing once read.
+struct UnreadMark: View {
+    let occurrence: Occurrence
+    let isRead: Bool
+
+    var body: some View {
+        if isRead {
+            Color.clear.frame(width: 8, height: 8)
+        } else if occurrence.isResent {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 8, height: 8)
+                .help(ResentPill.explanation)
+                .accessibilityLabel("Unread, resent")
+        } else {
+            Circle()
+                .fill(Color.accentColor)
+                .frame(width: 8, height: 8)
+                .accessibilityLabel("Unread")
+        }
+    }
+}
+
 /// Marks where the user left off: everything above it arrived since then.
 struct NewDivider: View {
     let seenUntil: Date
@@ -90,6 +135,13 @@ struct AllClearView: View {
     }
 }
 
+/// The time alone when `date` is today, else the date too.
+func timeOrDate(_ date: Date) -> String {
+    Calendar.current.isDateInToday(date)
+        ? date.formatted(date: .omitted, time: .shortened)
+        : date.formatted(date: .abbreviated, time: .shortened)
+}
+
 /// A relative time ("5 minutes ago") that stays current while the window is open.
 struct RelativeTime: View {
     let date: Date
@@ -98,5 +150,20 @@ struct RelativeTime: View {
         TimelineView(.periodic(from: .now, by: 60)) { _ in
             Text(date.formatted(.relative(presentation: .named, unitsStyle: .wide)))
         }
+    }
+}
+
+extension View {
+    /// A card set into a pane, like the alert metadata panel and the Live timeline: rounded,
+    /// on a material, with a hairline border and a very soft shadow. Content is clipped to
+    /// the card.
+    func paneCard() -> some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        return
+            self
+            .background(.regularMaterial, in: shape)
+            .clipShape(shape)
+            .overlay { shape.strokeBorder(.separator, lineWidth: 0.5) }
+            .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
     }
 }

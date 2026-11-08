@@ -77,6 +77,31 @@ public struct AchtungServer: Sendable {
         }
     }
 
+    /// Every occurrence that is firing now, in every channel, paging to the end. Unlike
+    /// the feed, this includes alerts that started long ago and still fire, whose last
+    /// event is old.
+    public func firingOccurrences() async throws(ServerError) -> [Occurrence] {
+        var firing: [Occurrence] = []
+        var cursor: String?
+        repeat {
+            let page = try await call {
+                switch try await client.listOccurrences(
+                    query: .init(status: .firing, cursor: cursor))
+                {
+                case .ok(let response):
+                    return try OccurrencePage(response.body.json)
+                case .badRequest(let response):
+                    throw ServerError.rejected(try response.body.json.error)
+                case .undocumented(let status, _):
+                    throw ServerError.invalidResponse("HTTP \(status)")
+                }
+            }
+            firing += page.occurrences
+            cursor = page.nextCursor
+        } while cursor != nil
+        return firing
+    }
+
     /// Every occurrence on the pages of `scope` down to `since`: all that changed at or after
     /// it, following `nextCursor` until a page reaches older changes, plus the older ones on
     /// that last page. Those are returned too, because state the server derives without

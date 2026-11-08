@@ -31,6 +31,7 @@ extension Components.Schemas.Occurrence {
             firstReceivedAt: firstReceivedAt,
             lastReceivedAt: lastReceivedAt,
             lastEventAt: lastEventAt,
+            lastEventKind: lastEventKind.domain,
             notificationCount: notificationCount,
             silencedUntil: silencedUntil)
     }
@@ -91,6 +92,18 @@ extension Components.Schemas.Event.KindPayload {
         case .fired: .fired
         case .resolved: .resolved
         case .reopened: .reopened
+        case .resent: .resent
+        }
+    }
+}
+
+extension Components.Schemas.Occurrence.LastEventKindPayload {
+    var domain: OccurrenceEvent.Kind {
+        switch self {
+        case .fired: .fired
+        case .resolved: .resolved
+        case .reopened: .reopened
+        case .resent: .resent
         }
     }
 }

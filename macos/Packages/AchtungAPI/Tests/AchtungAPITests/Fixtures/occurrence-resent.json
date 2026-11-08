@@ -1,0 +1,82 @@
+{
+  "occurrence": {
+    "id": 9,
+    "instance": "onprem",
+    "channel": "legal-machine-prod",
+    "source": "alertmanager",
+    "sourceKey": "c0ffee0000000004",
+    "status": "firing",
+    "severity": "critical",
+    "title": "HighErrorRate",
+    "summary": "5xx rate above 5% for 10 minutes.",
+    "labels": {
+      "severity": "critical",
+      "alertname": "HighErrorRate",
+      "namespace": "example-prod"
+    },
+    "annotations": {
+      "summary": "5xx rate above 5% for 10 minutes."
+    },
+    "links": [
+      {
+        "kind": "source",
+        "url": "https://prometheus.example.com/graph"
+      }
+    ],
+    "startsAt": "2026-11-07T19:00:00.000Z",
+    "endsAt": null,
+    "firstReceivedAt": "2026-11-07T21:14:19.643Z",
+    "lastReceivedAt": "2026-11-07T22:14:30.000Z",
+    "lastEventAt": "2026-11-07T22:14:30.000Z",
+    "lastEventKind": "resent",
+    "notificationCount": 13,
+    "silencedUntil": null
+  },
+  "events": [
+    {
+      "id": 9,
+      "kind": "fired",
+      "recordedAt": "2026-11-07T21:14:19.643Z"
+    },
+    {
+      "id": 21,
+      "kind": "resent",
+      "recordedAt": "2026-11-07T22:14:30.000Z"
+    }
+  ],
+  "otherOccurrences": [
+    {
+      "id": 7,
+      "instance": "onprem",
+      "channel": "legal-machine-prod",
+      "source": "alertmanager",
+      "sourceKey": "c0ffee0000000004",
+      "status": "resolved",
+      "severity": "critical",
+      "title": "HighErrorRate",
+      "summary": "5xx rate above 5% for 10 minutes.",
+      "labels": {
+        "severity": "critical",
+        "alertname": "HighErrorRate",
+        "namespace": "example-prod"
+      },
+      "annotations": {
+        "summary": "5xx rate above 5% for 10 minutes."
+      },
+      "links": [
+        {
+          "kind": "source",
+          "url": "https://prometheus.example.com/graph"
+        }
+      ],
+      "startsAt": "2026-11-07T18:00:00.000Z",
+      "endsAt": "2026-11-07T18:20:00.000Z",
+      "firstReceivedAt": "2026-11-07T21:14:19.586Z",
+      "lastReceivedAt": "2026-11-07T21:14:19.610Z",
+      "lastEventAt": "2026-11-07T21:14:19.610Z",
+      "lastEventKind": "resolved",
+      "notificationCount": 2,
+      "silencedUntil": null
+    }
+  ]
+}

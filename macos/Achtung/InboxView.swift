@@ -134,7 +134,7 @@ struct InboxView: View {
     @ViewBuilder private var liveStream: some View {
         if let list = model.lists[.allChannels] {
             LiveView(
-                occurrences: list.occurrences, readState: model.readState,
+                occurrences: list.occurrences, firing: model.firing, readState: model.readState,
                 hasOlder: model.hasOlder(in: .allChannels), lastUpdated: model.lastUpdated,
                 loadOlder: { await model.loadOlder(in: .allChannels) },
                 markRead: { model.markRead($0) },

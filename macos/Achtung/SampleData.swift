@@ -32,6 +32,6 @@ enum SampleData {
                 labels: ["alertname": title, "instance": "node-\(id)"],
                 annotations: ["summary": summary], startsAt: eventAt, links: [], state: state),
             firstReceivedAt: eventAt, lastReceivedAt: eventAt, lastEventAt: eventAt,
-            notificationCount: 1)
+            lastEventKind: state == .firing ? .fired : .resolved, notificationCount: 1)
     }
 }

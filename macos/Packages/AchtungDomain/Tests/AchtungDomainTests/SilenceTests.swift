@@ -16,7 +16,8 @@ func silenceDurations(duration: SilenceDuration, seconds: Int) {
         id: 1, channel: ChannelID(instance: "onprem", slug: "infra"), source: "alertmanager",
         alert: Fixture.occurrence(id: 1, lastEventAt: Fixture.minutes(0)).alert,
         firstReceivedAt: Fixture.start, lastReceivedAt: Fixture.start,
-        lastEventAt: Fixture.start, notificationCount: 1, silencedUntil: Fixture.minutes(60))
+        lastEventAt: Fixture.start, lastEventKind: .fired, notificationCount: 1,
+        silencedUntil: Fixture.minutes(60))
 
     #expect(silenced.isSilenced(at: Fixture.minutes(59)))
     #expect(!silenced.isSilenced(at: Fixture.minutes(60)))

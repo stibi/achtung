@@ -36,8 +36,11 @@ public struct Occurrence: Sendable, Hashable, Identifiable {
     public let alert: IncomingAlert
     public let firstReceivedAt: Date
     public let lastReceivedAt: Date
-    /// When it last fired, resolved or reopened. Repeat notifications don't move it.
+    /// When it last fired, resolved, reopened or was resent. A repeat notification moves it
+    /// only as a resend: when the alert still fires and its last event is an hour old.
     public let lastEventAt: Date
+    /// What happened at `lastEventAt`.
+    public let lastEventKind: OccurrenceEvent.Kind
     public let notificationCount: Int
     /// When the Alertmanager silence muting this alert ends; nil when none does, or when
     /// the server couldn't ask its Alertmanager (ADR 0008). Nil means not silenced.
@@ -51,6 +54,7 @@ public struct Occurrence: Sendable, Hashable, Identifiable {
         firstReceivedAt: Date,
         lastReceivedAt: Date,
         lastEventAt: Date,
+        lastEventKind: OccurrenceEvent.Kind,
         notificationCount: Int,
         silencedUntil: Date? = nil
     ) {
@@ -61,9 +65,14 @@ public struct Occurrence: Sendable, Hashable, Identifiable {
         self.firstReceivedAt = firstReceivedAt
         self.lastReceivedAt = lastReceivedAt
         self.lastEventAt = lastEventAt
+        self.lastEventKind = lastEventKind
         self.notificationCount = notificationCount
         self.silencedUntil = silencedUntil
     }
+
+    /// Its last event is a resend: unread again because the source repeated it, not because
+    /// it's new.
+    public var isResent: Bool { lastEventKind == .resent }
 
     /// Muted by an Alertmanager silence at `now`. A silence that ended since the last
     /// refresh no longer counts.
@@ -79,6 +88,9 @@ public struct OccurrenceEvent: Sendable, Hashable, Identifiable {
         case fired
         case resolved
         case reopened
+        /// The source repeated an alert that still fires, an hour or more after its last
+        /// event. It makes the occurrence unread again.
+        case resent
     }
 
     public let id: Int

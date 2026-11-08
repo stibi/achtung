@@ -10,6 +10,9 @@ final class InboxModel {
     let baseURL: URL
     private(set) var channels: [Channel] = []
     private(set) var lists: [OccurrenceScope: OccurrenceList] = [:]
+    /// Everything firing now, in every channel: the Live timeline's open bars include
+    /// alerts that started before its 24 hours, which the feed doesn't reach.
+    private(set) var firing: [Occurrence] = []
     private(set) var detail: OccurrenceDetail?
     /// Why the selected occurrence's history didn't load; the next refresh retries.
     private(set) var detailProblem: ServerError?
@@ -18,8 +21,8 @@ final class InboxModel {
     private(set) var problem: ServerError?
     private(set) var lastUpdated: Date?
 
-    /// How many occurrences of the all-channels feed a refresh loads at most to count
-    /// what's unread. Past the cap, counts cover only the newest occurrences.
+    /// How many occurrences of the all-channels feed a refresh loads at most, for the unread
+    /// counts and the Live timeline. Past the cap, both cover only the newest occurrences.
     static let unreadBacklogCap = 2000
 
     /// Where each list's next older page starts; absent once the oldest is loaded.
@@ -63,10 +66,12 @@ final class InboxModel {
             if case .channel = scope, let scope {
                 try await update(scope)
             }
-            try await loadUnreadBacklog()
+            try await loadFeedBacklog()
             if visiting, let scope {
                 markVisited(scope)
             }
+            // Only the timeline uses it, so a failure here doesn't stop the visit counting.
+            firing = try await server.firingOccurrences()
             problem = nil
             lastUpdated = .now
         } catch {
@@ -145,14 +150,17 @@ final class InboxModel {
         return true
     }
 
-    /// Pages the all-channels feed back to the read baseline: anything older is read, so
-    /// then every occurrence that can be unread is loaded and counted. Stops at the cap.
-    /// A complete load moves the baseline forward (`ReadState.advanceBaseline`).
-    private func loadUnreadBacklog() async throws(ServerError) {
-        guard let baseline = readState.baseline else { return }
+    /// Pages the all-channels feed back far enough for the unread counts and the Live
+    /// timeline: to the read baseline (anything older is read, so then every occurrence
+    /// that can be unread is loaded and counted) and to the start of the timeline's 24
+    /// hours, whichever is further back. Stops at the cap. A load that reaches the baseline
+    /// moves it forward (`ReadState.advanceBaseline`).
+    private func loadFeedBacklog() async throws(ServerError) {
+        let timelineStart = TimelineWindow(endingAt: .now).start
+        let target = min(readState.baseline ?? timelineStart, timelineStart)
         while let loaded = lists[.allChannels]?.occurrences,
             loaded.count < Self.unreadBacklogCap,
-            let oldest = loaded.last?.lastEventAt, oldest > baseline
+            let oldest = loaded.last?.lastEventAt, oldest > target
         {
             // Nothing left, or Live's scrolling is loading the next page already.
             guard try await loadOlderPage(in: .allChannels) else { break }

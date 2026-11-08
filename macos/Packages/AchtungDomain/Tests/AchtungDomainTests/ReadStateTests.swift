@@ -285,3 +285,15 @@ private func baselineAt(_ minutes: Double) -> ReadState {
     #expect(try #require(state.baseline) < Fixture.minutes(4.5))
     #expect(probes.map { state.isRead($0) } == before)
 }
+
+@Test func aResendMakesAReadOccurrenceUnreadAgain() {
+    var state = ReadState()
+    state.markRead(Fixture.occurrence(id: 1, lastEventAt: Fixture.minutes(0)))
+
+    let resent = Fixture.occurrence(id: 1, lastEventAt: Fixture.minutes(60), lastEventKind: .resent)
+
+    #expect(!state.isRead(resent))
+    #expect(resent.isResent)
+    state.markRead(resent)
+    #expect(state.isRead(resent))
+}

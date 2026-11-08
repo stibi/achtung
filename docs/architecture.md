@@ -200,7 +200,16 @@ The identity below is a contract that features build on
   AchtungDomain holds these rules). Live (`GET /api/occurrences`) is one stream of
   every channel's occurrences, each as a card with all its details and its instance and
   channel; clicking a card marks it read, and visiting Live counts as visiting every
-  channel whose newest change it has loaded. A channel
+  channel whose newest change it has loaded. Beside the stream, a card shows the last 24
+  hours as a vertical timeline, now at the top under a "now" line that moves with the
+  clock (`LiveTimeline`; positions, bars and clustering are `Timeline` in AchtungDomain):
+  a marker where each alert fired (filled) and resolved (hollow), in its severity's
+  colour, unread ones ringed and read ones dimmed, and per severity one bar for when
+  anything of it was firing, open to now while something still fires. Markers closer than
+  18 points become one, drawn at its newest marker, with the number of alerts in it. Markers are buttons with
+  an accessibility label; hovering shows the details, and clicking scrolls the stream to
+  the card (a cluster's newest) and highlights it. Below 730 points of width the timeline
+  goes away before the cards would get narrower. A channel
   (`GET /api/instances/{instance}/channels/{slug}/occurrences`; the deprecated route by
   name alone is not used) is a list in a fixed-width column (summaries wrap), with a
   detail pane: what the source reported in the main column, and the occurrence's
@@ -234,8 +243,10 @@ The identity below is a contract that features build on
   list, asking each for everything changed since a minute before its newest known
   `lastEventAt`. The unread counts are made from the feed: `GET /api/channels` has no
   unread information (read state is the client's), so every refresh also pages the feed
-  back to the read baseline, at most 2000 occurrences; past that, counts cover only the
-  newest ones. The server stamps `lastEventAt`
+  back to the read baseline, and to 24 hours ago for the Live timeline, whichever is
+  further, at most 2000 occurrences; past that, counts and timeline cover only the newest
+  ones. It also loads every firing occurrence (`GET /api/occurrences?status=firing`), so
+  the timeline shows an alert that started before the 24 hours and still fires. The server stamps `lastEventAt`
   before its transaction commits, so a change can appear after a later-stamped one; the
   overlap catches it, and merging by id makes it harmless.
 - Read state (ADR 0002) is per server and stored in `UserDefaults`. It holds server
@@ -243,8 +254,13 @@ The identity below is a contract that features build on
   `ChannelID`; visits stored before instances existed, keyed by name alone, are dropped
   on load (read marks and the last-visit marker are kept). An occurrence is read when the
   user has opened it at its current `lastEventAt`, or when its `lastEventAt` is at or
-  before the baseline; a fire, resolve or reopen after that makes it unread again, and a
-  repeat notification doesn't. The baseline is first set on the first refresh after
+  before the baseline; a fire, resolve, reopen or resend after that makes it unread
+  again. A resend (`lastEventKind` `resent`) is a repeat notification for an alert that
+  still fires, recorded by the server at most once an hour; other repeats don't make it
+  unread. A resent occurrence counts as unread in every badge, but shows a circular arrow
+  instead of the unread dot (`UnreadMark`), a "Resent 14:05" pill in its header
+  (`ResentPill`), "Resent" in its history, and a small circular arrow on the Live
+  timeline at its last resend. The baseline is first set on the first refresh after
   unread counts arrived (also for a migrated stored state), to the newest `lastEventAt`
   on the server, so an existing backlog doesn't all show as unread. After each refresh
   whose feed reaches back to it (not stopped by the cap or by Live's own paging), it

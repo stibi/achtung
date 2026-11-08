@@ -68,6 +68,7 @@ private func date(_ text: String) throws -> Date {
     #expect(firing.alert.startsAt == (try date("2026-11-07T18:00:00.000Z")))
     #expect(firing.alert.state == .firing)
     #expect(firing.lastEventAt == (try date("2026-11-07T21:14:19.526Z")))
+    #expect(page.occurrences.map(\.lastEventKind) == [.fired, .resolved])
     #expect(firing.notificationCount == 1)
     let resolved = page.occurrences[1]
     #expect(resolved.alert.state == .resolved(endsAt: try date("2026-10-13T08:42:00.000Z")))
@@ -124,10 +125,22 @@ private func date(_ text: String) throws -> Date {
         .occurrence(id: 12)
 
     #expect(detail.events.map(\.kind) == [.fired, .resolved, .reopened])
+    #expect(detail.occurrence.lastEventKind == .reopened)
     #expect(detail.occurrence.alert.links.map(\.kind) == [.runbook, .dashboard])
     #expect(detail.occurrence.alert.severity == .unknown)
     #expect(detail.occurrence.alert.summary == nil)
     #expect(detail.occurrence.alert.labels.isEmpty)
+}
+
+@Test func mapsAResentOccurrenceAndItsResentEvent() async throws {
+    let detail = try await server(["/api/occurrences/9": ok("occurrence-resent")])
+        .occurrence(id: 9)
+
+    #expect(detail.occurrence.lastEventKind == .resent)
+    #expect(detail.occurrence.isResent)
+    #expect(detail.occurrence.lastEventAt == (try date("2026-11-07T22:14:30.000Z")))
+    #expect(detail.events.map(\.kind) == [.fired, .resent])
+    #expect(detail.otherOccurrences[0].lastEventKind == .resolved)
 }
 
 @Test func reportsNotFoundAndRejectedRequestsWithTheServersMessage() async throws {
@@ -251,4 +264,20 @@ private let feed2 = "/api/occurrences?cursor=WyIyMDI2LTExLTA3VDIxOjE0OjE5LjYxMFo
     await #expect(throws: ServerError.notFound("Occurrence not found")) {
         try await api.silence(occurrenceID: 99999, for: .oneHour)
     }
+}
+
+@Test func loadsEveryFiringOccurrenceAcrossChannelsAndPages() async throws {
+    // Only these paths are routed: a request without status=firing would fail.
+    let api = server([
+        "/api/occurrences?status=firing": ok("feed-page-1"),
+        "/api/occurrences?status=firing&cursor=WyIyMDI2LTExLTA3VDIxOjE0OjE5LjYxMFoiLDdd":
+            ok("feed-page-2"),
+        "/api/occurrences?status=firing&cursor=WyIyMDI2LTExLTA3VDIxOjE0OjE5LjUyNloiLDRd":
+            ok("crm-prod-page-2"),
+    ])
+
+    let firing = try await api.firingOccurrences()
+
+    // Three pages, the last without a cursor.
+    #expect(firing.map(\.id) == [10, 9, 7, 6, 5, 4, 2])
 }

@@ -1,9 +1,10 @@
 import AchtungDomain
 import SwiftUI
 
-/// One occurrence in a list. Unread ones carry a dot and a bold title; read ones are
-/// grayed out. The severity icon keeps its color while the alert fires, read or not. The
-/// time is the last event (fired, resolved, reopened), which is what the list is sorted by.
+/// One occurrence in a list. Unread ones carry a dot (a circular arrow when resent) and a
+/// bold title; read ones are grayed out. The severity icon keeps its color while the alert
+/// fires, read or not. The time is the last event (fired, resolved, reopened, resent),
+/// which is what the list is sorted by.
 struct AlertRow: View {
     let occurrence: Occurrence
     let isRead: Bool
@@ -12,9 +13,7 @@ struct AlertRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            Circle()
-                .fill(isRead ? Color.clear : Color.accentColor)
-                .frame(width: 8, height: 8)
+            UnreadMark(occurrence: occurrence, isRead: isRead)
                 .padding(.top, 7)
             Image(systemName: alert.severity.symbolName)
                 .font(.title2)

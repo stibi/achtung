@@ -27,6 +27,7 @@
   "firstReceivedAt": "2026-11-07T21:14:19.526Z",
   "lastReceivedAt": "2026-11-07T21:14:19.526Z",
   "lastEventAt": "2026-11-07T21:14:19.526Z",
+  "lastEventKind": "fired",
   "notificationCount": 1,
   "silencedUntil": "2026-11-08T23:00:00.000Z"
 }

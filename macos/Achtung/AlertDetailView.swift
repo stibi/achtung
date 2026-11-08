@@ -31,7 +31,7 @@ struct AlertDetailView: View {
                         panel
                     }
                     .frame(width: AlertMetadataPanel.width)
-                    .metadataCard()
+                    .paneCard()
                     .padding([.top, .trailing, .bottom], Self.cardMargin)
                 }
             } else {
@@ -41,7 +41,7 @@ struct AlertDetailView: View {
                             .padding(24)
                         panel
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .metadataCard()
+                            .paneCard()
                             .padding(Self.cardMargin)
                     }
                 }
@@ -52,20 +52,6 @@ struct AlertDetailView: View {
     private var panel: some View {
         AlertMetadataPanel(occurrence: occurrence, detail: detail, detailProblem: detailProblem)
             .padding(20)
-    }
-}
-
-extension View {
-    /// The metadata panel as a card set into the pane: rounded, on a material, with a
-    /// hairline border and a very soft shadow. Content is clipped to the card.
-    fileprivate func metadataCard() -> some View {
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
-        return
-            self
-            .background(.regularMaterial, in: shape)
-            .clipShape(shape)
-            .overlay { shape.strokeBorder(.separator, lineWidth: 0.5) }
-            .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
     }
 }
 
@@ -82,7 +68,8 @@ struct AlertDetails: View {
             SilenceState(occurrence: occurrence) { isSilenced in
                 VStack(alignment: .leading, spacing: 24) {
                     AlertHeader(
-                        alert: alert, silencedUntil: isSilenced ? occurrence.silencedUntil : nil)
+                        alert: alert, silencedUntil: isSilenced ? occurrence.silencedUntil : nil,
+                        resentAt: occurrence.isResent ? occurrence.lastEventAt : nil)
                     HStack(spacing: 8) {
                         if !alert.links.isEmpty {
                             LinkButtons(links: alert.links)
@@ -106,6 +93,7 @@ struct AlertDetails: View {
 private struct AlertHeader: View {
     let alert: IncomingAlert
     let silencedUntil: Date?
+    let resentAt: Date?
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -119,6 +107,9 @@ private struct AlertHeader: View {
                     .font(.title.bold())
                 HStack(spacing: 8) {
                     StatusPill(alert: alert)
+                    if let resentAt {
+                        ResentPill(date: resentAt)
+                    }
                     if let silencedUntil {
                         SilencedPill(until: silencedUntil)
                     }

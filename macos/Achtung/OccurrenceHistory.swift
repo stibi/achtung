@@ -92,6 +92,7 @@ extension OccurrenceEvent.Kind {
         case .fired: "Fired"
         case .resolved: "Resolved"
         case .reopened: "Reopened"
+        case .resent: "Resent"
         }
     }
 
@@ -100,6 +101,7 @@ extension OccurrenceEvent.Kind {
         case .fired: "flame.fill"
         case .resolved: "checkmark.circle.fill"
         case .reopened: "arrow.uturn.backward.circle.fill"
+        case .resent: "arrow.clockwise.circle.fill"
         }
     }
 
@@ -108,6 +110,7 @@ extension OccurrenceEvent.Kind {
         // Red stays reserved for critical severity.
         case .fired, .reopened: .primary
         case .resolved: .green
+        case .resent: .secondary
         }
     }
 }

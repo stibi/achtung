@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Database } from "../../src/db/client.ts";
 import { channels, events, occurrences } from "../../src/db/schema.ts";
 import type { IncomingAlert } from "../../src/domain/alert.ts";
-import { type ChannelSlug, parseChannelSlug } from "../../src/domain/channel.ts";
+import { type ChannelSlug, parseChannelSlug, parseInstanceName } from "../../src/domain/channel.ts";
 import { ingestNotification } from "../../src/services/ingest.ts";
 import { alertmanagerSource } from "../../src/sources/alertmanager/index.ts";
 import { createTestDatabase, openConnections } from "../database.ts";
@@ -17,6 +17,8 @@ function alertsFrom(fixture: "firing" | "resolved"): readonly IncomingAlert[] {
   return result.alerts;
 }
 
+const lab = parseInstanceName("lab")!;
+
 function slug(value: string): ChannelSlug {
   return parseChannelSlug(value)!;
 }
@@ -24,11 +26,11 @@ function slug(value: string): ChannelSlug {
 function deliver(
   db: Database,
   alerts: readonly IncomingAlert[],
-  { channel = "example-prod", at = "2026-10-13T08:30:00Z" } = {},
+  { channel = "example-prod", at = "2026-10-13T08:30:00Z", instance = lab } = {},
 ) {
   return ingestNotification(db, {
     source: "alertmanager",
-    channel: slug(channel),
+    channel: { instance, slug: slug(channel) },
     alerts,
     receivedAt: new Date(at),
   });
@@ -176,6 +178,36 @@ describe("ingestNotification", () => {
     const summaries = await Promise.all(Array.from({ length: 10 }, () => deliver(db, resolved)));
 
     expect(summaries.reduce((total, summary) => total + summary.resolved, 0)).toBe(1);
+    expect(await eventKinds(db)).toEqual(["fired", "fired", "resolved"]);
+  });
+
+  it("keeps a channel whole when it moves to an instance while the old URL delivers", async () => {
+    const connection = await createTestDatabase();
+    const { db, pool } = connection;
+    const byNameOnly = (alerts: readonly IncomingAlert[]) =>
+      ingestNotification(db, {
+        source: "alertmanager",
+        channel: { instance: null, slug: slug("ops") },
+        alerts,
+        receivedAt: new Date("2026-10-13T08:45:00Z"),
+      });
+    await byNameOnly(firing);
+    await openConnections(connection, 2);
+
+    // The operator's one-off move (ADR 0006), still open while a resolve arrives.
+    const operator = await pool.connect();
+    await operator.query("begin");
+    await operator.query("update channels set instance = 'lab' where instance = 'default'");
+    const delivery = byNameOnly(resolved);
+    await new Promise((settle) => setTimeout(settle, 200));
+    await operator.query("commit");
+    operator.release();
+    await delivery;
+
+    const rows = await db
+      .select({ instance: channels.instance, slug: channels.slug })
+      .from(channels);
+    expect(rows).toEqual([{ instance: "lab", slug: "ops" }]);
     expect(await eventKinds(db)).toEqual(["fired", "fired", "resolved"]);
   });
 });

@@ -18,11 +18,17 @@ import type { AlertLink } from "../domain/alert.ts";
 
 const timestamptz = () => timestamp({ withTimezone: true, mode: "date" });
 
-export const channels = pgTable("channels", {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  slug: text().notNull().unique(),
-  createdAt: timestamptz().notNull(),
-});
+export const channels = pgTable(
+  "channels",
+  {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    // Rows from before instances existed get the default instance (ADR 0006).
+    instance: text().notNull().default("default"),
+    slug: text().notNull(),
+    createdAt: timestamptz().notNull(),
+  },
+  (table) => [unique("channels_instance_slug").on(table.instance, table.slug)],
+);
 
 export const occurrenceStatus = pgEnum("occurrence_status", ["firing", "resolved"]);
 export const severity = pgEnum("severity", ["critical", "warning", "info", "unknown"]);

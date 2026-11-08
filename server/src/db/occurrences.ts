@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { IncomingAlert } from "../domain/alert.ts";
-import type { ChannelSlug } from "../domain/channel.ts";
+import type { ChannelRef } from "../domain/channel.ts";
 import type { EventKind } from "../domain/occurrence.ts";
 import type { Transaction } from "./client.ts";
 import { channels, events, occurrences } from "./schema.ts";
@@ -13,14 +13,14 @@ export interface OccurrenceKey {
 
 export async function findOrCreateChannel(
   tx: Transaction,
-  slug: ChannelSlug,
+  { instance, slug }: ChannelRef,
   now: Date,
 ): Promise<number> {
   // DO NOTHING plus a read, not a no-op DO UPDATE: that would lock the channel row and
   // serialize every notification for the channel behind it.
   const [inserted] = await tx
     .insert(channels)
-    .values({ slug, createdAt: now })
+    .values({ instance, slug, createdAt: now })
     .onConflictDoNothing()
     .returning({ id: channels.id });
   if (inserted !== undefined) {
@@ -29,9 +29,9 @@ export async function findOrCreateChannel(
   const [existing] = await tx
     .select({ id: channels.id })
     .from(channels)
-    .where(eq(channels.slug, slug));
+    .where(and(eq(channels.instance, instance), eq(channels.slug, slug)));
   if (existing === undefined) {
-    throw new Error(`Channel ${slug} conflicted on insert but does not exist`);
+    throw new Error(`Channel ${instance}/${slug} conflicted on insert but does not exist`);
   }
   return existing.id;
 }

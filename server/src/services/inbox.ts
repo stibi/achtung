@@ -1,6 +1,7 @@
 import type { Database } from "../db/client.ts";
 import {
   findChannelId,
+  findInstancesWithChannel,
   findOccurrence,
   listChannelOverviews,
   listEvents,
@@ -8,7 +9,7 @@ import {
   listOtherOccurrences,
 } from "../db/queries.ts";
 import type { AlertState } from "../domain/alert.ts";
-import type { ChannelSlug } from "../domain/channel.ts";
+import { type ChannelAddress, resolveChannel } from "../domain/channel.ts";
 import type { Occurrence, OccurrenceEvent } from "../domain/occurrence.ts";
 
 /** A place in a channel's list, newest change first. The next page starts after it. */
@@ -24,6 +25,7 @@ export interface OccurrenceFilter {
 }
 
 export interface ChannelOverview {
+  readonly instance: string;
   readonly slug: string;
   /** Occurrences in this channel that are firing now. */
   readonly firing: number;
@@ -57,10 +59,12 @@ export function listChannels(db: Database): Promise<ChannelOverview[]> {
 
 export async function listChannelOccurrences(
   db: Database,
-  slug: ChannelSlug,
+  address: ChannelAddress,
   filter: OccurrenceFilter,
 ): Promise<ChannelOccurrencePage> {
-  const channelId = await findChannelId(db, slug);
+  const instances =
+    address.instance === null ? await findInstancesWithChannel(db, address.slug) : [];
+  const channelId = await findChannelId(db, resolveChannel(address, instances));
   if (channelId === null) {
     return { found: false };
   }

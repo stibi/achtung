@@ -61,7 +61,8 @@ their own instance.
 
 - TypeScript on Node.js, Fastify, PostgreSQL (see [ADR 0001](docs/adr/0001-tech-stack.md)).
 - **Ingest:** one HTTP endpoint per source type, scoped to a channel, for example
-  `POST /ingest/alertmanager/{channel}`. Ingest must be fast and
+  `POST /ingest/alertmanager/{instance}/{channel}`, where the instance is the sending
+  system (e.g. one cluster). Ingest must be fast and
   idempotent, because Alertmanager retries and sends the same alert again every
   `repeat_interval`.
 - **Source adapters:** each source is a module that validates its payload and maps it to

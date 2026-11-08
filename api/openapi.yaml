@@ -15,6 +15,9 @@ components:
     Channel:
       type: object
       properties:
+        instance:
+          type: string
+          description: The sending system the channel belongs to, e.g. a cluster
         slug:
           type: string
         firing:
@@ -28,6 +31,7 @@ components:
           type: string
           format: date-time
       required:
+        - instance
         - slug
         - firing
         - lastEventAt
@@ -39,6 +43,9 @@ components:
           minimum: 0
           exclusiveMinimum: true
           maximum: 9007199254740991
+        instance:
+          type: string
+          description: The instance of the channel
         channel:
           type: string
         source:
@@ -112,6 +119,7 @@ components:
           maximum: 9007199254740991
       required:
         - id
+        - instance
         - channel
         - source
         - sourceKey
@@ -212,13 +220,19 @@ components:
         - new
         - resolved
 paths:
-  /ingest/alertmanager/{channel}:
+  /ingest/alertmanager/{instance}/{channel}:
     post:
       operationId: ingestAlertmanager
       summary: Webhook for alertmanager. The body is the source's own payload.
       tags:
         - ingest
       parameters:
+        - schema:
+            type: string
+          in: path
+          name: instance
+          required: true
+          description: The sending system, e.g. one cluster; created on first use
         - schema:
             type: string
           in: path
@@ -244,10 +258,46 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /ingest/alertmanager/{channel}:
+    post:
+      operationId: ingestAlertmanagerWithoutInstance
+      summary: "Webhook for alertmanager, without an instance. Deprecated: use the URL
+        with one."
+      tags:
+        - ingest
+      description: A name one named instance has resolves to its channel; otherwise
+        the default instance's channel is used, created if needed.
+      parameters:
+        - schema:
+            type: string
+          in: path
+          name: channel
+          required: true
+          description: Created on first use
+      deprecated: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestSummary"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /api/channels:
     get:
       operationId: listChannels
-      summary: All channels, by name, with what is firing in each
+      summary: All channels, by instance and name, with what is firing in each
       tags:
         - client
       responses:
@@ -257,12 +307,73 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChannelList"
-  /api/channels/{slug}/occurrences:
+  /api/instances/{instance}/channels/{slug}/occurrences:
     get:
-      operationId: listChannelOccurrences
+      operationId: listInstanceChannelOccurrences
       summary: A channel's occurrences, most recently changed first
       tags:
         - client
+      parameters:
+        - schema:
+            type: string
+            enum:
+              - firing
+              - resolved
+          in: query
+          name: status
+          required: false
+        - schema:
+            type: string
+          in: query
+          name: cursor
+          required: false
+          description: nextCursor from the previous page
+        - schema:
+            default: 50
+            type: integer
+            minimum: 1
+            maximum: 200
+          in: query
+          name: limit
+          required: false
+        - schema:
+            type: string
+          in: path
+          name: instance
+          required: true
+        - schema:
+            type: string
+          in: path
+          name: slug
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OccurrencePage"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/channels/{slug}/occurrences:
+    get:
+      operationId: listChannelOccurrences
+      summary: "A channel's occurrences, by name only. Deprecated: use the route with
+        an instance."
+      tags:
+        - client
+      description: The name resolves to the one named instance's channel of that name,
+        else to the default instance's.
       parameters:
         - schema:
             type: string

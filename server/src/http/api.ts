@@ -7,7 +7,12 @@ import type {
 } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { type ChannelSlug, parseChannelSlug } from "../domain/channel.ts";
+import {
+  type ChannelAddress,
+  type InstanceName,
+  parseChannelSlug,
+  parseInstanceName,
+} from "../domain/channel.ts";
 import type {
   ChannelOccurrencePage,
   ChannelOverview,
@@ -30,7 +35,7 @@ import {
 export interface Inbox {
   listChannels(): Promise<ChannelOverview[]>;
   listChannelOccurrences(
-    slug: ChannelSlug,
+    channel: ChannelAddress,
     filter: OccurrenceFilter,
   ): Promise<ChannelOccurrencePage>;
   listOccurrences(filter: OccurrenceFilter): Promise<OccurrencePage>;
@@ -110,6 +115,29 @@ type Api = FastifyInstance<
   ZodTypeProvider
 >;
 
+type Failure = { readonly code: 400 | 404; readonly body: { readonly error: string } };
+
+/** A channel's page, or why there is none. */
+async function channelPage(
+  inbox: Inbox,
+  instance: InstanceName | null,
+  name: string,
+  query: z.output<typeof listQuery>,
+): Promise<ReturnType<typeof toPageBody> | Failure> {
+  const filter = filterFrom(query);
+  if (filter === null) {
+    return { code: 400, body: invalidCursor };
+  }
+  const slug = parseChannelSlug(name);
+  const page =
+    slug === null
+      ? ({ found: false } as const)
+      : await inbox.listChannelOccurrences({ instance, slug }, filter);
+  return page.found ? toPageBody(page) : channelNotFound;
+}
+
+const channelNotFound: Failure = { code: 404, body: notFound("Channel") };
+
 function registerChannelRoutes(api: Api, inbox: Inbox): void {
   api.get(
     "/api/channels",
@@ -117,11 +145,34 @@ function registerChannelRoutes(api: Api, inbox: Inbox): void {
       schema: {
         tags: tags(),
         operationId: "listChannels",
-        summary: "All channels, by name, with what is firing in each",
+        summary: "All channels, by instance and name, with what is firing in each",
         response: { 200: channelListBody },
       },
     },
     async () => ({ channels: (await inbox.listChannels()).map(toChannelBody) }),
+  );
+
+  const response = { 200: occurrencePageBody, 400: errorBody, 404: errorBody };
+  api.get(
+    "/api/instances/:instance/channels/:slug/occurrences",
+    {
+      schema: {
+        tags: tags(),
+        operationId: "listInstanceChannelOccurrences",
+        summary: "A channel's occurrences, most recently changed first",
+        params: z.object({ instance: z.string(), slug: z.string() }),
+        querystring: listQuery,
+        response,
+      },
+    },
+    async (request, reply) => {
+      const instance = parseInstanceName(request.params.instance);
+      const result =
+        instance === null
+          ? channelNotFound
+          : await channelPage(inbox, instance, request.params.slug, request.query);
+      return "code" in result ? reply.code(result.code).send(result.body) : result;
+    },
   );
 
   api.get(
@@ -130,30 +181,20 @@ function registerChannelRoutes(api: Api, inbox: Inbox): void {
       schema: {
         tags: tags(),
         operationId: "listChannelOccurrences",
-        summary: "A channel's occurrences, most recently changed first",
+        summary:
+          "A channel's occurrences, by name only. Deprecated: use the route with an instance.",
+        description:
+          "The name resolves to the one named instance's channel of that name, else to the default instance's.",
+        // Deprecated in words only: the flag would make the generated Swift method deprecated,
+        // and the client builds with warnings as errors.
         params: z.object({ slug: z.string() }),
         querystring: listQuery,
-        response: {
-          200: occurrencePageBody,
-          400: errorBody,
-          404: errorBody,
-        },
+        response,
       },
     },
     async (request, reply) => {
-      const filter = filterFrom(request.query);
-      if (filter === null) {
-        return reply.code(400).send(invalidCursor);
-      }
-      const slug = parseChannelSlug(request.params.slug);
-      const page =
-        slug === null
-          ? ({ found: false } as const)
-          : await inbox.listChannelOccurrences(slug, filter);
-      if (!page.found) {
-        return reply.code(404).send(notFound("Channel"));
-      }
-      return toPageBody(page);
+      const result = await channelPage(inbox, null, request.params.slug, request.query);
+      return "code" in result ? reply.code(result.code).send(result.body) : result;
     },
   );
 }

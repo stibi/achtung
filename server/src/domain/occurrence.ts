@@ -1,5 +1,5 @@
 import type { AlertState, IncomingAlert } from "./alert.ts";
-import type { ChannelSlug } from "./channel.ts";
+import type { ChannelSlug, InstanceName } from "./channel.ts";
 
 type OccurrenceStatus = AlertState["status"];
 
@@ -29,6 +29,7 @@ export function eventFor(
 /** An occurrence as Achtung stores it: what the source reported plus what Achtung tracks. */
 export type Occurrence = IncomingAlert & {
   readonly id: number;
+  readonly instance: InstanceName;
   readonly channel: ChannelSlug;
   readonly source: string;
   readonly firstReceivedAt: Date;

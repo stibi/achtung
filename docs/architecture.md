@@ -7,7 +7,7 @@ to it.
 ## Data flow
 
 ```
-Alertmanager ──POST /ingest/alertmanager/{channel}──▶ http ──▶ sources/alertmanager.parse()
+Alertmanager ──POST /ingest/alertmanager/{instance}/{channel}──▶ http ──▶ sources/alertmanager.parse()
                                                         │            │ IncomingAlert[]
                                                         ▼            ▼
                                                      services (dedupe, lifecycle, events)
@@ -81,10 +81,15 @@ the domain model is missing a concept. Discuss it and record an ADR.
 
 ## Ingest and storage
 
-- `POST /ingest/{source}/{channel}`, one route per source adapter (also in
-  `api/openapi.yaml`, under the `ingest` tag). A channel is created
-  on its first notification ([ADR 0005](adr/0005-ingest-channels-and-migrations.md)).
-  Names must match `^[a-z0-9][a-z0-9-]{0,62}$`, anything else is a 404. An invalid
+- `POST /ingest/{source}/{instance}/{channel}`, one route per source adapter (also in
+  `api/openapi.yaml`, under the `ingest` tag). The instance is the sending system, e.g.
+  one cluster's Alertmanager. A channel belongs to an instance, and both are created on
+  their first notification ([ADR 0005](adr/0005-ingest-channels-and-migrations.md),
+  [ADR 0006](adr/0006-channel-instances.md)). Names must match
+  `^[a-z0-9][a-z0-9-]{0,62}$`, anything else is a 404.
+- The older `POST /ingest/{source}/{channel}` is deprecated. It delivers to the one
+  named instance's channel of that name, else to the `default` instance's. Switch a
+  sender to the new URL before another instance reuses its channel names (ADR 0006). An invalid
   payload is a 400 and is logged with its body. Success is a 200 with
   `{ alerts, new, resolved }`.
 - One transaction per notification. Occurrences are inserted with `ON CONFLICT DO
@@ -103,11 +108,14 @@ the domain model is missing a concept. Discuss it and record an ADR.
 ## Client API
 
 - Routes under `/api/` (`src/http/api.ts`), all read-only for now:
-  - `GET /api/channels`: channels by name, with how many occurrences are firing and the
-    latest event time.
-  - `GET /api/channels/{slug}/occurrences?status=&cursor=&limit=`: newest change first,
-    ordered by `(lastEventAt, id)`. A repeat notification does not move an occurrence; a
-    fire, resolve or reopen does. `nextCursor` is opaque; pass it back as `cursor`.
+  - `GET /api/channels`: channels by instance and name, with how many occurrences are
+    firing and the latest event time. The client shows them as a tree: instances, then
+    their channels. `Channel` and `Occurrence` both carry `instance`.
+  - `GET /api/instances/{instance}/channels/{slug}/occurrences?status=&cursor=&limit=`:
+    newest change first, ordered by `(lastEventAt, id)`. A repeat notification does not
+    move an occurrence; a fire, resolve or reopen does. `nextCursor` is opaque; pass it
+    back as `cursor`. The older `GET /api/channels/{slug}/occurrences` is deprecated; it
+    resolves the name like the old ingest URL does.
   - `GET /api/occurrences?status=&cursor=&limit=`: the same list across every channel,
     in the same order and with the same paging; each occurrence's `channel` says where
     it belongs. This feeds the client's Live view.

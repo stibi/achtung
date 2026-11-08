@@ -1,9 +1,9 @@
 import { and, asc, count, desc, eq, getTableColumns, max, ne, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { AlertState } from "../domain/alert.ts";
-import type { ChannelSlug } from "../domain/channel.ts";
+import type { ChannelRef, ChannelSlug, InstanceName } from "../domain/channel.ts";
 import type { Occurrence, OccurrenceEvent } from "../domain/occurrence.ts";
-import type { Database } from "./client.ts";
+import type { Database, Transaction } from "./client.ts";
 import { channels, events, occurrences } from "./schema.ts";
 
 // Mirrors services/inbox.ts OccurrenceFilter structurally; db/ can't import services.
@@ -22,16 +22,18 @@ const links = z.array(
 
 const occurrenceColumns = {
   ...getTableColumns(occurrences),
+  instance: channels.instance,
   channel: channels.slug,
 };
 
 type OccurrenceRow = Awaited<ReturnType<typeof selectOccurrences>>[number];
 
 function toOccurrence(row: OccurrenceRow): Occurrence {
-  const { channelId: _, status, endsAt, channel, ...fields } = row;
+  const { channelId: _, status, endsAt, instance, channel, ...fields } = row;
   return {
     ...fields,
     ...stateOf(row.id, status, endsAt),
+    instance: instance as InstanceName,
     channel: channel as ChannelSlug,
     labels: labelSet.parse(fields.labels),
     annotations: labelSet.parse(fields.annotations),
@@ -60,6 +62,7 @@ function selectOccurrences(db: Database, where: SQL | undefined) {
 export function listChannelOverviews(db: Database) {
   return db
     .select({
+      instance: channels.instance,
       slug: channels.slug,
       firing: count(sql`case when ${occurrences.status} = 'firing' then 1 end`),
       lastEventAt: max(occurrences.lastEventAt),
@@ -67,12 +70,35 @@ export function listChannelOverviews(db: Database) {
     .from(channels)
     .leftJoin(occurrences, eq(occurrences.channelId, channels.id))
     .groupBy(channels.id)
-    .orderBy(asc(channels.slug));
+    .orderBy(asc(channels.instance), asc(channels.slug));
 }
 
-export async function findChannelId(db: Database, slug: ChannelSlug): Promise<number | null> {
-  const [row] = await db.select({ id: channels.id }).from(channels).where(eq(channels.slug, slug));
+export async function findChannelId(
+  db: Database,
+  { instance, slug }: ChannelRef,
+): Promise<number | null> {
+  const [row] = await db
+    .select({ id: channels.id })
+    .from(channels)
+    .where(and(eq(channels.instance, instance), eq(channels.slug, slug)));
   return row?.id ?? null;
+}
+
+/**
+ * Every instance that has a channel of this name, for the old URLs without an instance.
+ * In a transaction, the rows stay locked until it ends: moving a channel to another
+ * instance waits for the ingest, or the ingest waits and reads where it moved.
+ */
+export async function findInstancesWithChannel(
+  db: Database | Transaction,
+  slug: ChannelSlug,
+): Promise<InstanceName[]> {
+  const rows = await db
+    .select({ instance: channels.instance })
+    .from(channels)
+    .where(eq(channels.slug, slug))
+    .for("key share");
+  return rows.map((row) => row.instance as InstanceName);
 }
 
 /** Newest change first; `channelId` null lists every channel. */
@@ -118,6 +144,7 @@ export async function listOtherOccurrences(
   const rows = await selectOccurrences(
     db,
     and(
+      eq(channels.instance, occurrence.instance),
       eq(channels.slug, occurrence.channel),
       eq(occurrences.source, occurrence.source),
       eq(occurrences.sourceKey, occurrence.sourceKey),

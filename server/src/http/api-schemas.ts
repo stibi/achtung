@@ -15,6 +15,7 @@ export const errorBody = z.object({ error: z.string() }).meta({ id: "Error" });
 
 export const channelBody = z
   .object({
+    instance: z.string().describe("The sending system the channel belongs to, e.g. a cluster"),
     slug: z.string(),
     firing: z.int().nonnegative().describe("Occurrences in the channel that are firing now"),
     lastEventAt: timestamp.nullable().describe("Latest event in the channel"),
@@ -24,6 +25,7 @@ export const channelBody = z
 export const occurrenceBody = z
   .object({
     id: z.int().positive(),
+    instance: z.string().describe("The instance of the channel"),
     channel: z.string(),
     source: z.string(),
     sourceKey: z.string().describe("Identity of the alert in its source, e.g. a fingerprint"),

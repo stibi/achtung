@@ -1,7 +1,12 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { channelSlugRule, parseChannelSlug } from "../domain/channel.ts";
+import {
+  channelSlugRule,
+  type InstanceName,
+  parseChannelSlug,
+  parseInstanceName,
+} from "../domain/channel.ts";
 import type { IngestSummary, Notification } from "../services/ingest.ts";
 import type { SourceAdapter } from "../sources/source-adapter.ts";
 import { errorBody } from "./api-schemas.ts";
@@ -16,50 +21,93 @@ const ingestSummary = z
   })
   .meta({ id: "IngestSummary" });
 
-/** POST /ingest/{source}/{channel} for every source. Unknown channels are created. */
+const instanceParam = z
+  .string()
+  .describe("The sending system, e.g. one cluster; created on first use");
+const channelParam = z.string().describe("Created on first use");
+
+/**
+ * POST /ingest/{source}/{instance}/{channel} for every source, plus the older
+ * /ingest/{source}/{channel} without an instance (ADR 0006). Unknown channels are created.
+ */
 export function registerIngestRoutes(
   app: FastifyInstance,
   sources: readonly SourceAdapter[],
   ingest: Ingest,
 ): void {
+  const api = app.withTypeProvider<ZodTypeProvider>();
   for (const source of sources) {
-    app.withTypeProvider<ZodTypeProvider>().post(
+    const name = `${source.id[0]?.toUpperCase()}${source.id.slice(1)}`;
+    const response = { 200: ingestSummary, 400: errorBody, 404: errorBody };
+    api.post(
+      `/ingest/${source.id}/:instance/:channel`,
+      {
+        schema: {
+          tags: ["ingest"],
+          operationId: `ingest${name}`,
+          summary: `Webhook for ${source.id}. The body is the source's own payload.`,
+          params: z.object({ instance: instanceParam, channel: channelParam }),
+          response,
+        },
+      },
+      async (request, reply) => {
+        const instance = parseInstanceName(request.params.instance);
+        if (instance === null) {
+          return reply.code(404).send({ error: `Instance names must match ${channelSlugRule}` });
+        }
+        return receive(source, ingest, { instance, name: request.params.channel }, request, reply);
+      },
+    );
+    api.post(
       `/ingest/${source.id}/:channel`,
       {
         schema: {
           tags: ["ingest"],
-          operationId: `ingest${source.id[0]?.toUpperCase()}${source.id.slice(1)}`,
-          summary: `Webhook for ${source.id}. The body is the source's own payload.`,
-          params: z.object({ channel: z.string().describe("Created on first use") }),
-          response: { 200: ingestSummary, 400: errorBody, 404: errorBody },
+          operationId: `ingest${name}WithoutInstance`,
+          summary: `Webhook for ${source.id}, without an instance. Deprecated: use the URL with one.`,
+          description:
+            "A name one named instance has resolves to its channel; otherwise the default instance's channel is used, created if needed.",
+          deprecated: true,
+          params: z.object({ channel: channelParam }),
+          response,
         },
       },
-      async (request, reply) => {
-        const channel = parseChannelSlug(request.params.channel);
-        if (channel === null) {
-          return reply.code(404).send({ error: `Channel names must match ${channelSlugRule}` });
-        }
-        const parsed = source.parse(request.body);
-        if (!parsed.ok) {
-          request.log.warn(
-            { source: source.id, channel, error: parsed.error, body: request.body },
-            "rejected invalid payload",
-          );
-          return reply.code(400).send({ error: parsed.error });
-        }
-        if (parsed.truncatedAlerts > 0) {
-          request.log.warn(
-            { source: source.id, channel, truncatedAlerts: parsed.truncatedAlerts },
-            "source dropped alerts from the notification",
-          );
-        }
-        return ingest({
-          source: source.id,
-          channel,
-          alerts: parsed.alerts,
-          receivedAt: new Date(),
-        });
-      },
+      (request, reply) =>
+        receive(source, ingest, { instance: null, name: request.params.channel }, request, reply),
     );
   }
+}
+
+async function receive(
+  source: SourceAdapter,
+  ingest: Ingest,
+  target: { readonly instance: InstanceName | null; readonly name: string },
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const slug = parseChannelSlug(target.name);
+  if (slug === null) {
+    return reply.code(404).send({ error: `Channel names must match ${channelSlugRule}` });
+  }
+  const where = { source: source.id, instance: target.instance, channel: slug };
+  const parsed = source.parse(request.body);
+  if (!parsed.ok) {
+    request.log.warn(
+      { ...where, error: parsed.error, body: request.body },
+      "rejected invalid payload",
+    );
+    return reply.code(400).send({ error: parsed.error });
+  }
+  if (parsed.truncatedAlerts > 0) {
+    request.log.warn(
+      { ...where, truncatedAlerts: parsed.truncatedAlerts },
+      "source dropped alerts from the notification",
+    );
+  }
+  return ingest({
+    source: source.id,
+    channel: { instance: target.instance, slug },
+    alerts: parsed.alerts,
+    receivedAt: new Date(),
+  });
 }

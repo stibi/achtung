@@ -30,7 +30,8 @@ layers above it.
 |---|---|---|---|
 | Composition root | `main.ts` | everything | Read config, build dependencies, start the HTTP server, shut down on SIGTERM. Nothing imports it. |
 | HTTP | `http/` | services, sources (index only), domain, config types | Fastify app, routes, request/response schemas. Thin: parse the request, call a service, map the result to a response. Never touches `db/`; `main.ts` passes services in. |
-| Services | `services/` | db, sources (index only), domain | Use cases such as ingest, acknowledge, list. Owns transactions. |
+| Services | `services/` | db, clients, sources (index only), domain | Use cases such as ingest, silence, list. Owns transactions. |
+| Clients | `clients/` | domain, zod | Calls to other systems' APIs, e.g. Alertmanager's silences. Maps their answers to domain types. |
 | Storage | `db/` | domain | Drizzle schema, migrations, repositories. Maps rows to domain types and back. |
 | Sources | `sources/` | domain, zod | One folder per source. Turns a raw webhook body into `IncomingAlert[]`. No I/O. |
 | Domain | `domain/` | nothing | Types and pure functions: alert model, severity, lifecycle rules. No libraries, no I/O. |
@@ -38,7 +39,9 @@ layers above it.
 
 Enforced by `dependency-cruiser` (`server/.dependency-cruiser.cjs`):
 - The domain is pure.
-- `db/` imports only the domain. Services never import HTTP, and HTTP never imports `db/`.
+- `db/` imports only the domain. Services never import HTTP, and HTTP never imports `db/`
+  or `clients/`.
+- `clients/` may use only the domain and zod.
 - Sources may use only the domain and zod.
 - Adapters never import each other.
 - Code outside an adapter imports it only through its `index.ts`.
@@ -125,6 +128,16 @@ The identity below is a contract that features build on
     it belongs. This feeds the client's Live view.
   - `GET /api/occurrences/{id}`: the occurrence, its events (oldest first) and the
     alert's other occurrences (newest first, up to 20).
+  - `POST /api/occurrences/{id}/silence` with `{ "durationSeconds": 60..2592000 }`:
+    silences exactly this alert (an equality matcher per label) on its instance's
+    Alertmanager, from now, and returns the occurrence
+    ([ADR 0008](adr/0008-silences-through-the-server.md)). 409 when the instance has no
+    Alertmanager configured, 502 when Alertmanager is unreachable or refuses it.
+- Every occurrence carries `silencedUntil`: the end of the latest active silence on its
+  instance's Alertmanager whose matchers match its labels, else null. Alertmanager is the
+  source of truth; Achtung stores no silences. `services/silences.ts` reads each
+  instance's silences at most every 30 seconds, keeps the last ones when Alertmanager
+  can't be read (and logs a warning), and `domain/silence.ts` evaluates the matchers.
 - Errors are `{ "error": "…" }`: 400 for invalid input (including a cursor the server
   never issued), 404 for an unknown channel or occurrence.
 - "New since last visit" is computed by the client from `lastEventAt` and its own read
@@ -150,8 +163,12 @@ The identity below is a contract that features build on
 - Deployed as one container image (`Dockerfile`). It applies migrations on startup and
   writes nothing to disk, so it runs with a read-only root filesystem.
 - Configuration comes from the environment (`src/config.ts`): `DATABASE_URL` (required),
-  `HOST`, `PORT`, `LOG_LEVEL`. The standard libpq variables (`PGPASSWORD`, …) fill in what
-  `DATABASE_URL` leaves out, so a password never needs URL-encoding.
+  `HOST`, `PORT`, `LOG_LEVEL`, `ALERTMANAGERS`. The standard libpq variables
+  (`PGPASSWORD`, …) fill in what `DATABASE_URL` leaves out, so a password never needs
+  URL-encoding.
+- `ALERTMANAGERS` is a JSON object of instance name → `{ "url": "…", "username": "…",
+  "password": "…" }` (the credentials are optional, basic auth). It holds credentials,
+  so set it from a secret. An instance without an entry can't be silenced.
 - Logs are structured JSON from pino (through Fastify). `/healthz` reports liveness and
   `/readyz` reports readiness, which fails with a 503 while the database is unreachable.
 

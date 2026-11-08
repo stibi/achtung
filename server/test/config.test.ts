@@ -10,6 +10,7 @@ describe("loadConfig", () => {
       port: 8080,
       logLevel: "info",
       databaseUrl,
+      alertmanagers: new Map(),
     });
   });
 
@@ -22,5 +23,54 @@ describe("loadConfig", () => {
 
   it("fails fast on invalid values", () => {
     expect(() => loadConfig({ DATABASE_URL: databaseUrl, PORT: "not-a-port" })).toThrow(/PORT/);
+  });
+
+  it("reads each instance's Alertmanager, with optional basic auth", () => {
+    const config = loadConfig({
+      DATABASE_URL: databaseUrl,
+      ALERTMANAGERS: JSON.stringify({
+        onprem: { url: "http://alertmanager.monitoring.svc:9093" },
+        edge: { url: "https://alertmanager.example.com/", username: "achtung", password: "pw" },
+      }),
+    });
+
+    expect(config.alertmanagers).toEqual(
+      new Map([
+        ["onprem", { url: "http://alertmanager.monitoring.svc:9093", basicAuth: null }],
+        [
+          "edge",
+          {
+            url: "https://alertmanager.example.com/",
+            basicAuth: { username: "achtung", password: "pw" },
+          },
+        ],
+      ]),
+    );
+  });
+
+  it.each([
+    ["not JSON", "{onprem"],
+    ["an invalid instance name", JSON.stringify({ Onprem: { url: "http://am:9093" } })],
+    ["a URL that is not HTTP", JSON.stringify({ onprem: { url: "ftp://am" } })],
+    [
+      "a username without a password",
+      JSON.stringify({ onprem: { url: "http://am", username: "a" } }),
+    ],
+    ["an unknown field", JSON.stringify({ onprem: { url: "http://am", token: "t" } })],
+    ["credentials in the URL", JSON.stringify({ onprem: { url: "http://a:s3cret@am:9093" } })],
+    ["a URL that is not a URL", JSON.stringify({ onprem: { url: "not a url" } })],
+  ])("rejects ALERTMANAGERS with %s", (_, value) => {
+    expect(() => loadConfig({ DATABASE_URL: databaseUrl, ALERTMANAGERS: value })).toThrow(
+      /ALERTMANAGERS/,
+    );
+  });
+
+  it("never puts a password in its error", () => {
+    const value = JSON.stringify({
+      onprem: { url: "ftp://am", username: "a", password: "s3cret" },
+    });
+    expect(() => loadConfig({ DATABASE_URL: databaseUrl, ALERTMANAGERS: value })).toThrow(
+      expect.not.objectContaining({ message: expect.stringContaining("s3cret") }),
+    );
   });
 });

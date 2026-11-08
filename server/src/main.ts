@@ -3,14 +3,20 @@ import { openDatabase, ping } from "./db/client.ts";
 import { migrateDatabase } from "./db/migrate.ts";
 import { buildApp } from "./http/app.ts";
 import { servicesFor } from "./services/index.ts";
+import { silencesFrom } from "./services/silences.ts";
 import { alertmanagerSource } from "./sources/alertmanager/index.ts";
 
 const config = loadConfig();
 const { pool, db } = openDatabase(config.databaseUrl);
+const silences = silencesFrom(config.alertmanagers, {
+  // Reads go on without that instance's silences; the client sees no silence.
+  onReadError: (instance, error) =>
+    app.log.warn({ instance, err: error }, "could not read silences from Alertmanager"),
+});
 const app = buildApp({
   logLevel: config.logLevel,
   sources: [alertmanagerSource],
-  services: servicesFor(db),
+  services: servicesFor(db, silences),
   checkReady: () => ping(pool),
 });
 

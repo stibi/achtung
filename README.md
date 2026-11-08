@@ -47,6 +47,10 @@ their own instance.
 - **What's new since you last looked**, per occurrence and per channel, kept on your Mac.
 - **Live view:** every channel's alerts in one stream, newest change first.
 - **Zero setup per channel:** pointing a receiver at a new URL creates the channel.
+- **Silence an alert** for a while, on the Alertmanager it came from. Every alert shows
+  whether it is silenced and until when, including silences made in Alertmanager itself
+  ([ADR 0008](docs/adr/0008-silences-through-the-server.md)). A silence mutes the alert
+  for every receiver of that Alertmanager, not only in Achtung.
 
 ## Core use case
 
@@ -129,7 +133,9 @@ array of `alerts`. Each alert has `status`, `labels`, `annotations`, `startsAt`,
 ## Non-goals (for now)
 
 - Replacing Alertmanager's routing, grouping, inhibition or silencing. Alertmanager stays
-  the brain, and Achtung is the inbox. Creating silences from the client may come later.
+  the brain, and Achtung is the inbox. Achtung can create a silence on it for one alert
+  ([ADR 0008](docs/adr/0008-silences-through-the-server.md)), but managing silences stays
+  in Alertmanager.
 - On-call scheduling, escalation and paging (PagerDuty/Grafana OnCall territory).
 - iOS, web or Windows clients. The API should not prevent them, but they are not planned.
 - Multi-tenant SaaS, user accounts and login.
@@ -141,8 +147,6 @@ array of `alerts`. Each alert has `status`, `labels`, `annotations`, `startsAt`,
 - **Retention:** how long resolved alerts and their history are kept, and whether to keep
   raw payloads for debugging (not stored for now, because repeat notifications would
   make them grow without bound).
-- **Silences:** whether to create Alertmanager silences from the client, and how,
-  given that the server has no auth.
 
 ## Development
 

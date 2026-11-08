@@ -6,18 +6,25 @@ import {
   listChannels,
 } from "./inbox.ts";
 import { ingestNotification } from "./ingest.ts";
+import { type Silences, silenceOccurrence } from "./silences.ts";
 
-/** Every use case bound to one database: what src/http needs to serve requests. */
-export function servicesFor(db: Database) {
+/**
+ * Every use case bound to one database and the instances' Alertmanagers: what src/http
+ * needs to serve requests.
+ */
+export function servicesFor(db: Database, silences: Silences) {
   return {
     ingest: (notification: Parameters<typeof ingestNotification>[1]) =>
       ingestNotification(db, notification),
     listChannels: () => listChannels(db),
-    listChannelOccurrences: (...args: DropFirst<Parameters<typeof listChannelOccurrences>>) =>
-      listChannelOccurrences(db, ...args),
-    listOccurrences: (filter: Parameters<typeof listAllOccurrences>[1]) =>
-      listAllOccurrences(db, filter),
-    getOccurrence: (id: number) => getOccurrence(db, id),
+    listChannelOccurrences: (
+      ...args: DropFirst<DropFirst<Parameters<typeof listChannelOccurrences>>>
+    ) => listChannelOccurrences(db, silences, ...args),
+    listOccurrences: (filter: Parameters<typeof listAllOccurrences>[2]) =>
+      listAllOccurrences(db, silences, filter),
+    getOccurrence: (id: number) => getOccurrence(db, silences, id),
+    silenceOccurrence: (id: number, durationSeconds: number) =>
+      silenceOccurrence(db, silences, id, durationSeconds),
   };
 }
 

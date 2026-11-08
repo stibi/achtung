@@ -1,26 +1,9 @@
-import type {
-  FastifyBaseLogger,
-  FastifyInstance,
-  RawReplyDefaultExpression,
-  RawRequestDefaultExpression,
-  RawServerDefault,
-} from "fastify";
+import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import {
-  type ChannelAddress,
-  type InstanceName,
-  parseChannelSlug,
-  parseInstanceName,
-} from "../domain/channel.ts";
-import type {
-  ChannelOccurrencePage,
-  ChannelOverview,
-  ListPosition,
-  OccurrenceDetail,
-  OccurrenceFilter,
-  OccurrencePage,
-} from "../services/inbox.ts";
+import { type InstanceName, parseChannelSlug, parseInstanceName } from "../domain/channel.ts";
+import type { ListPosition, OccurrenceFilter, OccurrencePage } from "../services/inbox.ts";
+import type { Api, Inbox } from "./api-contract.ts";
 import {
   channelListBody,
   errorBody,
@@ -30,17 +13,9 @@ import {
   toOccurrenceBody,
   toOccurrenceDetailBody,
 } from "./api-schemas.ts";
+import { registerSilenceRoutes } from "./silence.ts";
 
-/** The read side of the inbox, as the client API needs it. */
-export interface Inbox {
-  listChannels(): Promise<ChannelOverview[]>;
-  listChannelOccurrences(
-    channel: ChannelAddress,
-    filter: OccurrenceFilter,
-  ): Promise<ChannelOccurrencePage>;
-  listOccurrences(filter: OccurrenceFilter): Promise<OccurrencePage>;
-  getOccurrence(id: number): Promise<OccurrenceDetail | null>;
-}
+export type { Inbox } from "./api-contract.ts";
 
 // A fresh array per route: a shared one becomes YAML anchors in api/openapi.yaml.
 const tags = () => ["client"];
@@ -104,16 +79,9 @@ export function registerApiRoutes(app: FastifyInstance, inbox: Inbox): void {
     const api = scope.withTypeProvider<ZodTypeProvider>();
     registerChannelRoutes(api, inbox);
     registerOccurrenceRoutes(api, inbox);
+    registerSilenceRoutes(api, inbox);
   });
 }
-
-type Api = FastifyInstance<
-  RawServerDefault,
-  RawRequestDefaultExpression,
-  RawReplyDefaultExpression,
-  FastifyBaseLogger,
-  ZodTypeProvider
->;
 
 type Failure = { readonly code: 400 | 404; readonly body: { readonly error: string } };
 

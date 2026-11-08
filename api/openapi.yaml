@@ -117,6 +117,12 @@ components:
           minimum: 0
           exclusiveMinimum: true
           maximum: 9007199254740991
+        silencedUntil:
+          nullable: true
+          description: When the Alertmanager silence muting this alert ends; null when
+            none does, or when its Alertmanager can't be asked
+          type: string
+          format: date-time
       required:
         - id
         - instance
@@ -136,6 +142,7 @@ components:
         - lastReceivedAt
         - lastEventAt
         - notificationCount
+        - silencedUntil
     Event:
       type: object
       properties:
@@ -492,6 +499,71 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/occurrences/{id}/silence:
+    post:
+      operationId: silenceOccurrence
+      summary: Silence the occurrence's alert on its instance's Alertmanager
+      tags:
+        - client
+      description: "Creates an Alertmanager silence that matches every label of the
+        alert exactly, so it also covers a re-fire. It mutes the alert for every
+        receiver of that Alertmanager, not only Achtung (ADR 0008). 409: the
+        instance has no Alertmanager configured. 502: Alertmanager was
+        unreachable or refused the silence."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                durationSeconds:
+                  type: integer
+                  minimum: 60
+                  maximum: 2592000
+                  description: How long the silence lasts, from now
+              required:
+                - durationSeconds
+      parameters:
+        - schema:
+            type: integer
+            minimum: 0
+            exclusiveMinimum: true
+            maximum: 9007199254740991
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Occurrence"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
           description: Default Response
           content:
             application/json:

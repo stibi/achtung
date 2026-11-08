@@ -65,6 +65,23 @@ module.exports = {
       to: { path: "^src/", pathNot: ["^src/db/", "^src/domain/"] },
     },
     {
+      name: "clients-only-use-domain",
+      severity: "error",
+      comment:
+        "src/clients calls other systems' APIs (e.g. Alertmanager) and maps their answers to " +
+        "domain types. It may import src/domain, its own folder and zod. Services call " +
+        "clients, never the other way round.",
+      from: { path: "^src/clients/" },
+      to: { path: "^src/", pathNot: ["^src/clients/", "^src/domain/"] },
+    },
+    {
+      name: "clients-npm-only-zod",
+      severity: "error",
+      comment: "Clients use fetch from Node and zod from npm, nothing else.",
+      from: { path: "^src/clients/" },
+      to: { dependencyTypes: ["npm"], pathNot: "node_modules/zod/" },
+    },
+    {
       name: "services-below-http",
       severity: "error",
       comment:
@@ -77,10 +94,10 @@ module.exports = {
       name: "http-goes-through-services",
       severity: "error",
       comment:
-        "Routes must not touch storage directly. Add or extend a use case in src/services and " +
+        "Routes must not touch storage or other systems directly. Add or extend a use case in src/services and " +
         "call that; src/main.ts wires the database into it.",
       from: { path: "^src/http/" },
-      to: { path: "^src/db/" },
+      to: { path: ["^src/db/", "^src/clients/"] },
     },
     {
       name: "config-is-leaf",

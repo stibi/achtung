@@ -69,6 +69,7 @@ describe("GET /api/channels/{slug}/occurrences", () => {
           lastReceivedAt: "2026-10-13T08:30:00.000Z",
           lastEventAt: "2026-10-13T08:30:00.000Z",
           notificationCount: 1,
+          silencedUntil: null,
         },
       ],
       nextCursor: null,

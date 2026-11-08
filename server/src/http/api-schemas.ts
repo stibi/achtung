@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { Occurrence, OccurrenceEvent } from "../domain/occurrence.ts";
+import type { OccurrenceEvent } from "../domain/occurrence.ts";
+import type { SilencedOccurrence } from "../domain/silence.ts";
 import type { ChannelOverview, OccurrenceDetail } from "../services/inbox.ts";
 
 // The public API's JSON shapes. They validate every response and generate
@@ -42,6 +43,11 @@ export const occurrenceBody = z
     lastReceivedAt: timestamp,
     lastEventAt: timestamp.describe("Last time it fired, resolved or reopened"),
     notificationCount: z.int().positive(),
+    silencedUntil: timestamp
+      .nullable()
+      .describe(
+        "When the Alertmanager silence muting this alert ends; null when none does, or when its Alertmanager can't be asked",
+      ),
   })
   .meta({ id: "Occurrence" });
 
@@ -81,7 +87,7 @@ export function toChannelBody(channel: ChannelOverview): z.infer<typeof channelB
   return { ...channel, lastEventAt: channel.lastEventAt?.toISOString() ?? null };
 }
 
-export function toOccurrenceBody(occurrence: Occurrence): z.infer<typeof occurrenceBody> {
+export function toOccurrenceBody(occurrence: SilencedOccurrence): z.infer<typeof occurrenceBody> {
   return {
     ...occurrence,
     links: [...occurrence.links],
@@ -90,6 +96,7 @@ export function toOccurrenceBody(occurrence: Occurrence): z.infer<typeof occurre
     firstReceivedAt: occurrence.firstReceivedAt.toISOString(),
     lastReceivedAt: occurrence.lastReceivedAt.toISOString(),
     lastEventAt: occurrence.lastEventAt.toISOString(),
+    silencedUntil: occurrence.silencedUntil?.toISOString() ?? null,
   };
 }
 

@@ -3,7 +3,7 @@ import { appWithDatabase } from "../app.ts";
 import { loadFixture } from "../fixtures.ts";
 
 async function testApp(logLines: Record<string, unknown>[] = []) {
-  return (await appWithDatabase(logLines)).app;
+  return (await appWithDatabase({ logLines })).app;
 }
 
 const firing = loadFixture("alertmanager", "firing") as object;

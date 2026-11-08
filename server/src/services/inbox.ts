@@ -10,7 +10,9 @@ import {
 } from "../db/queries.ts";
 import type { AlertState } from "../domain/alert.ts";
 import { type ChannelAddress, resolveChannel } from "../domain/channel.ts";
-import type { Occurrence, OccurrenceEvent } from "../domain/occurrence.ts";
+import type { OccurrenceEvent } from "../domain/occurrence.ts";
+import type { SilencedOccurrence } from "../domain/silence.ts";
+import type { Silences } from "./silences.ts";
 
 /** A place in a channel's list, newest change first. The next page starts after it. */
 export interface ListPosition {
@@ -34,7 +36,7 @@ export interface ChannelOverview {
 }
 
 export interface OccurrencePage {
-  readonly occurrences: readonly Occurrence[];
+  readonly occurrences: readonly SilencedOccurrence[];
   /** Where the next page starts; null when this is the last page. */
   readonly next: ListPosition | null;
 }
@@ -44,11 +46,11 @@ export type ChannelOccurrencePage =
   | { readonly found: false };
 
 export interface OccurrenceDetail {
-  readonly occurrence: Occurrence;
+  readonly occurrence: SilencedOccurrence;
   /** Oldest first. */
   readonly events: readonly OccurrenceEvent[];
   /** Earlier and later occurrences of the same alert, newest first. */
-  readonly otherOccurrences: readonly Occurrence[];
+  readonly otherOccurrences: readonly SilencedOccurrence[];
 }
 
 const otherOccurrencesShown = 20;
@@ -59,6 +61,7 @@ export function listChannels(db: Database): Promise<ChannelOverview[]> {
 
 export async function listChannelOccurrences(
   db: Database,
+  silences: Silences,
   address: ChannelAddress,
   filter: OccurrenceFilter,
 ): Promise<ChannelOccurrencePage> {
@@ -68,19 +71,21 @@ export async function listChannelOccurrences(
   if (channelId === null) {
     return { found: false };
   }
-  return { found: true, ...(await pageOf(db, channelId, filter)) };
+  return { found: true, ...(await pageOf(db, silences, channelId, filter)) };
 }
 
 /** Every channel's occurrences in one list, in the same order as a channel's. */
 export function listAllOccurrences(
   db: Database,
+  silences: Silences,
   filter: OccurrenceFilter,
 ): Promise<OccurrencePage> {
-  return pageOf(db, null, filter);
+  return pageOf(db, silences, null, filter);
 }
 
 async function pageOf(
   db: Database,
+  silences: Silences,
   channelId: number | null,
   filter: OccurrenceFilter,
 ): Promise<OccurrencePage> {
@@ -92,10 +97,14 @@ async function pageOf(
     rows.length > filter.limit && last !== undefined
       ? { lastEventAt: last.lastEventAt, id: last.id }
       : null;
-  return { occurrences: page, next };
+  return { occurrences: await silences.annotate(page), next };
 }
 
-export async function getOccurrence(db: Database, id: number): Promise<OccurrenceDetail | null> {
+export async function getOccurrence(
+  db: Database,
+  silences: Silences,
+  id: number,
+): Promise<OccurrenceDetail | null> {
   const occurrence = await findOccurrence(db, id);
   if (occurrence === null) {
     return null;
@@ -104,5 +113,6 @@ export async function getOccurrence(db: Database, id: number): Promise<Occurrenc
     listEvents(db, id),
     listOtherOccurrences(db, occurrence, otherOccurrencesShown),
   ]);
-  return { occurrence, events, otherOccurrences };
+  const [shown, ...others] = await silences.annotate([occurrence, ...otherOccurrences]);
+  return shown === undefined ? null : { occurrence: shown, events, otherOccurrences: others };
 }

@@ -79,6 +79,8 @@ swift test --package-path macos/Packages/AchtungDomain             # domain test
 swift test --package-path macos/Packages/AchtungAPI                # API mapping tests (also on Linux)
 cd macos && xcodegen generate && open Achtung.xcodeproj           # work in Xcode
 macos/scripts/install.sh            # Release build into ~/Applications, version = commit hash
+macos/scripts/run.sh                # Debug build of the working tree, started (quits a running Achtung)
+make help                           # make run, run-light, install, check, test, xcode: shortcuts for the above
 swift macos/scripts/render-icon.swift   # render macos/Icon/AppIcon.svg into the app icon set
 ```
 

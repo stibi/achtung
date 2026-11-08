@@ -1,0 +1,95 @@
+{
+  "occurrences": [
+    {
+      "id": 6,
+      "channel": "legal-machine-dev",
+      "source": "alertmanager",
+      "sourceKey": "c0ffee0000000003",
+      "status": "firing",
+      "severity": "info",
+      "title": "CertificateExpiringSoon",
+      "summary": "Certificate expires in 14 days.",
+      "labels": {
+        "severity": "info",
+        "alertname": "CertificateExpiringSoon",
+        "namespace": "example-dev"
+      },
+      "annotations": {
+        "summary": "Certificate expires in 14 days."
+      },
+      "links": [
+        {
+          "kind": "source",
+          "url": "https://prometheus.example.com/graph"
+        }
+      ],
+      "startsAt": "2026-11-07T18:00:00.000Z",
+      "endsAt": null,
+      "firstReceivedAt": "2026-11-07T21:14:19.553Z",
+      "lastReceivedAt": "2026-11-07T21:14:19.553Z",
+      "lastEventAt": "2026-11-07T21:14:19.553Z",
+      "notificationCount": 1
+    },
+    {
+      "id": 5,
+      "channel": "legal-machine-dev",
+      "source": "alertmanager",
+      "sourceKey": "c0ffee0000000002",
+      "status": "firing",
+      "severity": "warning",
+      "title": "KubeDeploymentReplicasMismatch",
+      "summary": "Deployment has not matched the expected replicas.",
+      "labels": {
+        "severity": "warning",
+        "alertname": "KubeDeploymentReplicasMismatch",
+        "namespace": "example-dev"
+      },
+      "annotations": {
+        "summary": "Deployment has not matched the expected replicas."
+      },
+      "links": [
+        {
+          "kind": "source",
+          "url": "https://prometheus.example.com/graph"
+        }
+      ],
+      "startsAt": "2026-11-07T18:00:00.000Z",
+      "endsAt": null,
+      "firstReceivedAt": "2026-11-07T21:14:19.553Z",
+      "lastReceivedAt": "2026-11-07T21:14:19.553Z",
+      "lastEventAt": "2026-11-07T21:14:19.553Z",
+      "notificationCount": 1
+    },
+    {
+      "id": 4,
+      "channel": "crm-prod",
+      "source": "alertmanager",
+      "sourceKey": "c0ffee0000000001",
+      "status": "firing",
+      "severity": "warning",
+      "title": "PostgresReplicationLag",
+      "summary": "Replica is 45s behind primary.",
+      "labels": {
+        "severity": "warning",
+        "alertname": "PostgresReplicationLag",
+        "namespace": "example-prod"
+      },
+      "annotations": {
+        "summary": "Replica is 45s behind primary."
+      },
+      "links": [
+        {
+          "kind": "source",
+          "url": "https://prometheus.example.com/graph"
+        }
+      ],
+      "startsAt": "2026-11-07T18:00:00.000Z",
+      "endsAt": null,
+      "firstReceivedAt": "2026-11-07T21:14:19.526Z",
+      "lastReceivedAt": "2026-11-07T21:14:19.526Z",
+      "lastEventAt": "2026-11-07T21:14:19.526Z",
+      "notificationCount": 1
+    }
+  ],
+  "nextCursor": "WyIyMDI2LTExLTA3VDIxOjE0OjE5LjUyNloiLDRd"
+}

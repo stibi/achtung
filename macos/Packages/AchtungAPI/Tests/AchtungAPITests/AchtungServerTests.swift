@@ -37,7 +37,8 @@ private func date(_ text: String) throws -> Date {
 }
 
 @Test func mapsAPageOfOccurrences() async throws {
-    let page = try await server([page1: ok("crm-prod-page-1")]).occurrences(in: "crm-prod")
+    let page = try await server([page1: ok("crm-prod-page-1")]).occurrences(
+        in: .channel("crm-prod"))
 
     #expect(page.nextCursor == cursor)
     #expect(page.occurrences.map(\.id) == [4, 1])
@@ -70,7 +71,7 @@ private func date(_ text: String) throws -> Date {
 @Test func followsNextCursorToCollectEverythingChangedSince() async throws {
     let api = server([page1: ok("crm-prod-page-1"), page2: ok("crm-prod-page-2")])
 
-    let changed = try await api.occurrences(in: "crm-prod", changedSince: .distantPast)
+    let changed = try await api.occurrences(in: .channel("crm-prod"), changedSince: .distantPast)
 
     #expect(changed.map(\.id) == [4, 1, 2])
 }
@@ -80,7 +81,7 @@ private func date(_ text: String) throws -> Date {
     let api = server([page1: ok("crm-prod-page-1")])
 
     let changed = try await api.occurrences(
-        in: "crm-prod", changedSince: try date("2026-11-07T21:14:19.500Z"))
+        in: .channel("crm-prod"), changedSince: try date("2026-11-07T21:14:19.500Z"))
 
     #expect(changed.map(\.id) == [4])
 }
@@ -90,7 +91,7 @@ private func date(_ text: String) throws -> Date {
 
     // Occurrence 1 changed exactly at `since`; occurrence 2 on page 2 is older.
     let changed = try await api.occurrences(
-        in: "crm-prod", changedSince: try date("2026-11-07T21:14:19.484Z"))
+        in: .channel("crm-prod"), changedSince: try date("2026-11-07T21:14:19.484Z"))
 
     #expect(changed.map(\.id) == [4, 1])
 }
@@ -129,7 +130,7 @@ private func date(_ text: String) throws -> Date {
         try await api.occurrence(id: 99999)
     }
     await #expect(throws: ServerError.rejected("Invalid cursor")) {
-        try await api.occurrences(in: "crm-prod", after: "bogus")
+        try await api.occurrences(in: .channel("crm-prod"), after: "bogus")
     }
 }
 
@@ -140,7 +141,7 @@ private func date(_ text: String) throws -> Date {
         throws: ServerError.invalidResponse(
             "Occurrence 4 is firing with endsAt Optional(2026-11-07 21:00:00 +0000)")
     ) {
-        try await api.occurrences(in: "crm-prod")
+        try await api.occurrences(in: .channel("crm-prod"))
     }
 }
 
@@ -159,5 +160,37 @@ private func date(_ text: String) throws -> Date {
     guard case .unreachable = error else {
         Issue.record("Expected unreachable, got \(String(describing: error))")
         return
+    }
+}
+
+private let feed1 = "/api/occurrences"
+private let feed2 = "/api/occurrences?cursor=WyIyMDI2LTExLTA3VDIxOjE0OjE5LjYxMFoiLDdd"
+
+@Test func mapsTheFeedOfEveryChannelWithEachRowsChannel() async throws {
+    let page = try await server([feed1: ok("feed-page-1")]).occurrences(in: .allChannels)
+
+    #expect(page.occurrences.map(\.id) == [10, 9, 7])
+    #expect(
+        page.occurrences.map(\.channel) == [
+            "onepost-prod", "legal-machine-prod", "legal-machine-prod",
+        ])
+    #expect(page.nextCursor == "WyIyMDI2LTExLTA3VDIxOjE0OjE5LjYxMFoiLDdd")
+}
+
+@Test func pagesTheFeedAcrossChannelsIncludingATieOnLastEventAt() async throws {
+    let api = server([feed1: ok("feed-page-1"), feed2: ok("feed-page-2")])
+
+    // Occurrences 6 and 5 changed at the same moment; 4 is older than `since`.
+    let changed = try await api.occurrences(
+        in: .allChannels, changedSince: try date("2026-11-07T21:14:19.553Z"))
+
+    #expect(changed.map(\.id) == [10, 9, 7, 6, 5])
+}
+
+@Test func reportsARejectedFeedCursor() async {
+    let api = server(["/api/occurrences?cursor=bogus": .init(status: 400, fixture: "bad-cursor")])
+
+    await #expect(throws: ServerError.rejected("Invalid cursor")) {
+        try await api.occurrences(in: .allChannels, after: "bogus")
     }
 }

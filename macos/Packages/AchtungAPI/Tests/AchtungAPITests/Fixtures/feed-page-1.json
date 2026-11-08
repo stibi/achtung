@@ -1,0 +1,95 @@
+{
+  "occurrences": [
+    {
+      "id": 10,
+      "channel": "onepost-prod",
+      "source": "alertmanager",
+      "sourceKey": "c0ffee0000000005",
+      "status": "resolved",
+      "severity": "critical",
+      "title": "BackupJobFailed",
+      "summary": "Nightly backup did not complete.",
+      "labels": {
+        "severity": "critical",
+        "alertname": "BackupJobFailed",
+        "namespace": "example-prod"
+      },
+      "annotations": {
+        "summary": "Nightly backup did not complete."
+      },
+      "links": [
+        {
+          "kind": "source",
+          "url": "https://prometheus.example.com/graph"
+        }
+      ],
+      "startsAt": "2026-11-07T02:00:00.000Z",
+      "endsAt": "2026-11-07T03:10:00.000Z",
+      "firstReceivedAt": "2026-11-07T21:14:19.669Z",
+      "lastReceivedAt": "2026-11-07T21:14:19.669Z",
+      "lastEventAt": "2026-11-07T21:14:19.669Z",
+      "notificationCount": 1
+    },
+    {
+      "id": 9,
+      "channel": "legal-machine-prod",
+      "source": "alertmanager",
+      "sourceKey": "c0ffee0000000004",
+      "status": "firing",
+      "severity": "critical",
+      "title": "HighErrorRate",
+      "summary": "5xx rate above 5% for 10 minutes.",
+      "labels": {
+        "severity": "critical",
+        "alertname": "HighErrorRate",
+        "namespace": "example-prod"
+      },
+      "annotations": {
+        "summary": "5xx rate above 5% for 10 minutes."
+      },
+      "links": [
+        {
+          "kind": "source",
+          "url": "https://prometheus.example.com/graph"
+        }
+      ],
+      "startsAt": "2026-11-07T19:00:00.000Z",
+      "endsAt": null,
+      "firstReceivedAt": "2026-11-07T21:14:19.643Z",
+      "lastReceivedAt": "2026-11-07T21:14:19.643Z",
+      "lastEventAt": "2026-11-07T21:14:19.643Z",
+      "notificationCount": 1
+    },
+    {
+      "id": 7,
+      "channel": "legal-machine-prod",
+      "source": "alertmanager",
+      "sourceKey": "c0ffee0000000004",
+      "status": "resolved",
+      "severity": "critical",
+      "title": "HighErrorRate",
+      "summary": "5xx rate above 5% for 10 minutes.",
+      "labels": {
+        "severity": "critical",
+        "alertname": "HighErrorRate",
+        "namespace": "example-prod"
+      },
+      "annotations": {
+        "summary": "5xx rate above 5% for 10 minutes."
+      },
+      "links": [
+        {
+          "kind": "source",
+          "url": "https://prometheus.example.com/graph"
+        }
+      ],
+      "startsAt": "2026-11-07T18:00:00.000Z",
+      "endsAt": "2026-11-07T18:20:00.000Z",
+      "firstReceivedAt": "2026-11-07T21:14:19.586Z",
+      "lastReceivedAt": "2026-11-07T21:14:19.610Z",
+      "lastEventAt": "2026-11-07T21:14:19.610Z",
+      "notificationCount": 2
+    }
+  ],
+  "nextCursor": "WyIyMDI2LTExLTA3VDIxOjE0OjE5LjYxMFoiLDdd"
+}

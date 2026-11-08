@@ -1,7 +1,13 @@
 import Foundation
 
-/// A channel's occurrences as far as the client has loaded them, most recently changed
-/// first, in the server's `(lastEventAt, id)` order.
+/// Which occurrences a list holds: every channel's (the Live view) or one channel's.
+public enum OccurrenceScope: Hashable, Sendable {
+    case allChannels
+    case channel(String)
+}
+
+/// The occurrences in one `OccurrenceScope` as far as the client has loaded them, most
+/// recently changed first, in the server's `(lastEventAt, id)` order.
 public struct OccurrenceList: Sendable, Equatable {
     public private(set) var occurrences: [Occurrence] = []
 

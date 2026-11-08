@@ -100,3 +100,11 @@ extension Components.Schemas.OccurrenceDetail {
             otherOccurrences: try otherOccurrences.map { try $0.domain() })
     }
 }
+
+extension OccurrencePage {
+    /// Both list routes, one channel and every channel, return this shape.
+    init(_ page: Components.Schemas.OccurrencePage) throws {
+        self.init(
+            occurrences: try page.occurrences.map { try $0.domain() }, nextCursor: page.nextCursor)
+    }
+}

@@ -155,13 +155,17 @@ the domain model is missing a concept. Discuss it and record an ADR.
   so nothing generated is committed and the spec has one copy. The generated code is
   `internal`; `Mapping.swift` turns it into AchtungDomain types, and failures into
   `ServerError`. The app never sees a generated type. Requests bypass the HTTP cache.
-- `Achtung/`: the app target, SwiftUI. The sidebar lists the channels (badge: firing
-  count; dot: something happened since the user last looked at that channel). A channel is a list, newest change first and
-  paged by `nextCursor`, with a detail pane that loads the occurrence's events and the
-  alert's other occurrences. `InboxModel` is the only code that talks to the server; the
+- `Achtung/`: the app target, SwiftUI. The sidebar lists Live and the channels (badge:
+  firing count; dot: something happened since the user last looked). Live
+  (`GET /api/occurrences`) is one stream of every channel's occurrences, each as a card
+  with all its details; clicking a card marks it read, and visiting Live counts as
+  visiting every channel whose newest change it has loaded. A channel
+  is a list, with a detail pane that loads the occurrence's events and the alert's other
+  occurrences. Both are newest change first and paged by `nextCursor`; `OccurrenceScope`
+  (all channels or one) selects the route. `InboxModel` is the only code that talks to the server; the
   views only read it. `SampleData` exists for SwiftUI previews.
 - No push yet: the app refreshes every 30 seconds and whenever it becomes active. A
-  refresh reloads the channels and asks the selected channel for everything changed
+  refresh reloads the channels and asks the selected list for everything changed
   since a minute before its newest known `lastEventAt`. The server stamps `lastEventAt`
   before its transaction commits, so a change can appear after a later-stamped one; the
   overlap catches it, and merging by id makes it harmless.
@@ -174,8 +178,6 @@ the domain model is missing a concept. Discuss it and record an ADR.
 - The server address is a setting (Settings window). The app allows plain HTTP (ATS
   exception in the generated Info.plist): instances are self-hosted and protected by the
   operator's network, not by TLS (ADR 0002).
-- A cross-channel Live view can use `GET /api/occurrences`, the feed of every
-  channel's occurrences.
 - Package dependencies enforce the layering. The compiler rejects imports a package
   hasn't declared.
 - The domain and API packages must build on Linux, so they can't import AppKit or

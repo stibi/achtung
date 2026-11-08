@@ -2,7 +2,8 @@ import AchtungDomain
 import AppKit
 import SwiftUI
 
-/// Channels in the sidebar; a channel is a list of occurrences with a detail pane.
+/// Live and the channels in the sidebar. Live is one stream of every channel's
+/// occurrences, each with all its details; a channel is a list with a detail pane.
 ///
 /// There is no server push yet, so the inbox refreshes every 30 seconds and right away
 /// whenever the app becomes active.
@@ -10,7 +11,7 @@ struct InboxView: View {
     private static let refreshInterval = Duration.seconds(30)
 
     @State private var model: InboxModel
-    @State private var selectedChannel: String?
+    @State private var selectedScope: OccurrenceScope? = .allChannels
     @State private var selectedID: Int?
 
     init(baseURL: URL) {
@@ -22,7 +23,7 @@ struct InboxView: View {
     }
 
     private var selectedOccurrence: Occurrence? {
-        selectedChannel.flatMap { model.lists[$0] }?.occurrences.first { $0.id == selectedID }
+        selectedScope.flatMap { model.lists[$0] }?.occurrences.first { $0.id == selectedID }
     }
 
     var body: some View {
@@ -31,12 +32,7 @@ struct InboxView: View {
         } detail: {
             content
         }
-        .onChange(of: model.channels) {
-            if selectedChannel == nil {
-                selectedChannel = model.channels.first?.slug
-            }
-        }
-        .onChange(of: selectedChannel) {
+        .onChange(of: selectedScope) {
             selectedID = nil
         }
         // Also fires when a refresh brings a newer version of the open occurrence: the user
@@ -46,13 +42,13 @@ struct InboxView: View {
                 model.markRead(selectedOccurrence)
             }
         }
-        .task(id: selectedChannel) {
+        .task(id: selectedScope) {
             while !Task.isCancelled {
-                await model.refresh(selectedChannel, visiting: NSApp.isActive)
+                await model.refresh(selectedScope, visiting: NSApp.isActive)
                 do {
                     try await Task.sleep(for: Self.refreshInterval)
                 } catch {
-                    return  // Cancelled: another channel was selected or the window closed.
+                    return  // Cancelled: another list was selected or the window closed.
                 }
             }
         }
@@ -66,7 +62,7 @@ struct InboxView: View {
         .onReceive(
             NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
         ) { _ in
-            Task { await model.refresh(selectedChannel, visiting: true) }
+            Task { await model.refresh(selectedScope, visiting: true) }
         }
         // Whatever is on screen when the user leaves counts as seen; anything that changes
         // after that shows up above the "new" divider when they come back.
@@ -78,21 +74,20 @@ struct InboxView: View {
     }
 
     private var sidebar: some View {
-        List(selection: $selectedChannel) {
+        List(selection: $selectedScope) {
+            sidebarRow(
+                "Live", systemImage: "dot.radiowaves.left.and.right",
+                firing: model.channels.reduce(0) { $0 + $1.firing },
+                hasNews: model.channels.contains { model.readState.hasNews($0) }
+            )
+            .tag(OccurrenceScope.allChannels)
             Section("Channels") {
                 ForEach(model.channels) { channel in
-                    HStack {
-                        Label(channel.slug, systemImage: "number")
-                        Spacer()
-                        if model.readState.hasNews(channel) {
-                            Circle()
-                                .fill(Color.accentColor)
-                                .frame(width: 7, height: 7)
-                                .help("Changed since you last looked")
-                        }
-                    }
-                    .badge(channel.firing)
-                    .tag(channel.slug)
+                    sidebarRow(
+                        channel.slug, systemImage: "number", firing: channel.firing,
+                        hasNews: model.readState.hasNews(channel)
+                    )
+                    .tag(OccurrenceScope.channel(channel.slug))
                 }
             }
         }
@@ -104,36 +99,83 @@ struct InboxView: View {
         }
     }
 
-    @ViewBuilder private var content: some View {
-        if let channel = selectedChannel {
-            HSplitView {
-                channelList(channel)
-                    .frame(minWidth: 300, idealWidth: 380, maxWidth: 480)
-                occurrenceDetail
-                    .frame(minWidth: 360, maxWidth: .infinity)
+    /// Badge: what is firing. Dot: something happened since the user last looked.
+    private func sidebarRow(_ title: String, systemImage: String, firing: Int, hasNews: Bool)
+        -> some View
+    {
+        HStack {
+            Label(title, systemImage: systemImage)
+            Spacer()
+            if hasNews {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 7, height: 7)
+                    .help("Changed since you last looked")
             }
-            .navigationTitle("#\(channel)")
-        } else if let problem = model.problem, model.channels.isEmpty {
+        }
+        .badge(firing)
+    }
+
+    @ViewBuilder private var content: some View {
+        if let problem = model.problem, model.lastUpdated == nil {
             UnreachableView(problem: problem, baseURL: model.baseURL) {
-                Task { await model.refresh(nil, visiting: true) }
+                Task { await model.refresh(selectedScope, visiting: true) }
             }
         } else if model.lastUpdated == nil {
             ProgressView("Connecting to \(model.baseURL.absoluteString)…")
         } else {
-            ContentUnavailableView(
-                "No channels yet", systemImage: "tray",
-                description: Text("A channel appears when its first alert arrives."))
+            switch selectedScope {
+            case .allChannels:
+                liveStream
+                    .navigationTitle("Live")
+            case .channel(let slug):
+                // HSplitView sizes its panes to their ideal height unless told to fill.
+                HSplitView {
+                    channelList(.channel(slug))
+                        .frame(minWidth: 300, idealWidth: 380, maxWidth: 480, maxHeight: .infinity)
+                    occurrenceDetail
+                        .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle("#\(slug)")
+            case nil:
+                ContentUnavailableView("Select a channel", systemImage: "tray")
+            }
         }
     }
 
-    @ViewBuilder private func channelList(_ channel: String) -> some View {
-        if let list = model.lists[channel] {
+    @ViewBuilder private var liveStream: some View {
+        if let list = model.lists[.allChannels] {
+            LiveView(
+                occurrences: list.occurrences, readState: model.readState,
+                hasOlder: model.hasOlder(in: .allChannels), lastUpdated: model.lastUpdated,
+                loadOlder: { await model.loadOlder(in: .allChannels) },
+                markRead: { model.markRead($0) })
+        } else {
+            loading(.allChannels)
+        }
+    }
+
+    @ViewBuilder private func channelList(_ scope: OccurrenceScope) -> some View {
+        if let list = model.lists[scope] {
             AlertList(
                 occurrences: list.occurrences, readState: model.readState,
-                hasOlder: model.hasOlder(in: channel),
+                hasOlder: model.hasOlder(in: scope),
                 lastUpdated: model.lastUpdated,
-                loadOlder: { await model.loadOlder(in: channel) },
+                loadOlder: { await model.loadOlder(in: scope) },
                 selection: $selectedID)
+        } else {
+            loading(scope)
+        }
+    }
+
+    /// Until a list's first page arrives. If loading it failed, say why instead of
+    /// spinning; the next refresh retries.
+    @ViewBuilder private func loading(_ scope: OccurrenceScope) -> some View {
+        if let problem = model.problem {
+            UnreachableView(problem: problem, baseURL: model.baseURL) {
+                Task { await model.refresh(scope, visiting: true) }
+            }
         } else {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -16,28 +16,15 @@ struct AlertList: View {
         if occurrences.isEmpty && !hasOlder {
             AllClearView()
         } else {
-            let newOnes = occurrences.filter { readState.isNew($0) }
             List(selection: $selection) {
-                rows(newOnes)
-                if let seenUntil = readState.seenUntil, !newOnes.isEmpty {
-                    NewDivider(seenUntil: seenUntil)
-                }
-                rows(occurrences.filter { !readState.isNew($0) })
-                if hasOlder {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .task(id: [occurrences.count, lastUpdated] as [AnyHashable?]) {
-                            await loadOlder()
-                        }
+                OccurrenceStream(
+                    occurrences: occurrences, readState: readState, hasOlder: hasOlder,
+                    lastUpdated: lastUpdated, loadOlder: loadOlder
+                ) { occurrence in
+                    AlertRow(occurrence: occurrence, isRead: readState.isRead(occurrence))
                 }
             }
             .animation(.default, value: occurrences.map(\.id))
-        }
-    }
-
-    private func rows(_ occurrences: [Occurrence]) -> some View {
-        ForEach(occurrences) { occurrence in
-            AlertRow(occurrence: occurrence, isRead: readState.isRead(occurrence))
         }
     }
 }

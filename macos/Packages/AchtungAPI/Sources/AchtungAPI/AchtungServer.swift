@@ -43,39 +43,48 @@ public struct AchtungServer: Sendable {
         }
     }
 
-    /// One page of a channel's occurrences, most recently changed first. Pass the page's
+    /// One page of occurrences in `scope`, most recently changed first. Pass the page's
     /// `nextCursor` back to get the next one.
-    public func occurrences(in channel: String, after cursor: String? = nil)
+    public func occurrences(in scope: OccurrenceScope, after cursor: String? = nil)
         async throws(ServerError) -> OccurrencePage
     {
         try await call {
-            let output = try await client.listChannelOccurrences(
-                path: .init(slug: channel), query: .init(cursor: cursor))
-            switch output {
-            case .ok(let response):
-                let page = try response.body.json
-                return OccurrencePage(
-                    occurrences: try page.occurrences.map { try $0.domain() },
-                    nextCursor: page.nextCursor)
-            case .badRequest(let response):
-                throw ServerError.rejected(try response.body.json.error)
-            case .notFound(let response):
-                throw ServerError.notFound(try response.body.json.error)
-            case .undocumented(let status, _):
-                throw ServerError.invalidResponse("HTTP \(status)")
+            switch scope {
+            case .allChannels:
+                switch try await client.listOccurrences(query: .init(cursor: cursor)) {
+                case .ok(let response):
+                    return try OccurrencePage(response.body.json)
+                case .badRequest(let response):
+                    throw ServerError.rejected(try response.body.json.error)
+                case .undocumented(let status, _):
+                    throw ServerError.invalidResponse("HTTP \(status)")
+                }
+            case .channel(let slug):
+                let output = try await client.listChannelOccurrences(
+                    path: .init(slug: slug), query: .init(cursor: cursor))
+                switch output {
+                case .ok(let response):
+                    return try OccurrencePage(response.body.json)
+                case .badRequest(let response):
+                    throw ServerError.rejected(try response.body.json.error)
+                case .notFound(let response):
+                    throw ServerError.notFound(try response.body.json.error)
+                case .undocumented(let status, _):
+                    throw ServerError.invalidResponse("HTTP \(status)")
+                }
             }
         }
     }
 
-    /// Every occurrence in the channel that changed at or after `since`, following
+    /// Every occurrence in `scope` that changed at or after `since`, following
     /// `nextCursor` until the pages reach older changes.
-    public func occurrences(in channel: String, changedSince since: Date)
+    public func occurrences(in scope: OccurrenceScope, changedSince since: Date)
         async throws(ServerError) -> [Occurrence]
     {
         var changed: [Occurrence] = []
         var cursor: String?
         repeat {
-            let page = try await occurrences(in: channel, after: cursor)
+            let page = try await occurrences(in: scope, after: cursor)
             changed += page.occurrences.filter { $0.lastEventAt >= since }
             if page.occurrences.contains(where: { $0.lastEventAt < since }) {
                 break

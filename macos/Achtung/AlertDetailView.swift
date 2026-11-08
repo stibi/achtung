@@ -2,26 +2,18 @@ import AchtungAPI
 import AchtungDomain
 import SwiftUI
 
-/// Everything about one occurrence: what the source reported, what Achtung tracked, and
-/// its history once `detail` has loaded.
+/// A channel's detail pane: everything about one occurrence, and its history once
+/// `detail` has loaded.
 struct AlertDetailView: View {
     let occurrence: Occurrence
     /// Nil while the history is loading, or when it failed to load.
     let detail: OccurrenceDetail?
     let detailProblem: ServerError?
 
-    private var alert: IncomingAlert { occurrence.alert }
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                AlertHeader(alert: alert)
-                if !alert.links.isEmpty {
-                    LinkButtons(links: alert.links)
-                }
-                KeyValueSection(title: "Annotations", values: alert.annotations)
-                KeyValueSection(title: "Labels", values: alert.labels)
-                OccurrenceFacts(occurrence: occurrence)
+                AlertDetails(occurrence: occurrence)
                 if let detail {
                     OccurrenceHistory(detail: detail)
                 } else if let detailProblem {
@@ -40,6 +32,27 @@ struct AlertDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(24)
         }
+    }
+}
+
+/// What the source reported and what Achtung tracked about one occurrence. Shared by the
+/// channel detail pane and the Live cards.
+struct AlertDetails: View {
+    let occurrence: Occurrence
+
+    private var alert: IncomingAlert { occurrence.alert }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            AlertHeader(alert: alert)
+            if !alert.links.isEmpty {
+                LinkButtons(links: alert.links)
+            }
+            KeyValueSection(title: "Annotations", values: alert.annotations)
+            KeyValueSection(title: "Labels", values: alert.labels)
+            OccurrenceFacts(occurrence: occurrence)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

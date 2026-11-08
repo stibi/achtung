@@ -9,7 +9,7 @@ import Foundation
 final class InboxModel {
     let baseURL: URL
     private(set) var channels: [Channel] = []
-    private(set) var lists: [String: OccurrenceList] = [:]
+    private(set) var lists: [OccurrenceScope: OccurrenceList] = [:]
     private(set) var detail: OccurrenceDetail?
     /// Why the selected occurrence's history didn't load; the next refresh retries.
     private(set) var detailProblem: ServerError?
@@ -18,9 +18,9 @@ final class InboxModel {
     private(set) var problem: ServerError?
     private(set) var lastUpdated: Date?
 
-    /// Where each channel's next older page starts; absent once the oldest is loaded.
-    private var olderCursors: [String: String] = [:]
-    private var loadingOlder: Set<String> = []
+    /// Where each list's next older page starts; absent once the oldest is loaded.
+    private var olderCursors: [OccurrenceScope: String] = [:]
+    private var loadingOlder: Set<OccurrenceScope> = []
     private let server: AchtungServer
     private let defaults: UserDefaults
     private let readStateKey: String
@@ -34,21 +34,20 @@ final class InboxModel {
         self.readState = Self.loadReadState(from: defaults, key: readStateKey)
     }
 
-    func hasOlder(in channel: String) -> Bool {
-        olderCursors[channel] != nil
+    func hasOlder(in scope: OccurrenceScope) -> Bool {
+        olderCursors[scope] != nil
     }
 
-    /// Reloads the channels and fetches what changed in `channel` since the last refresh.
-    /// `visiting` means the user has the channel on screen in the active app, so whatever
-    /// the refresh brings counts as seen for its sidebar dot.
-    func refresh(_ channel: String?, visiting: Bool) async {
+    /// Reloads the channels and fetches what changed in `scope` since the last refresh.
+    /// `visiting` means the user has the list on screen in the active app, so whatever the
+    /// refresh brings counts as seen for the sidebar dots of the channels it showed.
+    func refresh(_ scope: OccurrenceScope?, visiting: Bool) async {
         do throws(ServerError) {
             channels = try await server.channels()
-            if let channel {
-                try await update(channel)
-                if visiting, let visited = channels.first(where: { $0.slug == channel }) {
-                    readState.markVisited(visited)
-                    saveReadState()
+            if let scope {
+                try await update(scope)
+                if visiting {
+                    markVisited(scope)
                 }
             }
             problem = nil
@@ -60,15 +59,15 @@ final class InboxModel {
         }
     }
 
-    func loadOlder(in channel: String) async {
-        guard let cursor = olderCursors[channel], loadingOlder.insert(channel).inserted else {
+    func loadOlder(in scope: OccurrenceScope) async {
+        guard let cursor = olderCursors[scope], loadingOlder.insert(scope).inserted else {
             return
         }
-        defer { loadingOlder.remove(channel) }
+        defer { loadingOlder.remove(scope) }
         do throws(ServerError) {
-            let page = try await server.occurrences(in: channel, after: cursor)
-            lists[channel, default: OccurrenceList()].merge(page.occurrences)
-            olderCursors[channel] = page.nextCursor
+            let page = try await server.occurrences(in: scope, after: cursor)
+            lists[scope, default: OccurrenceList()].merge(page.occurrences)
+            olderCursors[scope] = page.nextCursor
         } catch {
             guard !Task.isCancelled else { return }
             problem = error
@@ -105,17 +104,39 @@ final class InboxModel {
         saveReadState()
     }
 
-    private func update(_ channel: String) async throws(ServerError) {
-        if let since = lists[channel]?.refreshSince {
-            let changed = try await server.occurrences(in: channel, changedSince: since)
-            lists[channel]?.merge(changed)
+    private func update(_ scope: OccurrenceScope) async throws(ServerError) {
+        if let since = lists[scope]?.refreshSince {
+            let changed = try await server.occurrences(in: scope, changedSince: since)
+            lists[scope]?.merge(changed)
         } else {
-            let page = try await server.occurrences(in: channel)
+            let page = try await server.occurrences(in: scope)
             var list = OccurrenceList()
             list.merge(page.occurrences)
-            lists[channel] = list
-            olderCursors[channel] = page.nextCursor
+            lists[scope] = list
+            olderCursors[scope] = page.nextCursor
         }
+    }
+
+    /// A channel's newest change is always the first row of its own list. Live is one feed
+    /// across channels, so it has shown a channel's newest change only if that change is
+    /// within the pages loaded so far.
+    private func markVisited(_ scope: OccurrenceScope) {
+        switch scope {
+        case .channel(let slug):
+            for channel in channels where channel.slug == slug {
+                readState.markVisited(channel)
+            }
+        case .allChannels:
+            let complete = !hasOlder(in: .allChannels)
+            let oldestLoaded = lists[.allChannels]?.occurrences.last?.lastEventAt
+            for channel in channels {
+                guard let lastEventAt = channel.lastEventAt else { continue }
+                if complete || oldestLoaded.map({ lastEventAt >= $0 }) == true {
+                    readState.markVisited(channel)
+                }
+            }
+        }
+        saveReadState()
     }
 
     private func saveReadState() {

@@ -54,10 +54,12 @@ get a change through. If you believe a rule is wrong, stop and say why.
   deployment, if the task doesn't already cover it.
 - **Record decisions.** If a change departs from an ADR, write a new ADR in the same
   change. When you add a tool or command, update this file.
-- **Commits** use Conventional Commits, e.g. `feat(server): …`, `fix(macos): …`,
-  `docs: …`. The commit-msg hook enforces this. Work lands directly on `main`, with no
-  branches or pull requests. Several agents may push, so `git pull --rebase` before you
-  push.
+- **Don't commit, push, create a branch, or open a pull request** unless the user
+  explicitly asks for that action. Leave the change uncommitted for review.
+- **Commits**, when asked for, use Conventional Commits, e.g. `feat(server): …`,
+  `fix(macos): …`, `docs: …`. The commit-msg hook enforces this. Work lands directly on
+  `main`, with no branches or pull requests. Several agents may push, so
+  `git pull --rebase` before you push.
 - **Review.** Before calling non-trivial work done, run the `reviewer` subagent on the
   diff and fix what it finds that is real.
 

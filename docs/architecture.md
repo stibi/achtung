@@ -198,9 +198,18 @@ the domain model is missing a concept. Discuss it and record an ADR.
   on load (read marks and the last-visit marker are kept). An occurrence is read when the
   user has opened it at its current `lastEventAt`, or when its `lastEventAt` is at or
   before the baseline; a fire, resolve or reopen after that makes it unread again, and a
-  repeat notification doesn't. The baseline is set once, on the first refresh after
+  repeat notification doesn't. The baseline is first set on the first refresh after
   unread counts arrived (also for a migrated stored state), to the newest `lastEventAt`
-  on the server, so an existing backlog doesn't all show as unread. "New since last visit" means a `lastEventAt`
+  on the server, so an existing backlog doesn't all show as unread. After each refresh
+  whose feed reaches back to it (not stopped by the cap or by Live's own paging), it
+  moves forward to just before the oldest unread occurrence, never past the newest loaded
+  change minus the 60-second refresh overlap (so a late commit still counts as unread),
+  and never back (`ReadState.advanceBaseline`). A change committed more than 60 seconds
+  late, which the refresh would miss anyway, then counts as read. Read marks at or below
+  the baseline are dropped, which can't change what is read: a mark only makes read what
+  last changed at or below it, and the baseline covers all of that. So the backlog each
+  launch pages through stays small and the stored read state doesn't grow without
+  bound. "New since last visit" means a `lastEventAt`
   after the newest event the client had loaded when the app last went to the
   background.
 - The server address is a setting (Settings window). The app allows plain HTTP (ATS

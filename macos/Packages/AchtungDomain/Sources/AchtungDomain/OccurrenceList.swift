@@ -18,8 +18,12 @@ public struct OccurrenceList: Sendable, Equatable {
     /// change can become visible after a later-stamped one; without the overlap the client
     /// would never fetch it. `merge` makes the overlap harmless.
     public var refreshSince: Date? {
-        occurrences.first?.lastEventAt.addingTimeInterval(-60)
+        occurrences.first?.lastEventAt.addingTimeInterval(-Self.refreshOverlap)
     }
+
+    /// How far back of the newest known change a refresh asks again, and how far behind it
+    /// the read baseline stays (`ReadState.advanceBaseline`), for changes committed late.
+    public static let refreshOverlap: TimeInterval = 60
 
     /// Adds occurrences, replacing those already listed with the same id. Pages and
     /// refreshes can overlap, and an occurrence that changed moves to its new place.

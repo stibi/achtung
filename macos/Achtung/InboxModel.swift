@@ -131,6 +131,7 @@ final class InboxModel {
 
     /// Pages the all-channels feed back to the read baseline: anything older is read, so
     /// then every occurrence that can be unread is loaded and counted. Stops at the cap.
+    /// A complete load moves the baseline forward (`ReadState.advanceBaseline`).
     private func loadUnreadBacklog() async throws(ServerError) {
         guard let baseline = readState.baseline else { return }
         while let loaded = lists[.allChannels]?.occurrences,
@@ -138,7 +139,13 @@ final class InboxModel {
             let oldest = loaded.last?.lastEventAt, oldest > baseline
         {
             // Nothing left, or Live's scrolling is loading the next page already.
-            guard try await loadOlderPage(in: .allChannels) else { return }
+            guard try await loadOlderPage(in: .allChannels) else { break }
+        }
+        // If the feed now reaches back to the baseline (not stopped by the cap or by Live's
+        // paging), move the baseline up so the next launch has less to page through.
+        let feed = lists[.allChannels]?.occurrences ?? []
+        if readState.advanceBaseline(over: feed, hasOlder: hasOlder(in: .allChannels)) {
+            saveReadState()
         }
     }
 

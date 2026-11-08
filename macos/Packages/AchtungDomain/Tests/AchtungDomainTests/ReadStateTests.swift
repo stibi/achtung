@@ -169,3 +169,119 @@ import Testing
     state.markRead(list[2])
     #expect(state.firstUnread(in: list) == nil)
 }
+
+// Moving the baseline forward. Minutes are relative to Fixture.start.
+
+private func baselineAt(_ minutes: Double) -> ReadState {
+    var state = ReadState()
+    state.setBaselineIfMissing(Fixture.minutes(minutes))
+    return state
+}
+
+@Test func withNothingUnreadTheBaselineMovesToTheNewestChangeMinusTheLag() {
+    var state = baselineAt(0)
+    let feed = [
+        Fixture.occurrence(id: 2, lastEventAt: Fixture.minutes(10)),
+        Fixture.occurrence(id: 1, lastEventAt: Fixture.minutes(5)),
+    ]
+    for occurrence in feed {
+        state.markRead(occurrence)
+    }
+
+    let moved = state.advanceBaseline(over: feed, hasOlder: false)
+    #expect(moved)
+
+    #expect(state.baseline == Fixture.minutes(9))
+    #expect(feed.allSatisfy { state.isRead($0) })
+    // The mark at minute 5 is gone (the baseline covers it); the one at 10 stays.
+    var expected = baselineAt(9)
+    expected.markRead(feed[0])
+    #expect(state == expected)
+}
+
+@Test func theBaselineStopsJustBeforeTheOldestUnread() throws {
+    var state = baselineAt(0)
+    let oldUnread = Fixture.occurrence(id: 1, lastEventAt: Fixture.minutes(3))
+    let read = Fixture.occurrence(id: 2, lastEventAt: Fixture.minutes(8))
+    state.markRead(read)
+
+    state.advanceBaseline(over: [read, oldUnread], hasOlder: false)
+
+    #expect(try #require(state.baseline) < Fixture.minutes(3))
+    #expect(try #require(state.baseline) > Fixture.minutes(2.99))
+    #expect(!state.isRead(oldUnread))
+    #expect(state.isRead(read))
+}
+
+@Test func aLoadThatStoppedAtTheCapLeavesTheBaselineAlone() {
+    var state = baselineAt(0)
+    // Older pages remain and the oldest loaded change is still after the baseline.
+    let feed = [Fixture.occurrence(id: 1, lastEventAt: Fixture.minutes(10))]
+    state.markRead(feed[0])
+
+    let moved = state.advanceBaseline(over: feed, hasOlder: true)
+    #expect(!moved)
+
+    #expect(state.baseline == Fixture.minutes(0))
+}
+
+@Test func aFeedThatReachesTheBaselineMovesItEvenWithOlderPagesLeft() {
+    var state = baselineAt(0)
+    let feed = [
+        Fixture.occurrence(id: 2, lastEventAt: Fixture.minutes(10)),
+        Fixture.occurrence(id: 1, lastEventAt: Fixture.minutes(0)),
+    ]
+    state.markRead(feed[0])
+
+    let moved = state.advanceBaseline(over: feed, hasOlder: true)
+    #expect(moved)
+
+    #expect(state.baseline == Fixture.minutes(9))
+}
+
+@Test func theBaselineNeverMovesBack() {
+    var state = baselineAt(20)
+    let feed = [Fixture.occurrence(id: 1, lastEventAt: Fixture.minutes(10))]
+
+    let moved = state.advanceBaseline(over: feed, hasOlder: false)
+    #expect(!moved)
+
+    #expect(state.baseline == Fixture.minutes(20))
+}
+
+@Test func anOccurrenceThatChangesAfterTheBaselineMovedIsUnreadAgain() {
+    var state = baselineAt(0)
+    let old = Fixture.occurrence(id: 1, lastEventAt: Fixture.minutes(2))
+    let newest = Fixture.occurrence(id: 9, lastEventAt: Fixture.minutes(10))
+    state.markRead(old)
+    state.markRead(newest)
+
+    state.advanceBaseline(over: [newest, old], hasOlder: false)
+    #expect(state.baseline == Fixture.minutes(9))
+
+    // The old occurrence resolves later: its read mark was pruned, and it's above the
+    // baseline now, so it comes back as unread.
+    #expect(!state.isRead(Fixture.occurrence(id: 1, lastEventAt: Fixture.minutes(12))))
+    #expect(state.isRead(old))
+}
+
+@Test func pruningReadMarksNeverChangesWhatIsRead() throws {
+    var state = baselineAt(0)
+    let marks = (1...6).map { Fixture.occurrence(id: $0, lastEventAt: Fixture.minutes(Double($0))) }
+    for occurrence in marks {
+        state.markRead(occurrence)
+    }
+    let unread = Fixture.occurrence(id: 7, lastEventAt: Fixture.minutes(4.5))
+    // Each occurrence as it is now, and as it would be after changing again.
+    let probes =
+        marks
+        + marks.map {
+            Fixture.occurrence(id: $0.id, lastEventAt: $0.lastEventAt.addingTimeInterval(600))
+        } + [unread]
+    let before = probes.map { state.isRead($0) }
+
+    state.advanceBaseline(over: marks + [unread], hasOlder: false)
+
+    #expect(try #require(state.baseline) < Fixture.minutes(4.5))
+    #expect(probes.map { state.isRead($0) } == before)
+}

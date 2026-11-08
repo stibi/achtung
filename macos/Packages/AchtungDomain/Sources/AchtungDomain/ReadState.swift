@@ -13,9 +13,10 @@ public struct ReadState: Sendable, Codable, Equatable {
     /// later is new since then, including changes that arrived while the app was open but
     /// before a refresh fetched them.
     public private(set) var seenUntil: Date?
-    /// Everything that last changed at or before this counts as read. Set once, to the
-    /// newest event the client saw on its first launch with unread counts, so a backlog
-    /// the user never opened one by one doesn't show up as unread.
+    /// Everything that last changed at or before this counts as read. First set to the
+    /// newest event on the server at the first launch with unread counts, so a backlog the
+    /// user never opened one by one doesn't show up as unread; `advanceBaseline` then moves
+    /// it forward.
     public private(set) var baseline: Date?
 
     public init() {}
@@ -66,6 +67,34 @@ public struct ReadState: Sendable, Codable, Equatable {
         if baseline == nil {
             baseline = latestEventAt
         }
+    }
+
+    /// Moves the baseline up once the all-channels feed reaches back to it, so the backlog
+    /// each launch pages through doesn't keep growing. `feed` is what's loaded of the feed,
+    /// `hasOlder` whether older pages remain. The feed reaches back when nothing older is
+    /// left or its oldest change is at or before the baseline; otherwise (stopped at the
+    /// cap, or interrupted) the oldest unread may not be loaded, and nothing moves.
+    ///
+    /// The new baseline is just before the oldest unread occurrence, never later than the
+    /// newest loaded change minus `OccurrenceList.refreshOverlap` (a change the server
+    /// commits late stays above it), and never back.
+    ///
+    /// Read marks at or below the new baseline are dropped, which can't change `isRead`: a
+    /// mark only ever makes an occurrence read whose `lastEventAt` is at or below the mark,
+    /// and the baseline already covers all of those.
+    @discardableResult
+    public mutating func advanceBaseline(over feed: [Occurrence], hasOlder: Bool) -> Bool {
+        guard let current = baseline, let newest = feed.map(\.lastEventAt).max(),
+            let oldest = feed.map(\.lastEventAt).min(), !hasOlder || oldest <= current
+        else { return false }
+        let ceiling = newest.addingTimeInterval(-OccurrenceList.refreshOverlap)
+        let oldestUnread = feed.filter { !isRead($0) }.map(\.lastEventAt).min()
+        // Just before: the oldest unread itself must stay above the baseline.
+        let target = min(ceiling, oldestUnread?.addingTimeInterval(-0.001) ?? ceiling)
+        guard target > current else { return false }
+        baseline = target
+        readUpTo = readUpTo.filter { $0.value > target }
+        return true
     }
 
     /// The first unread occurrence of a list sorted newest change first, or nil.

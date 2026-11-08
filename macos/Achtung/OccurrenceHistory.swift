@@ -1,28 +1,45 @@
 import AchtungDomain
 import SwiftUI
 
-/// What Achtung tracked about the occurrence, beyond what the source reported.
+/// What Achtung tracked about the occurrence, beyond what the source reported, as a Live
+/// card shows it. The detail pane shows the same in `AlertMetadataPanel`.
 struct OccurrenceFacts: View {
     let occurrence: Occurrence
 
     var body: some View {
+        FactsSection(
+            title: "Delivery",
+            facts: [("Source", occurrence.source)] + deliveryFacts(of: occurrence))
+    }
+}
+
+/// How often and when the occurrence's notifications arrived.
+func deliveryFacts(of occurrence: Occurrence) -> [(name: String, value: String)] {
+    [
+        ("Notifications", occurrence.notificationCount.formatted()),
+        ("First received", exact(occurrence.firstReceivedAt)),
+        ("Last received", exact(occurrence.lastReceivedAt)),
+    ]
+}
+
+/// A heading over name/value rows.
+struct FactsSection: View {
+    let title: String
+    let facts: [(name: String, value: String)]
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Delivery")
+            Text(title)
                 .font(.headline)
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                fact("Source", occurrence.source)
-                fact("Notifications", occurrence.notificationCount.formatted())
-                fact("First received", exact(occurrence.firstReceivedAt))
-                fact("Last received", exact(occurrence.lastReceivedAt))
+                ForEach(facts, id: \.name) { fact in
+                    GridRow {
+                        Text(fact.name).foregroundStyle(.secondary)
+                        Text(fact.value).textSelection(.enabled)
+                    }
+                }
             }
             .font(.callout)
-        }
-    }
-
-    private func fact(_ name: String, _ value: String) -> some View {
-        GridRow {
-            Text(name).foregroundStyle(.secondary)
-            Text(value).textSelection(.enabled)
         }
     }
 }
@@ -48,7 +65,8 @@ struct OccurrenceHistory: View {
             }
             if !detail.otherOccurrences.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Earlier occurrences")
+                    // Can hold newer ones too, when an older occurrence is open.
+                    Text("Other occurrences")
                         .font(.headline)
                     ForEach(detail.otherOccurrences) { other in
                         HStack(spacing: 8) {

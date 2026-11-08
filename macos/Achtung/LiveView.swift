@@ -50,7 +50,10 @@ private struct LiveCard: View {
                     .font(.callout.weight(.medium))
                     .foregroundStyle(.secondary)
             }
-            AlertDetails(occurrence: occurrence)
+            VStack(alignment: .leading, spacing: 24) {
+                AlertDetails(occurrence: occurrence)
+                OccurrenceFacts(occurrence: occurrence)
+            }
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)

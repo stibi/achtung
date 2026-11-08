@@ -2,41 +2,74 @@ import AchtungAPI
 import AchtungDomain
 import SwiftUI
 
-/// A channel's detail pane: everything about one occurrence, and its history once
-/// `detail` has loaded.
+/// A channel's detail pane: what the source reported in the main column, and the
+/// occurrence's metadata (channel, identity, delivery, history) in a panel on the right.
+/// Each scrolls on its own. When the pane is too narrow for both, the panel goes below.
 struct AlertDetailView: View {
+    /// Narrower than this, the panel stacks below the main column.
+    private static let sideBySideWidth: CGFloat = 400 + AlertMetadataPanel.width
+    /// The panel card's distance from the pane's edges.
+    private static let cardMargin: CGFloat = 10
+
     let occurrence: Occurrence
     /// Nil while the history is loading, or when it failed to load.
     let detail: OccurrenceDetail?
     let detailProblem: ServerError?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                AlertDetails(occurrence: occurrence)
-                if let detail {
-                    OccurrenceHistory(detail: detail)
-                } else if let detailProblem {
-                    Label(
-                        "History unavailable: \(detailProblem.title). Retrying soon.",
-                        systemImage: "exclamationmark.icloud"
-                    )
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .help(detailProblem.detail)
-                } else {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
+        GeometryReader { geometry in
+            if geometry.size.width >= Self.sideBySideWidth {
+                HStack(spacing: 0) {
+                    ScrollView {
+                        AlertDetails(occurrence: occurrence)
+                            .padding(24)
+                    }
+                    // The card's contents scroll inside it; the main column's padding is
+                    // the gap on its left.
+                    ScrollView {
+                        panel
+                    }
+                    .frame(width: AlertMetadataPanel.width)
+                    .metadataCard()
+                    .padding([.top, .trailing, .bottom], Self.cardMargin)
+                }
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        AlertDetails(occurrence: occurrence)
+                            .padding(24)
+                        panel
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .metadataCard()
+                            .padding(Self.cardMargin)
+                    }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(24)
         }
+    }
+
+    private var panel: some View {
+        AlertMetadataPanel(occurrence: occurrence, detail: detail, detailProblem: detailProblem)
+            .padding(20)
     }
 }
 
-/// What the source reported and what Achtung tracked about one occurrence. Shared by the
-/// channel detail pane and the Live cards.
+extension View {
+    /// The metadata panel as a card set into the pane: rounded, on a material, with a
+    /// hairline border and a very soft shadow. Content is clipped to the card.
+    fileprivate func metadataCard() -> some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        return
+            self
+            .background(.regularMaterial, in: shape)
+            .clipShape(shape)
+            .overlay { shape.strokeBorder(.separator, lineWidth: 0.5) }
+            .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
+    }
+}
+
+/// What the source reported about one occurrence: header, links, annotations and labels.
+/// Shared by the channel detail pane and the Live cards.
 struct AlertDetails: View {
     let occurrence: Occurrence
 
@@ -50,7 +83,6 @@ struct AlertDetails: View {
             }
             KeyValueSection(title: "Annotations", values: alert.annotations)
             KeyValueSection(title: "Labels", values: alert.labels)
-            OccurrenceFacts(occurrence: occurrence)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

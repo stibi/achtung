@@ -178,7 +178,11 @@ the domain model is missing a concept. Discuss it and record an ADR.
   channel whose newest change it has loaded. A channel
   (`GET /api/instances/{instance}/channels/{slug}/occurrences`; the deprecated route by
   name alone is not used) is a list in a fixed-width column (summaries wrap), with a
-  detail pane that loads the occurrence's events and the alert's other occurrences.
+  detail pane: what the source reported in the main column, and the occurrence's
+  channel, identity (source and key), delivery facts, events and the alert's other
+  occurrences in a 280-point column on the right that scrolls on its own
+  (`AlertMetadataPanel`). When the pane is narrower than 680 points, that column goes
+  below the main one.
   Opening a channel selects its first unread occurrence, if any. If the open channel disappears, for example
   because the operator moved it to another instance, the view switches to Live. Both are newest change first and paged by `nextCursor`; `OccurrenceScope`
   (all channels or one) selects the route. `InboxModel` is the only code that talks to the server; the

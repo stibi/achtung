@@ -91,17 +91,20 @@ private func date(_ text: String) throws -> Date {
     let changed = try await api.occurrences(
         in: .channel(crmProd), changedSince: try date("2026-11-07T21:14:19.500Z"))
 
-    #expect(changed.map(\.id) == [4])
+    // Page 1 already reaches an older change (occurrence 1), so page 2 is never asked
+    // for; page 1 comes back whole, older occurrence included.
+    #expect(changed.map(\.id) == [4, 1])
 }
 
-@Test func keepsAnOccurrenceChangedExactlyAtSinceAndStopsAtTheFirstOlderOne() async throws {
+@Test func anOccurrenceChangedExactlyAtSinceIsNotOlderSoPagingGoesOn() async throws {
     let api = server([page1: ok("crm-prod-page-1"), page2: ok("crm-prod-page-2")])
 
-    // Occurrence 1 changed exactly at `since`; occurrence 2 on page 2 is older.
+    // Occurrence 1 changed exactly at `since`, so page 1 doesn't reach older changes and
+    // page 2 is fetched; its occurrence 2 is older, so paging stops there.
     let changed = try await api.occurrences(
         in: .channel(crmProd), changedSince: try date("2026-11-07T21:14:19.484Z"))
 
-    #expect(changed.map(\.id) == [4, 1])
+    #expect(changed.map(\.id) == [4, 1, 2])
 }
 
 @Test func mapsAnOccurrenceWithItsHistory() async throws {
@@ -194,7 +197,7 @@ private let feed2 = "/api/occurrences?cursor=WyIyMDI2LTExLTA3VDIxOjE0OjE5LjYxMFo
     let changed = try await api.occurrences(
         in: .allChannels, changedSince: try date("2026-11-07T21:14:19.553Z"))
 
-    #expect(changed.map(\.id) == [10, 9, 7, 6, 5])
+    #expect(changed.map(\.id) == [10, 9, 7, 6, 5, 4])
 }
 
 @Test func reportsARejectedFeedCursor() async {
@@ -202,5 +205,50 @@ private let feed2 = "/api/occurrences?cursor=WyIyMDI2LTExLTA3VDIxOjE0OjE5LjYxMFo
 
     await #expect(throws: ServerError.rejected("Invalid cursor")) {
         try await api.occurrences(in: .allChannels, after: "bogus")
+    }
+}
+
+@Test func mapsWhenAnOccurrenceIsSilencedUntil() async throws {
+    let page = try await server([page1: ok("crm-prod-page-1")]).occurrences(in: .channel(crmProd))
+
+    #expect(page.occurrences[0].silencedUntil == (try date("2026-11-07T22:14:19.526Z")))
+    #expect(page.occurrences[1].silencedUntil == nil)
+}
+
+@Test func silencingSendsTheDurationAndReturnsTheSilencedOccurrence() async throws {
+    let log = RequestLog()
+    let api = AchtungServer(
+        baseURL: base,
+        transport: StubTransport(routes: ["/api/occurrences/4/silence": ok("silence-ok")], log: log)
+    )
+
+    let silenced = try await api.silence(occurrenceID: 4, for: .fourHours)
+
+    #expect(silenced.id == 4)
+    #expect(silenced.silencedUntil == (try date("2026-11-08T23:00:00.000Z")))
+    let sent = try JSONSerialization.jsonObject(
+        with: Data(try #require(await log.bodies.first).utf8))
+    #expect((sent as? [String: Int]) == ["durationSeconds": 14_400])
+}
+
+@Test func aSilenceThatFailsCarriesTheServersReason() async {
+    let api = server([
+        "/api/occurrences/4/silence": .init(status: 409, fixture: "silence-conflict"),
+        "/api/occurrences/9/silence": .init(status: 502, fixture: "silence-bad-gateway"),
+        "/api/occurrences/99999/silence": .init(status: 404, fixture: "occurrence-not-found"),
+    ])
+
+    await #expect(
+        throws: ServerError.silenceFailed("Instance default has no Alertmanager configured")
+    ) {
+        try await api.silence(occurrenceID: 4, for: .oneHour)
+    }
+    await #expect(
+        throws: ServerError.silenceFailed("Alertmanager refused the silence: connection timed out")
+    ) {
+        try await api.silence(occurrenceID: 9, for: .oneHour)
+    }
+    await #expect(throws: ServerError.notFound("Occurrence not found")) {
+        try await api.silence(occurrenceID: 99999, for: .oneHour)
     }
 }

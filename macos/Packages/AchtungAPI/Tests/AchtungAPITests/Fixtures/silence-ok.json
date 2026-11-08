@@ -1,0 +1,32 @@
+{
+  "id": 4,
+  "instance": "onprem",
+  "channel": "crm-prod",
+  "source": "alertmanager",
+  "sourceKey": "c0ffee0000000001",
+  "status": "firing",
+  "severity": "warning",
+  "title": "PostgresReplicationLag",
+  "summary": "Replica is 45s behind primary.",
+  "labels": {
+    "severity": "warning",
+    "alertname": "PostgresReplicationLag",
+    "namespace": "example-prod"
+  },
+  "annotations": {
+    "summary": "Replica is 45s behind primary."
+  },
+  "links": [
+    {
+      "kind": "source",
+      "url": "https://prometheus.example.com/graph"
+    }
+  ],
+  "startsAt": "2026-11-07T18:00:00.000Z",
+  "endsAt": null,
+  "firstReceivedAt": "2026-11-07T21:14:19.526Z",
+  "lastReceivedAt": "2026-11-07T21:14:19.526Z",
+  "lastEventAt": "2026-11-07T21:14:19.526Z",
+  "notificationCount": 1,
+  "silencedUntil": "2026-11-08T23:00:00.000Z"
+}

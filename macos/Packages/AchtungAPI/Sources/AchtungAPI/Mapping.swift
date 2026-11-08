@@ -31,7 +31,8 @@ extension Components.Schemas.Occurrence {
             firstReceivedAt: firstReceivedAt,
             lastReceivedAt: lastReceivedAt,
             lastEventAt: lastEventAt,
-            notificationCount: notificationCount)
+            notificationCount: notificationCount,
+            silencedUntil: silencedUntil)
     }
 
     /// The spec promises `endsAt` is set exactly when the status is resolved.

@@ -8,4 +8,7 @@ public enum ServerError: Error, Equatable, Sendable {
     case notFound(String)
     /// 400: the server rejected the request, e.g. a cursor it never issued.
     case rejected(String)
+    /// 409 or 502 on a silence: the alert can't be silenced (no Alertmanager configured,
+    /// or not an Alertmanager alert), or its Alertmanager was unreachable or refused.
+    case silenceFailed(String)
 }

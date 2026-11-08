@@ -21,6 +21,13 @@ struct AlertRow: View {
                 .foregroundStyle(alert.isFiring ? alert.severity.color : .secondary)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {
+                    SilenceState(occurrence: occurrence) { isSilenced in
+                        if isSilenced {
+                            Image(systemName: "bell.slash")
+                                .foregroundStyle(.secondary)
+                                .help("Silenced in Alertmanager")
+                        }
+                    }
                     Text(alert.title)
                         .font(.headline.weight(isRead ? .regular : .bold))
                         .foregroundStyle(isRead ? .secondary : .primary)

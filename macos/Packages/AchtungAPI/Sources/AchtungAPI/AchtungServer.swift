@@ -77,8 +77,10 @@ public struct AchtungServer: Sendable {
         }
     }
 
-    /// Every occurrence in `scope` that changed at or after `since`, following
-    /// `nextCursor` until the pages reach older changes.
+    /// Every occurrence on the pages of `scope` down to `since`: all that changed at or after
+    /// it, following `nextCursor` until a page reaches older changes, plus the older ones on
+    /// that last page. Those are returned too, because state the server derives without
+    /// moving `lastEventAt`, like `silencedUntil` (ADR 0008), may have changed on them.
     public func occurrences(in scope: OccurrenceScope, changedSince since: Date)
         async throws(ServerError) -> [Occurrence]
     {
@@ -86,13 +88,40 @@ public struct AchtungServer: Sendable {
         var cursor: String?
         repeat {
             let page = try await occurrences(in: scope, after: cursor)
-            changed += page.occurrences.filter { $0.lastEventAt >= since }
+            changed += page.occurrences
             if page.occurrences.contains(where: { $0.lastEventAt < since }) {
                 break
             }
             cursor = page.nextCursor
         } while cursor != nil
         return changed
+    }
+
+    /// Silences the occurrence's alert on its instance's Alertmanager for `duration`,
+    /// matching every label of the alert (ADR 0008), and returns the occurrence with its
+    /// new `silencedUntil`. The silence mutes the alert for every receiver of that
+    /// Alertmanager, not only Achtung.
+    public func silence(occurrenceID id: Int, for duration: SilenceDuration)
+        async throws(ServerError) -> Occurrence
+    {
+        try await call {
+            let output = try await client.silenceOccurrence(
+                path: .init(id: id), body: .json(.init(durationSeconds: duration.seconds)))
+            switch output {
+            case .ok(let response):
+                return try response.body.json.domain()
+            case .badRequest(let response):
+                throw ServerError.rejected(try response.body.json.error)
+            case .notFound(let response):
+                throw ServerError.notFound(try response.body.json.error)
+            case .conflict(let response):
+                throw ServerError.silenceFailed(try response.body.json.error)
+            case .badGateway(let response):
+                throw ServerError.silenceFailed(try response.body.json.error)
+            case .undocumented(let status, _):
+                throw ServerError.invalidResponse("HTTP \(status)")
+            }
+        }
     }
 
     /// One occurrence with its history and the alert's other occurrences.

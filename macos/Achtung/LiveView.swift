@@ -12,6 +12,7 @@ struct LiveView: View {
     let lastUpdated: Date?
     let loadOlder: () async -> Void
     let markRead: (Occurrence) -> Void
+    let silence: SilenceAction
 
     var body: some View {
         if occurrences.isEmpty && !hasOlder {
@@ -23,8 +24,11 @@ struct LiveView: View {
                         occurrences: occurrences, readState: readState, hasOlder: hasOlder,
                         lastUpdated: lastUpdated, loadOlder: loadOlder
                     ) { occurrence in
-                        LiveCard(occurrence: occurrence, isRead: readState.isRead(occurrence))
-                            .simultaneousGesture(TapGesture().onEnded { markRead(occurrence) })
+                        LiveCard(
+                            occurrence: occurrence, isRead: readState.isRead(occurrence),
+                            silence: silence
+                        )
+                        .simultaneousGesture(TapGesture().onEnded { markRead(occurrence) })
                     }
                 }
                 .padding(24)
@@ -39,6 +43,7 @@ struct LiveView: View {
 private struct LiveCard: View {
     let occurrence: Occurrence
     let isRead: Bool
+    let silence: SilenceAction
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -51,7 +56,7 @@ private struct LiveCard: View {
                     .foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 24) {
-                AlertDetails(occurrence: occurrence)
+                AlertDetails(occurrence: occurrence, silence: silence)
                 OccurrenceFacts(occurrence: occurrence)
             }
         }
@@ -70,5 +75,5 @@ private struct LiveCard: View {
 #Preview {
     LiveView(
         occurrences: SampleData.occurrences, readState: SampleData.readState, hasOlder: false,
-        lastUpdated: nil, loadOlder: {}, markRead: { _ in })
+        lastUpdated: nil, loadOlder: {}, markRead: { _ in }, silence: { _, _ in nil })
 }

@@ -25,7 +25,8 @@
       "firstReceivedAt": "2026-11-07T21:14:19.384Z",
       "lastReceivedAt": "2026-11-07T21:14:19.384Z",
       "lastEventAt": "2026-11-07T21:14:19.384Z",
-      "notificationCount": 1
+      "notificationCount": 1,
+      "silencedUntil": null
     }
   ],
   "nextCursor": null

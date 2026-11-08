@@ -137,7 +137,8 @@ struct InboxView: View {
                 occurrences: list.occurrences, readState: model.readState,
                 hasOlder: model.hasOlder(in: .allChannels), lastUpdated: model.lastUpdated,
                 loadOlder: { await model.loadOlder(in: .allChannels) },
-                markRead: { model.markRead($0) })
+                markRead: { model.markRead($0) },
+                silence: { await model.silence($0, for: $1) })
         } else {
             loading(.allChannels)
         }
@@ -174,7 +175,8 @@ struct InboxView: View {
             AlertDetailView(
                 occurrence: occurrence,
                 detail: model.detail?.occurrence.id == occurrence.id ? model.detail : nil,
-                detailProblem: model.detailProblem)
+                detailProblem: model.detailProblem,
+                silence: { await model.silence($0, for: $1) })
         } else {
             ContentUnavailableView("Select an alert", systemImage: "bell")
         }

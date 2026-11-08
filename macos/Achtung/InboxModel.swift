@@ -102,6 +102,22 @@ final class InboxModel {
         }
     }
 
+    /// Silences the occurrence's alert in Alertmanager (ADR 0008) and shows the silenced
+    /// occurrence in every list that holds it. Returns why it failed, for the button to
+    /// show; this doesn't touch `problem`, which is about refreshing.
+    func silence(_ occurrence: Occurrence, for duration: SilenceDuration) async -> ServerError? {
+        do throws(ServerError) {
+            let silenced = try await server.silence(occurrenceID: occurrence.id, for: duration)
+            for scope in lists.keys
+            where lists[scope]?.occurrences.contains(where: { $0.id == silenced.id }) == true {
+                lists[scope]?.merge([silenced])
+            }
+            return nil
+        } catch {
+            return error
+        }
+    }
+
     func markRead(_ occurrence: Occurrence) {
         readState.markRead(occurrence)
         saveReadState()

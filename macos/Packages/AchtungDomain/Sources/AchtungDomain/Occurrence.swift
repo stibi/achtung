@@ -39,6 +39,9 @@ public struct Occurrence: Sendable, Hashable, Identifiable {
     /// When it last fired, resolved or reopened. Repeat notifications don't move it.
     public let lastEventAt: Date
     public let notificationCount: Int
+    /// When the Alertmanager silence muting this alert ends; nil when none does, or when
+    /// the server couldn't ask its Alertmanager (ADR 0008). Nil means not silenced.
+    public let silencedUntil: Date?
 
     public init(
         id: Int,
@@ -48,7 +51,8 @@ public struct Occurrence: Sendable, Hashable, Identifiable {
         firstReceivedAt: Date,
         lastReceivedAt: Date,
         lastEventAt: Date,
-        notificationCount: Int
+        notificationCount: Int,
+        silencedUntil: Date? = nil
     ) {
         self.id = id
         self.channel = channel
@@ -58,6 +62,14 @@ public struct Occurrence: Sendable, Hashable, Identifiable {
         self.lastReceivedAt = lastReceivedAt
         self.lastEventAt = lastEventAt
         self.notificationCount = notificationCount
+        self.silencedUntil = silencedUntil
+    }
+
+    /// Muted by an Alertmanager silence at `now`. A silence that ended since the last
+    /// refresh no longer counts.
+    public func isSilenced(at now: Date) -> Bool {
+        guard let silencedUntil else { return false }
+        return silencedUntil > now
     }
 }
 

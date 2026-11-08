@@ -29,7 +29,8 @@
       "firstReceivedAt": "2026-11-07T21:14:19.553Z",
       "lastReceivedAt": "2026-11-07T21:14:19.553Z",
       "lastEventAt": "2026-11-07T21:14:19.553Z",
-      "notificationCount": 1
+      "notificationCount": 1,
+      "silencedUntil": null
     },
     {
       "id": 5,
@@ -60,7 +61,8 @@
       "firstReceivedAt": "2026-11-07T21:14:19.553Z",
       "lastReceivedAt": "2026-11-07T21:14:19.553Z",
       "lastEventAt": "2026-11-07T21:14:19.553Z",
-      "notificationCount": 1
+      "notificationCount": 1,
+      "silencedUntil": null
     },
     {
       "id": 4,
@@ -91,7 +93,8 @@
       "firstReceivedAt": "2026-11-07T21:14:19.526Z",
       "lastReceivedAt": "2026-11-07T21:14:19.526Z",
       "lastEventAt": "2026-11-07T21:14:19.526Z",
-      "notificationCount": 1
+      "notificationCount": 1,
+      "silencedUntil": null
     }
   ],
   "nextCursor": "WyIyMDI2LTExLTA3VDIxOjE0OjE5LjUyNloiLDRd"

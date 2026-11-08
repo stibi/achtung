@@ -204,10 +204,27 @@ The identity below is a contract that features build on
   occurrences in a 280-point column on the right that scrolls on its own
   (`AlertMetadataPanel`). When the pane is narrower than 680 points, that column goes
   below the main one.
-  Opening a channel selects its first unread occurrence, if any. If the open channel disappears, for example
-  because the operator moved it to another instance, the view switches to Live. Both are newest change first and paged by `nextCursor`; `OccurrenceScope`
-  (all channels or one) selects the route. `InboxModel` is the only code that talks to the server; the
-  views only read it. `SampleData` exists for SwiftUI previews.
+  Opening a channel selects its first unread occurrence, if any. If the open channel
+  disappears, for example because the operator moved it to another instance, the view
+  switches to Live. Both are newest change first and paged by `nextCursor`;
+  `OccurrenceScope` (all channels or one) selects the route. `InboxModel` is the only code
+  that talks to the server; the views only read it. `SampleData` exists for SwiftUI
+  previews.
+- Every alert, in the detail pane and on Live cards, has a silence button
+  (`SilenceButton`, `POST /api/occurrences/{id}/silence`, ADR 0008): a split button whose
+  main part silences for the remembered duration and whose menu offers 1h, 4h, 1d and 1w;
+  the one picked silences and becomes the default (`SilenceDuration`, kept in
+  `UserDefaults`). The server returns the occurrence with `silencedUntil`, which replaces
+  it in every list. A silenced alert shows "Silenced until …" in its header, a muted bell
+  in list rows, and a "Silenced" state instead of the button, until the silence ends;
+  expiring a silence is done in Alertmanager. Its help text says that a silence mutes the
+  alert for every receiver of that Alertmanager, not only in Achtung. A failure (409, 502)
+  shows the server's reason next to the button. `silencedUntil` can change without
+  `lastEventAt` moving (a silence made or expired in Alertmanager), so a refresh merges
+  every fetched page whole, not only what changed: the newest page of Live and of the open
+  channel picks up such changes within about a minute (the server reads Alertmanager at
+  most every 30 seconds). Older loaded occurrences show them when they next change, or
+  after a relaunch.
 - No push yet: the app refreshes every 30 seconds and whenever it becomes active. A
   refresh reloads the channels and the all-channels feed, plus the selected channel's
   list, asking each for everything changed since a minute before its newest known

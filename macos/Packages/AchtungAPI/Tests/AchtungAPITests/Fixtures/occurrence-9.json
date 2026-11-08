@@ -28,7 +28,8 @@
     "firstReceivedAt": "2026-11-07T21:14:19.643Z",
     "lastReceivedAt": "2026-11-07T21:14:19.643Z",
     "lastEventAt": "2026-11-07T21:14:19.643Z",
-    "notificationCount": 1
+    "notificationCount": 1,
+    "silencedUntil": null
   },
   "events": [
     {
@@ -67,7 +68,8 @@
       "firstReceivedAt": "2026-11-07T21:14:19.586Z",
       "lastReceivedAt": "2026-11-07T21:14:19.610Z",
       "lastEventAt": "2026-11-07T21:14:19.610Z",
-      "notificationCount": 2
+      "notificationCount": 2,
+      "silencedUntil": null
     }
   ]
 }

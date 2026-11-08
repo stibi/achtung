@@ -8,13 +8,14 @@ extension ServerError {
         case .invalidResponse: "The server sent something unexpected"
         case .notFound: "Not found"
         case .rejected: "The server rejected a request"
+        case .silenceFailed: "Couldn't silence the alert"
         }
     }
 
     var detail: String {
         switch self {
         case .unreachable(let message), .invalidResponse(let message), .notFound(let message),
-            .rejected(let message):
+            .rejected(let message), .silenceFailed(let message):
             message
         }
     }

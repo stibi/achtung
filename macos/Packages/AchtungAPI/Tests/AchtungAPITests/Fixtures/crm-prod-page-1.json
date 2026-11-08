@@ -29,7 +29,8 @@
       "firstReceivedAt": "2026-11-07T21:14:19.526Z",
       "lastReceivedAt": "2026-11-07T21:14:19.526Z",
       "lastEventAt": "2026-11-07T21:14:19.526Z",
-      "notificationCount": 1
+      "notificationCount": 1,
+      "silencedUntil": "2026-11-07T22:14:19.526Z"
     },
     {
       "id": 1,
@@ -62,7 +63,8 @@
       "firstReceivedAt": "2026-11-07T21:14:19.384Z",
       "lastReceivedAt": "2026-11-07T21:14:19.484Z",
       "lastEventAt": "2026-11-07T21:14:19.484Z",
-      "notificationCount": 2
+      "notificationCount": 2,
+      "silencedUntil": null
     }
   ],
   "nextCursor": "WyIyMDI2LTExLTA3VDIxOjE0OjE5LjQ4NFoiLDFd"

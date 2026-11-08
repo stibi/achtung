@@ -15,13 +15,14 @@ struct AlertDetailView: View {
     /// Nil while the history is loading, or when it failed to load.
     let detail: OccurrenceDetail?
     let detailProblem: ServerError?
+    let silence: SilenceAction
 
     var body: some View {
         GeometryReader { geometry in
             if geometry.size.width >= Self.sideBySideWidth {
                 HStack(spacing: 0) {
                     ScrollView {
-                        AlertDetails(occurrence: occurrence)
+                        AlertDetails(occurrence: occurrence, silence: silence)
                             .padding(24)
                     }
                     // The card's contents scroll inside it; the main column's padding is
@@ -36,7 +37,7 @@ struct AlertDetailView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        AlertDetails(occurrence: occurrence)
+                        AlertDetails(occurrence: occurrence, silence: silence)
                             .padding(24)
                         panel
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -68,18 +69,32 @@ extension View {
     }
 }
 
-/// What the source reported about one occurrence: header, links, annotations and labels.
-/// Shared by the channel detail pane and the Live cards.
+/// What the source reported about one occurrence: header, links and the silence button,
+/// annotations and labels. Shared by the channel detail pane and the Live cards.
 struct AlertDetails: View {
     let occurrence: Occurrence
+    let silence: SilenceAction
 
     private var alert: IncomingAlert { occurrence.alert }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            AlertHeader(alert: alert)
-            if !alert.links.isEmpty {
-                LinkButtons(links: alert.links)
+            SilenceState(occurrence: occurrence) { isSilenced in
+                VStack(alignment: .leading, spacing: 24) {
+                    AlertHeader(
+                        alert: alert, silencedUntil: isSilenced ? occurrence.silencedUntil : nil)
+                    HStack(spacing: 8) {
+                        if !alert.links.isEmpty {
+                            LinkButtons(links: alert.links)
+                        }
+                        // A new occurrence gets a fresh button, without the last one's error
+                        // or in-flight state.
+                        SilenceButton(
+                            occurrence: occurrence, isSilenced: isSilenced, silence: silence
+                        )
+                        .id(occurrence.id)
+                    }
+                }
             }
             KeyValueSection(title: "Annotations", values: alert.annotations)
             KeyValueSection(title: "Labels", values: alert.labels)
@@ -90,6 +105,7 @@ struct AlertDetails: View {
 
 private struct AlertHeader: View {
     let alert: IncomingAlert
+    let silencedUntil: Date?
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -103,6 +119,9 @@ private struct AlertHeader: View {
                     .font(.title.bold())
                 HStack(spacing: 8) {
                     StatusPill(alert: alert)
+                    if let silencedUntil {
+                        SilencedPill(until: silencedUntil)
+                    }
                     Text(alert.severity.rawValue.capitalized)
                         .foregroundStyle(alert.severity.color)
                     RelativeTime(date: alert.startsAt)

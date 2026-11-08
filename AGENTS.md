@@ -76,6 +76,7 @@ swift test --package-path macos/Packages/AchtungDomain             # domain test
 swift test --package-path macos/Packages/AchtungAPI                # API mapping tests (also on Linux)
 cd macos && xcodegen generate && open Achtung.xcodeproj           # work in Xcode
 macos/scripts/install.sh            # Release build into ~/Applications, version = commit hash
+swift macos/scripts/render-icon.swift   # render macos/Icon/AppIcon.svg into the app icon set
 ```
 
 `check.sh` must pass before you finish, like the server's `check`. The Stop hook and the

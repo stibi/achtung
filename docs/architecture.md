@@ -62,8 +62,12 @@ the domain model is missing a concept. Discuss it and record an ADR.
 
 ## Alert identity and lifecycle
 
-- An alert is identified by `(source, channel, sourceKey)`. For Alertmanager,
-  `sourceKey` is the `fingerprint`.
+The identity below is a contract that features build on
+([ADR 0007](adr/0007-alert-identity-and-history.md)). Changing it needs a new ADR.
+
+- An alert is identified by `(source, channel, sourceKey)`, and the channel includes its
+  instance. For Alertmanager, `sourceKey` is the `fingerprint`, a hash of the full label
+  set. Every adapter must provide a `sourceKey` that stays the same across firings.
 - One **occurrence** is `(identity, startsAt)`. If an alert resolves and later fires
   again, Alertmanager gives it a new `startsAt`, so it becomes a new occurrence.
 - Ingest is idempotent. A repeat notification for an occurrence that is already firing

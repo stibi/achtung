@@ -40,12 +40,6 @@ from, and two clusters could not each have a `devops` channel.
   names.** Once two named instances have a name, the old URL resolves it to `default`,
   so a sender still on the old URL would split off a new channel there, and its open
   occurrences would never resolve. For a rollout: deploy, move the existing channels,
-  switch the sender, and only then add other instances. The old URL's lookup locks the channel rows it
-  reads, so the move can run while notifications arrive.
-- **Switch a sender to the new URL before another instance reuses one of its channel
-  names.** Once two named instances have a name, the old URL resolves it to `default`,
-  so a sender still on the old URL would split off a new channel there and its open
-  occurrences would never resolve. For a rollout: deploy, move the existing channels,
   switch the sender, and only then add other instances.
 - A typo in the instance segment creates a stray instance, as one in the channel segment
   creates a stray channel (ADR 0005).

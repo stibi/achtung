@@ -12,8 +12,9 @@ implementation. Copy its shape, not its contents.
    IPs, tokens → `example.com` / `example-prod`) and save them to
    `server/test/fixtures/<id>/`.
 2. **Decide the identity.** Which payload field is the stable identity (`sourceKey`) of
-   an alert, and how is an occurrence distinguished (`startsAt`)? If the source has no
-   stable identity, stop and ask. Don't invent one.
+   an alert, and how is an occurrence distinguished (`startsAt`)? The same alert must get
+   the same `sourceKey` every time it fires, because its history depends on it (ADR 0007).
+   If the source has no stable identity, stop and ask. Don't invent one.
 3. **Write the tests first** in `server/test/sources/<id>.test.ts`: firing maps
    correctly, resolved keeps the same identity, invalid payloads are rejected, and
    missing optional fields fall back sensibly.

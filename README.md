@@ -33,6 +33,21 @@ Achtung replaces the "alerts in a chat channel" setup with a tool built for aler
 It started as a tool for my own needs and is open source from the start. Anyone can run
 their own instance.
 
+## Features
+
+- **One alert, with its history.** Achtung recognizes the same alert every time it fires
+  (for Alertmanager, the same label set in the same channel). A repeat notification
+  updates the alert instead of adding a message. A new firing becomes a new
+  **occurrence** of the same alert, and each occurrence lists the alert's other
+  occurrences (newest first, up to 20) with their status and start time. Planned features such as flapping detection and per-alert
+  notes build on this
+  ([ADR 0007](docs/adr/0007-alert-identity-and-history.md)).
+- **Channels grouped by where they come from.** Each Alertmanager is an instance (for
+  example one Kubernetes cluster), and its channels sit under it in the client's sidebar.
+- **What's new since you last looked**, per occurrence and per channel, kept on your Mac.
+- **Live view:** every channel's alerts in one stream, newest change first.
+- **Zero setup per channel:** pointing a receiver at a new URL creates the channel.
+
 ## Core use case
 
 1. Alertmanager fires an alert and POSTs it to an Achtung webhook. Each channel gets its
@@ -54,7 +69,8 @@ their own instance.
 | **Source** | A system that sends alerts. Alertmanager is the first one, and the design must allow others (Grafana, Uptime Kuma, GitHub, cron/backup jobs, custom scripts…). Each source has an adapter that converts its payload to the internal model. |
 | **Channel** | A named stream of alerts, usually one per app or environment (`crm-prod`, `legal-machine-dev`, …). Each channel has its own webhook endpoint. |
 | **Alert** | The normalized internal record. It has a stable identity (for Alertmanager, the `fingerprint`), a status (`firing` / `resolved`), severity, labels, annotations, timestamps and links back to the source. |
-| **Event** | Something that happened to an alert: it started firing, it resolved, it fired again, it was acknowledged. Events make up the alert's history. |
+| **Occurrence** | One firing of an alert, from when it starts until it resolves. An alert that fires again gets a new occurrence, and together they are its history. |
+| **Event** | Something that happened to an alert: it started firing, it resolved, it fired again (acknowledgement is planned). Events make up an occurrence's history. |
 | **Read state** | What this client has already seen, per channel. It is stored locally in the macOS app and powers "new since last time". |
 
 ## Server

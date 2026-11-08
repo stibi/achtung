@@ -37,7 +37,9 @@ their own instance.
 
 - **One alert, with its history.** Achtung recognizes the same alert every time it fires
   (for Alertmanager, the same label set in the same channel). A repeat notification
-  updates the alert instead of adding a message. A new firing becomes a new
+  updates the alert instead of adding a message. An alert that keeps firing resurfaces as
+  **resent**, at most once an hour, marked differently from a new one
+  ([ADR 0009](docs/adr/0009-resends-resurface-alerts.md)). A new firing becomes a new
   **occurrence** of the same alert, and each occurrence lists the alert's other
   occurrences (newest first, up to 20) with their status and start time. Planned features such as flapping detection and per-alert
   notes build on this
@@ -74,7 +76,7 @@ their own instance.
 | **Channel** | A named stream of alerts, usually one per app or environment (`crm-prod`, `legal-machine-dev`, …). Each channel has its own webhook endpoint. |
 | **Alert** | The normalized internal record. It has a stable identity (for Alertmanager, the `fingerprint`), a status (`firing` / `resolved`), severity, labels, annotations, timestamps and links back to the source. |
 | **Occurrence** | One firing of an alert, from when it starts until it resolves. An alert that fires again gets a new occurrence, and together they are its history. |
-| **Event** | Something that happened to an alert: it started firing, it resolved, it fired again (acknowledgement is planned). Events make up an occurrence's history. |
+| **Event** | Something that happened to an alert: it started firing, it resolved, it fired again, or it was resent while still firing (at most hourly; acknowledgement is planned). Events make up an occurrence's history. |
 | **Read state** | What this client has already seen, per channel. It is stored locally in the macOS app and powers "new since last time". |
 
 ## Server
@@ -123,7 +125,8 @@ array of `alerts`. Each alert has `status`, `labels`, `annotations`, `startsAt`,
   3. **Fast and keyboard-friendly.** It opens instantly, you can move through the list
      and acknowledge alerts with the keyboard, and search is quick.
   4. **Calm.** Repeat notifications for an alert that is already firing don't create
-     noise. A resolution updates the existing item.
+     noise: at most an hourly reminder that it still fires. A resolution updates the
+     existing item.
   5. **Good defaults over configurability.** The first goal is one very good default
      view. Customization comes later, if it's needed at all.
 - A menu bar presence with an unread or firing badge, and optional macOS notifications.

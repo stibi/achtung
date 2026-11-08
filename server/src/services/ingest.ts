@@ -29,7 +29,8 @@ export interface IngestSummary {
 
 /**
  * Stores a notification in one transaction. Idempotent: delivering the same notification
- * again updates the stored occurrences but records no events and counts nothing as new.
+ * again updates the stored occurrences and counts nothing as new. A repeat records a
+ * `resent` event only once the occurrence has been quiet for an hour (ADR 0009).
  */
 export function ingestNotification(
   db: Database,
@@ -62,11 +63,11 @@ async function ingestAlert(
 ): Promise<EventKind | null> {
   const insertedId = await insertOccurrence(tx, key, now);
   if (insertedId !== null) {
-    return record(tx, insertedId, eventFor(null, key.alert.status), now);
+    return record(tx, insertedId, eventFor(null, key.alert.status, now), now);
   }
   const current = await lockOccurrence(tx, key);
   await updateOccurrence(tx, current.id, key.alert, now);
-  return record(tx, current.id, eventFor(current.status, key.alert.status), now);
+  return record(tx, current.id, eventFor(current, key.alert.status, now), now);
 }
 
 async function record(

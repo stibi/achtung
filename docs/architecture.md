@@ -74,7 +74,9 @@ The identity below is a contract that features build on
 - One **occurrence** is `(identity, startsAt)`. If an alert resolves and later fires
   again, Alertmanager gives it a new `startsAt`, so it becomes a new occurrence.
 - Ingest is idempotent. A repeat notification for an occurrence that is already firing
-  updates it in place and does not count as new.
+  updates it in place and does not count as new. If the occurrence's last event was an
+  hour ago or more, the repeat records a `resent` event, which resurfaces the alert
+  ([ADR 0009](adr/0009-resends-resurface-alerts.md)).
 - What a notification means for an occurrence is decided by `eventFor` in
   `src/domain/occurrence.ts`:
 
@@ -84,6 +86,7 @@ The identity below is a contract that features build on
   | none | resolved | `resolved` (the firing was missed) |
   | firing | resolved | `resolved` |
   | resolved | firing | `reopened` (Alertmanager's `resolve_timeout` ended it too early) |
+  | firing | firing, last event ≥ 1h ago | `resent` (a reminder; not counted as new) |
   | same status | same status | none: fields are updated, nothing is new |
 
 ## Ingest and storage
@@ -120,7 +123,8 @@ The identity below is a contract that features build on
     their channels. `Channel` and `Occurrence` both carry `instance`.
   - `GET /api/instances/{instance}/channels/{slug}/occurrences?status=&cursor=&limit=`:
     newest change first, ordered by `(lastEventAt, id)`. A repeat notification does not
-    move an occurrence; a fire, resolve or reopen does. `nextCursor` is opaque; pass it
+    move an occurrence; a fire, resolve, reopen or resend does. `lastEventKind` says
+    which. `nextCursor` is opaque; pass it
     back as `cursor`. The older `GET /api/channels/{slug}/occurrences` is deprecated; it
     resolves the name like the old ingest URL does.
   - `GET /api/occurrences?status=&cursor=&limit=`: the same list across every channel,

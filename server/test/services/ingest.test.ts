@@ -76,7 +76,8 @@ describe("ingestNotification", () => {
     const { db } = await createTestDatabase();
     await deliver(db, firing);
 
-    const summary = await deliver(db, firing, { at: "2026-10-13T12:30:00Z" });
+    // Within the hour: a later repeat is a resend (test/http/resend.test.ts).
+    const summary = await deliver(db, firing, { at: "2026-10-13T09:29:00Z" });
 
     expect(summary).toEqual({ alerts: 2, new: 0, resolved: 0 });
     expect(await eventKinds(db)).toEqual(["fired", "fired"]);
@@ -84,7 +85,7 @@ describe("ingestNotification", () => {
     expect(rows).toHaveLength(2);
     expect(rows.map((row) => row.notificationCount)).toEqual([2, 2]);
     expect(rows[0]?.firstReceivedAt).toEqual(new Date("2026-10-13T08:30:00Z"));
-    expect(rows[0]?.lastReceivedAt).toEqual(new Date("2026-10-13T12:30:00Z"));
+    expect(rows[0]?.lastReceivedAt).toEqual(new Date("2026-10-13T09:29:00Z"));
   });
 
   it("resolves a firing occurrence once", async () => {

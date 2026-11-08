@@ -11,6 +11,7 @@ import type { ChannelOverview, OccurrenceDetail } from "../services/inbox.ts";
 
 const timestamp = z.iso.datetime({ offset: true });
 const labelSet = z.record(z.string(), z.string());
+const eventKind = z.enum(["fired", "resolved", "reopened", "resent"]);
 
 export const errorBody = z.object({ error: z.string() }).meta({ id: "Error" });
 
@@ -41,7 +42,12 @@ export const occurrenceBody = z
     endsAt: timestamp.nullable().describe("Set exactly when the status is resolved"),
     firstReceivedAt: timestamp,
     lastReceivedAt: timestamp,
-    lastEventAt: timestamp.describe("Last time it fired, resolved or reopened"),
+    lastEventAt: timestamp.describe(
+      "Last time it fired, resolved, reopened or was resent (at most hourly, while firing)",
+    ),
+    lastEventKind: eventKind.describe(
+      "What happened at lastEventAt; resent: Alertmanager repeated an alert that is still firing",
+    ),
     notificationCount: z.int().positive(),
     silencedUntil: timestamp
       .nullable()
@@ -54,7 +60,7 @@ export const occurrenceBody = z
 const eventBody = z
   .object({
     id: z.int().positive(),
-    kind: z.enum(["fired", "resolved", "reopened"]),
+    kind: eventKind,
     recordedAt: timestamp,
   })
   .meta({ id: "Event" });

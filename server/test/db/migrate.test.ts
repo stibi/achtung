@@ -64,4 +64,33 @@ describe("migrateDatabase", () => {
       { key: "without-events", last: new Date("2026-10-13T08:01:00Z") },
     ]);
   });
+
+  it("backfills last_event_kind from each occurrence's newest event", async () => {
+    const { pool } = await createTestDatabase({ migrated: false });
+    await migrateUpTo(pool, 4);
+    await pool.query(`
+      insert into channels (slug, created_at) values ('example-prod', now());
+      insert into occurrences (channel_id, source, source_key, starts_at, status, ends_at,
+        severity, title, labels, annotations, links, first_received_at, last_received_at)
+      values
+        (1, 'alertmanager', 'resolved', '2026-10-13T08:00:00Z', 'resolved',
+         '2026-10-13T08:20:00Z', 'warning', 'A', '{}', '{}', '[]', '2026-10-13T08:01:00Z',
+         '2026-10-13T09:00:00Z'),
+        (1, 'alertmanager', 'firing', '2026-10-13T08:00:00Z', 'firing', null, 'warning', 'B',
+         '{}', '{}', '[]', '2026-10-13T08:01:00Z', '2026-10-13T09:30:00Z');
+      insert into events (occurrence_id, kind, recorded_at)
+      values (1, 'fired', '2026-10-13T08:01:00Z'), (1, 'resolved', '2026-10-13T08:20:00Z'),
+        (2, 'fired', '2026-10-13T08:01:00Z');
+    `);
+
+    await migrateDatabase(pool);
+
+    const rows = await pool.query<{ key: string; kind: string }>(
+      "select source_key as key, last_event_kind as kind from occurrences order by id",
+    );
+    expect(rows.rows).toEqual([
+      { key: "resolved", kind: "resolved" },
+      { key: "firing", kind: "fired" },
+    ]);
+  });
 });

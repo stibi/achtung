@@ -76,7 +76,11 @@ export async function insertOccurrence(
 /** Locks an existing occurrence until the transaction ends and returns its current state. */
 export async function lockOccurrence(tx: Transaction, { channelId, source, alert }: OccurrenceKey) {
   const [row] = await tx
-    .select({ id: occurrences.id, status: occurrences.status })
+    .select({
+      id: occurrences.id,
+      status: occurrences.status,
+      lastEventAt: occurrences.lastEventAt,
+    })
     .from(occurrences)
     .where(
       and(
@@ -116,5 +120,8 @@ export async function recordEvent(
   now: Date,
 ): Promise<void> {
   await tx.insert(events).values({ occurrenceId, kind, recordedAt: now });
-  await tx.update(occurrences).set({ lastEventAt: now }).where(eq(occurrences.id, occurrenceId));
+  await tx
+    .update(occurrences)
+    .set({ lastEventAt: now, lastEventKind: kind })
+    .where(eq(occurrences.id, occurrenceId));
 }

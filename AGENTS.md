@@ -43,7 +43,8 @@ get a change through. If you believe a rule is wrong, stop and say why.
 - **Copy the reference.** New source: follow `server/src/sources/alertmanager/` (skill
   `add-source`). Before writing new code, find the closest existing example.
 - **Ingest is idempotent.** A repeat notification for an occurrence that is already
-  firing updates it and never counts as new (see the alert identity section in
+  firing updates it and never counts as new. After an hour without an event it records a
+  `resent` event, which resurfaces the alert (ADR 0009; the alert identity section in
   `docs/architecture.md`).
 - **No auth, no users** (ADR 0002). Don't add login, user tables or per-user state.
 - **Tests are part of the change.** A bug fix starts with a failing test. Source

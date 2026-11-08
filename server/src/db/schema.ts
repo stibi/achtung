@@ -32,7 +32,7 @@ export const channels = pgTable(
 
 export const occurrenceStatus = pgEnum("occurrence_status", ["firing", "resolved"]);
 export const severity = pgEnum("severity", ["critical", "warning", "info", "unknown"]);
-export const eventKind = pgEnum("event_kind", ["fired", "resolved", "reopened"]);
+export const eventKind = pgEnum("event_kind", ["fired", "resolved", "reopened", "resent"]);
 
 /** One occurrence of an alert: its identity plus startsAt (docs/architecture.md). */
 export const occurrences = pgTable(
@@ -58,6 +58,10 @@ export const occurrences = pgTable(
     // The default only serves replicas from before this column during a rolling deploy;
     // current code always sets it.
     lastEventAt: timestamptz().notNull().defaultNow(),
+    // The kind of that last event, so a list can show a resend without loading events.
+    // Migration 0004 fills it in for existing rows; the default serves inserts from older
+    // replicas.
+    lastEventKind: eventKind().notNull().default("fired"),
     notificationCount: integer().notNull().default(1),
   },
   (table) => [

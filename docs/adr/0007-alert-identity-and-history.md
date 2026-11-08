@@ -25,7 +25,7 @@ on.
 - **An occurrence is one firing of an alert: `(identity, startsAt)`.** The database
   enforces it with the unique constraint `occurrences_identity`.
 - **Ingest deduplicates on that key.** A repeat notification updates the occurrence it
-  belongs to and is never new. A firing with a new `startsAt` is a new occurrence of the
+  belongs to and is never new (after an hour it is recorded as `resent`, ADR 0009). A firing with a new `startsAt` is a new occurrence of the
   same alert.
 - **Occurrences are kept, and the alert's history is part of the API.**
   `GET /api/occurrences/{id}` returns the occurrence's events and up to 20 of the alert's

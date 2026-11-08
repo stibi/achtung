@@ -111,7 +111,17 @@ components:
         lastEventAt:
           type: string
           format: date-time
-          description: Last time it fired, resolved or reopened
+          description: Last time it fired, resolved, reopened or was resent (at most
+            hourly, while firing)
+        lastEventKind:
+          type: string
+          enum:
+            - fired
+            - resolved
+            - reopened
+            - resent
+          description: "What happened at lastEventAt; resent: Alertmanager repeated an
+            alert that is still firing"
         notificationCount:
           type: integer
           minimum: 0
@@ -141,6 +151,7 @@ components:
         - firstReceivedAt
         - lastReceivedAt
         - lastEventAt
+        - lastEventKind
         - notificationCount
         - silencedUntil
     Event:
@@ -157,6 +168,7 @@ components:
             - fired
             - resolved
             - reopened
+            - resent
         recordedAt:
           type: string
           format: date-time

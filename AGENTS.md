@@ -75,6 +75,7 @@ swift format format -i --recursive macos/Achtung macos/Packages/*/{Package.swift
 swift test --package-path macos/Packages/AchtungDomain             # domain tests (also on Linux)
 swift test --package-path macos/Packages/AchtungAPI                # API mapping tests (also on Linux)
 cd macos && xcodegen generate && open Achtung.xcodeproj           # work in Xcode
+macos/scripts/install.sh            # Release build into ~/Applications, version = commit hash
 ```
 
 `check.sh` must pass before you finish, like the server's `check`. The Stop hook and the

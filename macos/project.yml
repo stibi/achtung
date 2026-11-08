@@ -13,8 +13,10 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
     SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
     GCC_TREAT_WARNINGS_AS_ERRORS: YES
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    # Builds from Xcode or check.sh are "dev"; scripts/install.sh stamps the commit hash
+    # (version) and commit count (build number), shown in About Achtung.
+    MARKETING_VERSION: dev
+    CURRENT_PROJECT_VERSION: "0"
 packages:
   AchtungDomain:
     path: Packages/AchtungDomain

@@ -26,7 +26,7 @@ enum SampleData {
         let eventAt = now.addingTimeInterval(-minutesAgo * 60)
         let summary = "\(title) on node-\(id)."
         return Occurrence(
-            id: id, channel: "infra", source: "alertmanager",
+            id: id, channel: ChannelID(instance: "onprem", slug: "infra"), source: "alertmanager",
             alert: IncomingAlert(
                 sourceKey: "sample-\(id)", severity: severity, title: title, summary: summary,
                 labels: ["alertname": title, "instance": "node-\(id)"],

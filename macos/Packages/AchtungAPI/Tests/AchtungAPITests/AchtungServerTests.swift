@@ -6,8 +6,9 @@ import Testing
 
 private let base = URL(filePath: "/")
 private let cursor = "WyIyMDI2LTExLTA3VDIxOjE0OjE5LjQ4NFoiLDFd"
-private let page1 = "/api/channels/crm-prod/occurrences"
-private let page2 = "/api/channels/crm-prod/occurrences?cursor=\(cursor)"
+private let crmProd = ChannelID(instance: "onprem", slug: "crm-prod")
+private let page1 = "/api/instances/onprem/channels/crm-prod/occurrences"
+private let page2 = "/api/instances/onprem/channels/crm-prod/occurrences?cursor=\(cursor)"
 
 private func server(_ routes: [String: StubTransport.Route]) -> AchtungServer {
     AchtungServer(baseURL: base, transport: StubTransport(routes: routes))
@@ -28,22 +29,29 @@ private func date(_ text: String) throws -> Date {
 @Test func mapsChannels() async throws {
     let channels = try await server(["/api/channels": ok("channels")]).channels()
 
+    // Sorted by instance, then name; both instances have a crm-prod.
     #expect(
-        channels.map(\.slug) == [
-            "crm-prod", "legal-machine-dev", "legal-machine-prod", "onepost-prod",
+        channels.map(\.id) == [
+            ChannelID(instance: "default", slug: "crm-prod"),
+            ChannelID(instance: "default", slug: "onepost-prod"),
+            crmProd,
+            ChannelID(instance: "onprem", slug: "legal-machine-dev"),
+            ChannelID(instance: "onprem", slug: "legal-machine-prod"),
         ])
-    #expect(channels[0].firing == 2)
-    #expect(channels[0].lastEventAt == (try date("2026-11-07T21:14:19.526Z")))
+    #expect(channels[0].firing == 0)
+    #expect(channels[0].lastEventAt == nil)
+    #expect(channels[2].firing == 2)
+    #expect(channels[2].lastEventAt == (try date("2026-11-07T21:14:19.526Z")))
 }
 
 @Test func mapsAPageOfOccurrences() async throws {
     let page = try await server([page1: ok("crm-prod-page-1")]).occurrences(
-        in: .channel("crm-prod"))
+        in: .channel(crmProd))
 
     #expect(page.nextCursor == cursor)
     #expect(page.occurrences.map(\.id) == [4, 1])
     let firing = page.occurrences[0]
-    #expect(firing.channel == "crm-prod")
+    #expect(firing.channel == crmProd)
     #expect(firing.source == "alertmanager")
     #expect(firing.alert.sourceKey == "c0ffee0000000001")
     #expect(firing.alert.severity == .warning)
@@ -71,7 +79,7 @@ private func date(_ text: String) throws -> Date {
 @Test func followsNextCursorToCollectEverythingChangedSince() async throws {
     let api = server([page1: ok("crm-prod-page-1"), page2: ok("crm-prod-page-2")])
 
-    let changed = try await api.occurrences(in: .channel("crm-prod"), changedSince: .distantPast)
+    let changed = try await api.occurrences(in: .channel(crmProd), changedSince: .distantPast)
 
     #expect(changed.map(\.id) == [4, 1, 2])
 }
@@ -81,7 +89,7 @@ private func date(_ text: String) throws -> Date {
     let api = server([page1: ok("crm-prod-page-1")])
 
     let changed = try await api.occurrences(
-        in: .channel("crm-prod"), changedSince: try date("2026-11-07T21:14:19.500Z"))
+        in: .channel(crmProd), changedSince: try date("2026-11-07T21:14:19.500Z"))
 
     #expect(changed.map(\.id) == [4])
 }
@@ -91,7 +99,7 @@ private func date(_ text: String) throws -> Date {
 
     // Occurrence 1 changed exactly at `since`; occurrence 2 on page 2 is older.
     let changed = try await api.occurrences(
-        in: .channel("crm-prod"), changedSince: try date("2026-11-07T21:14:19.484Z"))
+        in: .channel(crmProd), changedSince: try date("2026-11-07T21:14:19.484Z"))
 
     #expect(changed.map(\.id) == [4, 1])
 }
@@ -122,7 +130,7 @@ private func date(_ text: String) throws -> Date {
 @Test func reportsNotFoundAndRejectedRequestsWithTheServersMessage() async throws {
     let api = server([
         "/api/occurrences/99999": .init(status: 404, fixture: "occurrence-not-found"),
-        "/api/channels/crm-prod/occurrences?cursor=bogus": .init(
+        "/api/instances/onprem/channels/crm-prod/occurrences?cursor=bogus": .init(
             status: 400, fixture: "bad-cursor"),
     ])
 
@@ -130,7 +138,7 @@ private func date(_ text: String) throws -> Date {
         try await api.occurrence(id: 99999)
     }
     await #expect(throws: ServerError.rejected("Invalid cursor")) {
-        try await api.occurrences(in: .channel("crm-prod"), after: "bogus")
+        try await api.occurrences(in: .channel(crmProd), after: "bogus")
     }
 }
 
@@ -141,7 +149,7 @@ private func date(_ text: String) throws -> Date {
         throws: ServerError.invalidResponse(
             "Occurrence 4 is firing with endsAt Optional(2026-11-07 21:00:00 +0000)")
     ) {
-        try await api.occurrences(in: .channel("crm-prod"))
+        try await api.occurrences(in: .channel(crmProd))
     }
 }
 
@@ -172,7 +180,9 @@ private let feed2 = "/api/occurrences?cursor=WyIyMDI2LTExLTA3VDIxOjE0OjE5LjYxMFo
     #expect(page.occurrences.map(\.id) == [10, 9, 7])
     #expect(
         page.occurrences.map(\.channel) == [
-            "onepost-prod", "legal-machine-prod", "legal-machine-prod",
+            ChannelID(instance: "default", slug: "onepost-prod"),
+            ChannelID(instance: "onprem", slug: "legal-machine-prod"),
+            ChannelID(instance: "onprem", slug: "legal-machine-prod"),
         ])
     #expect(page.nextCursor == "WyIyMDI2LTExLTA3VDIxOjE0OjE5LjYxMFoiLDdd")
 }

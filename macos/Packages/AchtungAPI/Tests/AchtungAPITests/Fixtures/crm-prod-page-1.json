@@ -2,6 +2,7 @@
   "occurrences": [
     {
       "id": 4,
+      "instance": "onprem",
       "channel": "crm-prod",
       "source": "alertmanager",
       "sourceKey": "c0ffee0000000001",
@@ -32,6 +33,7 @@
     },
     {
       "id": 1,
+      "instance": "onprem",
       "channel": "crm-prod",
       "source": "alertmanager",
       "sourceKey": "5f0a2c3e9b1d4e7a",

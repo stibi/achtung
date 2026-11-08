@@ -1,6 +1,7 @@
 {
   "occurrence": {
     "id": 9,
+    "instance": "onprem",
     "channel": "legal-machine-prod",
     "source": "alertmanager",
     "sourceKey": "c0ffee0000000004",
@@ -39,6 +40,7 @@
   "otherOccurrences": [
     {
       "id": 7,
+      "instance": "onprem",
       "channel": "legal-machine-prod",
       "source": "alertmanager",
       "sourceKey": "c0ffee0000000004",

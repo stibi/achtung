@@ -1,17 +1,27 @@
 import Foundation
 
+/// A channel's identity. A channel name is unique only within its instance, the sending
+/// system it belongs to (ADR 0006), so two instances can each have a `devops` channel.
+public struct ChannelID: Sendable, Hashable, Codable {
+    public let instance: String
+    public let slug: String
+
+    public init(instance: String, slug: String) {
+        self.instance = instance
+        self.slug = slug
+    }
+}
+
 /// A named stream of alerts, with what is firing in it. Mirrors the server's `Channel`.
 public struct Channel: Sendable, Hashable, Identifiable {
-    public let slug: String
+    public let id: ChannelID
     /// Occurrences in the channel that are firing now.
     public let firing: Int
     /// The latest event in the channel; nil while it has none.
     public let lastEventAt: Date?
 
-    public var id: String { slug }
-
-    public init(slug: String, firing: Int, lastEventAt: Date?) {
-        self.slug = slug
+    public init(id: ChannelID, firing: Int, lastEventAt: Date?) {
+        self.id = id
         self.firing = firing
         self.lastEventAt = lastEventAt
     }
@@ -21,7 +31,7 @@ public struct Channel: Sendable, Hashable, Identifiable {
 /// tracks. Mirrors `server/src/domain/occurrence.ts`.
 public struct Occurrence: Sendable, Hashable, Identifiable {
     public let id: Int
-    public let channel: String
+    public let channel: ChannelID
     public let source: String
     public let alert: IncomingAlert
     public let firstReceivedAt: Date
@@ -32,7 +42,7 @@ public struct Occurrence: Sendable, Hashable, Identifiable {
 
     public init(
         id: Int,
-        channel: String,
+        channel: ChannelID,
         source: String,
         alert: IncomingAlert,
         firstReceivedAt: Date,

@@ -6,7 +6,9 @@ import Foundation
 
 extension Components.Schemas.Channel {
     var domain: Channel {
-        Channel(slug: slug, firing: firing, lastEventAt: lastEventAt)
+        Channel(
+            id: ChannelID(instance: instance, slug: slug), firing: firing,
+            lastEventAt: lastEventAt)
     }
 }
 
@@ -14,7 +16,7 @@ extension Components.Schemas.Occurrence {
     func domain() throws -> Occurrence {
         Occurrence(
             id: id,
-            channel: channel,
+            channel: ChannelID(instance: instance, slug: channel),
             source: source,
             alert: IncomingAlert(
                 sourceKey: sourceKey,

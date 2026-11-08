@@ -1,6 +1,7 @@
 {
   "occurrence": {
     "id": 12,
+    "instance": "onprem",
     "channel": "legal-machine-dev",
     "source": "alertmanager",
     "sourceKey": "a11ce0000000000c",

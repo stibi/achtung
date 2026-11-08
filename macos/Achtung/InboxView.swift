@@ -13,6 +13,7 @@ struct InboxView: View {
     @State private var model: InboxModel
     @State private var selectedScope: OccurrenceScope? = .allChannels
     @State private var selectedID: Int?
+    @State private var collapsedInstances: Set<String> = []
 
     init(baseURL: URL) {
         _model = State(initialValue: InboxModel(baseURL: baseURL))
@@ -31,6 +32,15 @@ struct InboxView: View {
             sidebar
         } detail: {
             content
+        }
+        // A channel that moved to another instance (ADR 0006) has a new identity; leave the
+        // old one for Live rather than asking the server for it every refresh.
+        .onChange(of: model.channels) {
+            if case .channel(let id) = selectedScope,
+                !model.channels.contains(where: { $0.id == id })
+            {
+                selectedScope = .allChannels
+            }
         }
         .onChange(of: selectedScope) {
             selectedID = nil
@@ -81,13 +91,22 @@ struct InboxView: View {
                 hasNews: model.channels.contains { model.readState.hasNews($0) }
             )
             .tag(OccurrenceScope.allChannels)
+            // Each instance (the sending system, ADR 0006) with its channels underneath.
             Section("Channels") {
-                ForEach(model.channels) { channel in
-                    sidebarRow(
-                        channel.slug, systemImage: "number", firing: channel.firing,
-                        hasNews: model.readState.hasNews(channel)
-                    )
-                    .tag(OccurrenceScope.channel(channel.slug))
+                ForEach(Instance.grouping(model.channels)) { instance in
+                    DisclosureGroup(isExpanded: expanded(instance)) {
+                        ForEach(instance.channels) { channel in
+                            sidebarRow(
+                                channel.id.slug, systemImage: "number", firing: channel.firing,
+                                hasNews: model.readState.hasNews(channel)
+                            )
+                            .tag(OccurrenceScope.channel(channel.id))
+                        }
+                    } label: {
+                        sidebarRow(
+                            instance.name, systemImage: "server.rack", firing: instance.firing,
+                            hasNews: instance.channels.contains { model.readState.hasNews($0) })
+                    }
                 }
             }
         }
@@ -97,6 +116,19 @@ struct InboxView: View {
                 ConnectionBanner(problem: problem, lastUpdated: model.lastUpdated)
             }
         }
+    }
+
+    /// Instances start expanded; the user can fold any of them away.
+    private func expanded(_ instance: Instance) -> Binding<Bool> {
+        Binding(
+            get: { !collapsedInstances.contains(instance.name) },
+            set: { isExpanded in
+                if isExpanded {
+                    collapsedInstances.remove(instance.name)
+                } else {
+                    collapsedInstances.insert(instance.name)
+                }
+            })
     }
 
     /// Badge: what is firing. Dot: something happened since the user last looked.
@@ -128,16 +160,17 @@ struct InboxView: View {
             case .allChannels:
                 liveStream
                     .navigationTitle("Live")
-            case .channel(let slug):
+            case .channel(let channel):
                 // HSplitView sizes its panes to their ideal height unless told to fill.
                 HSplitView {
-                    channelList(.channel(slug))
+                    channelList(.channel(channel))
                         .frame(minWidth: 300, idealWidth: 380, maxWidth: 480, maxHeight: .infinity)
                     occurrenceDetail
                         .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .navigationTitle("#\(slug)")
+                .navigationTitle("#\(channel.slug)")
+                .navigationSubtitle(channel.instance)
             case nil:
                 ContentUnavailableView("Select a channel", systemImage: "tray")
             }

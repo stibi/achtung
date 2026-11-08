@@ -156,20 +156,25 @@ the domain model is missing a concept. Discuss it and record an ADR.
 - The Xcode project is generated from `project.yml` with XcodeGen and is not committed.
 - `Packages/AchtungDomain`: the model, mirroring `server/src/domain/` (`Channel`,
   `Occurrence`, `IncomingAlert`, events), plus client-only rules: `OccurrenceList`
-  (pages and refreshes merged in the server's `(lastEventAt, id)` order) and `ReadState`.
-  No UI and no I/O.
+  (pages and refreshes merged in the server's `(lastEventAt, id)` order), `ReadState`,
+  and `Instance` (channels grouped by the sending system, in the server's order).
+  A channel is identified by `ChannelID`, its instance and name (ADR 0006), because two
+  instances can have a channel of the same name. No UI and no I/O.
 - `Packages/AchtungAPI`: the server client. swift-openapi-generator's build plugin
   generates it from `Sources/AchtungAPI/openapi.yaml`, a symlink to `api/openapi.yaml`,
   so nothing generated is committed and the spec has one copy. The generated code is
   `internal`; `Mapping.swift` turns it into AchtungDomain types, and failures into
   `ServerError`. The app never sees a generated type. Requests bypass the HTTP cache.
-- `Achtung/`: the app target, SwiftUI. The sidebar lists Live and the channels (badge:
-  firing count; dot: something happened since the user last looked). Live
-  (`GET /api/occurrences`) is one stream of every channel's occurrences, each as a card
-  with all its details; clicking a card marks it read, and visiting Live counts as
-  visiting every channel whose newest change it has loaded. A channel
-  is a list, with a detail pane that loads the occurrence's events and the alert's other
-  occurrences. Both are newest change first and paged by `nextCursor`; `OccurrenceScope`
+- `Achtung/`: the app target, SwiftUI. The sidebar lists Live, then each instance with
+  its channels underneath (badge: firing count, summed per instance; dot: something
+  happened since the user last looked). Live (`GET /api/occurrences`) is one stream of
+  every channel's occurrences, each as a card with all its details and its instance and
+  channel; clicking a card marks it read, and visiting Live counts as visiting every
+  channel whose newest change it has loaded. A channel
+  (`GET /api/instances/{instance}/channels/{slug}/occurrences`; the deprecated route by
+  name alone is not used) is a list, with a detail pane that loads the occurrence's
+  events and the alert's other occurrences. If the open channel disappears, for example
+  because the operator moved it to another instance, the view switches to Live. Both are newest change first and paged by `nextCursor`; `OccurrenceScope`
   (all channels or one) selects the route. `InboxModel` is the only code that talks to the server; the
   views only read it. `SampleData` exists for SwiftUI previews.
 - No push yet: the app refreshes every 30 seconds and whenever it becomes active. A
@@ -178,13 +183,15 @@ the domain model is missing a concept. Discuss it and record an ADR.
   before its transaction commits, so a change can appear after a later-stamped one; the
   overlap catches it, and merging by id makes it harmless.
 - Read state (ADR 0002) is per server and stored in `UserDefaults`. It holds server
-  times only, so the Mac's clock doesn't matter. An occurrence is read when the user has
+  times only, so the Mac's clock doesn't matter. Channel visits are keyed by
+  `ChannelID`; visits stored before instances existed, keyed by name alone, are dropped
+  on load (read marks and the last-visit marker are kept). An occurrence is read when the user has
   opened it at its current `lastEventAt`, so a fire, resolve or reopen makes it unread
   again and a repeat notification doesn't. "New since last visit" means a `lastEventAt`
   after the newest event the client had loaded when the app last went to the
   background.
 - The server address is a setting (Settings window). The app allows plain HTTP (ATS
-  exception in the generated Info.plist): instances are self-hosted and protected by the
+  exception in the generated Info.plist): servers are self-hosted and protected by the
   operator's network, not by TLS (ADR 0002).
 - Package dependencies enforce the layering. The compiler rejects imports a package
   hasn't declared.

@@ -89,4 +89,6 @@ in Xcode asks you to trust the plugin ("Trust & Enable"); `check.sh` passes
 `-skipPackagePluginValidation` instead. When the spec changes, rebuild and fix the
 mapping in `Packages/AchtungAPI/Sources/AchtungAPI/Mapping.swift`. Its tests use JSON
 fixtures in `Packages/AchtungAPI/Tests/AchtungAPITests/Fixtures/`, captured from a real
-server (no real hostnames).
+server (no real hostnames) and extended by hand when the spec adds a field before a server
+has it. A channel is identified by its instance and name (`ChannelID`, ADR 0006), never by
+the name alone.

@@ -2,6 +2,7 @@
   "occurrences": [
     {
       "id": 10,
+      "instance": "default",
       "channel": "onepost-prod",
       "source": "alertmanager",
       "sourceKey": "c0ffee0000000005",
@@ -32,6 +33,7 @@
     },
     {
       "id": 9,
+      "instance": "onprem",
       "channel": "legal-machine-prod",
       "source": "alertmanager",
       "sourceKey": "c0ffee0000000004",
@@ -62,6 +64,7 @@
     },
     {
       "id": 7,
+      "instance": "onprem",
       "channel": "legal-machine-prod",
       "source": "alertmanager",
       "sourceKey": "c0ffee0000000004",

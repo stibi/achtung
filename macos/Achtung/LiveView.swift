@@ -46,7 +46,7 @@ private struct LiveCard: View {
                 Circle()
                     .fill(isRead ? Color.clear : Color.accentColor)
                     .frame(width: 8, height: 8)
-                Text("#\(occurrence.channel)")
+                Text("\(occurrence.channel.instance) · #\(occurrence.channel.slug)")
                     .font(.callout.weight(.medium))
                     .foregroundStyle(.secondary)
             }

@@ -8,9 +8,16 @@ enum Fixture {
         start.addingTimeInterval(value * 60)
     }
 
+    static func channel(
+        _ slug: String, instance: String = "onprem", firing: Int, lastEventAt: Date?
+    ) -> Channel {
+        Channel(
+            id: ChannelID(instance: instance, slug: slug), firing: firing, lastEventAt: lastEventAt)
+    }
+
     static func occurrence(id: Int, lastEventAt: Date) -> Occurrence {
         Occurrence(
-            id: id, channel: "infra", source: "alertmanager",
+            id: id, channel: ChannelID(instance: "onprem", slug: "infra"), source: "alertmanager",
             alert: IncomingAlert(
                 sourceKey: "key-\(id)", severity: .critical, title: "Alert \(id)", summary: nil,
                 labels: [:], annotations: [:], startsAt: start, links: [], state: .firing),

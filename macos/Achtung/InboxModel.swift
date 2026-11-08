@@ -122,8 +122,8 @@ final class InboxModel {
     /// within the pages loaded so far.
     private func markVisited(_ scope: OccurrenceScope) {
         switch scope {
-        case .channel(let slug):
-            for channel in channels where channel.slug == slug {
+        case .channel(let id):
+            for channel in channels where channel.id == id {
                 readState.markVisited(channel)
             }
         case .allChannels:

@@ -3,7 +3,7 @@ import Foundation
 /// Which occurrences a list holds: every channel's (the Live view) or one channel's.
 public enum OccurrenceScope: Hashable, Sendable {
     case allChannels
-    case channel(String)
+    case channel(ChannelID)
 }
 
 /// The occurrences in one `OccurrenceScope` as far as the client has loaded them, most

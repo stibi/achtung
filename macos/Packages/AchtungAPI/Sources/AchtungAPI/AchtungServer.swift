@@ -59,9 +59,10 @@ public struct AchtungServer: Sendable {
                 case .undocumented(let status, _):
                     throw ServerError.invalidResponse("HTTP \(status)")
                 }
-            case .channel(let slug):
-                let output = try await client.listChannelOccurrences(
-                    path: .init(slug: slug), query: .init(cursor: cursor))
+            case .channel(let channel):
+                let output = try await client.listInstanceChannelOccurrences(
+                    path: .init(instance: channel.instance, slug: channel.slug),
+                    query: .init(cursor: cursor))
                 switch output {
                 case .ok(let response):
                     return try OccurrencePage(response.body.json)

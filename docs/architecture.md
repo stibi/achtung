@@ -429,7 +429,9 @@ The identity below is a contract that features build on
   background, it's a plain still `Canvas`, because even a paused
   `TimelineView(.animation)` keeps the window redrawing. A setting ("Animate even when
   Reduce Motion is on", `MotionSetting`, off by default) lets it move despite the
-  system's Reduce Motion, for people who want it in Achtung only.
+  system's Reduce Motion, for people who want it in Achtung only. Its colours are in
+  `CoffeeBreakPalette`, Foundation only, which `macos/scripts/render-coffee-break.sh`
+  shares to export the scene as GIFs (`macos/Icon/coffee-break/`), so they match the app.
 - The server address is a setting (Settings window, General tab). The app allows plain
   HTTP (ATS exception in the generated Info.plist): servers are self-hosted and protected
   by the operator's network, not by TLS (ADR 0002).

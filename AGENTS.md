@@ -83,6 +83,7 @@ macos/scripts/run.sh                # Debug build of the working tree, started (
 macos/scripts/demo.sh               # demo mode: run.sh against demo-server.py, a fake server with made-up alerts
 make help                           # make run, run-light, demo, install, check, test, xcode: shortcuts for the above
 swift macos/scripts/render-icon.swift   # render macos/Icon/AppIcon.svg into the app icon set
+macos/scripts/render-coffee-break.sh   # render Live's coffee-break krysa as GIFs into macos/Icon/coffee-break/
 ```
 
 `check.sh` must pass before you finish, like the server's `check`. The Stop hook and the

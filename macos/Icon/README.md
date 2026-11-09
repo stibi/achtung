@@ -25,3 +25,7 @@ swift macos/scripts/render-icon.swift   # writes Achtung/Assets.xcassets/AppIcon
 The PNGs are committed, so a normal build doesn't need this step. Pixel squares overlap
 their neighbours by one unit; renderers that ignore `crispEdges` would otherwise show
 seams between them.
+
+`coffee-break/` has the krysa's coffee break, Live's "All caught up" scene, as looping
+GIFs to share, rendered from the app's own scene by `macos/scripts/render-coffee-break.sh`
+(see its README).

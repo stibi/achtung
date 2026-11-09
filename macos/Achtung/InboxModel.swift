@@ -131,6 +131,22 @@ final class InboxModel {
             own: own, feed: lists[.allChannels]?.occurrences ?? [], in: scope, keeping: kept)
     }
 
+    /// Whether anything in `scope` is unread, as the list shows it with read alerts hidden.
+    func hasUnread(in scope: OccurrenceScope) -> Bool {
+        !readState.unread(
+            own: lists[scope]?.occurrences ?? [], feed: lists[.allChannels]?.occurrences ?? [],
+            in: scope
+        ).isEmpty
+    }
+
+    /// Marks what's unread in `scope` read, as loaded (`ReadState.markAllRead`).
+    func markAllRead(in scope: OccurrenceScope) {
+        readState.markAllRead(
+            own: lists[scope]?.occurrences ?? [], feed: lists[.allChannels]?.occurrences ?? [],
+            in: scope)
+        saveReadState()
+    }
+
     func hidesRead(in scope: OccurrenceScope) -> Bool {
         readState.hidesRead(in: scope)
     }

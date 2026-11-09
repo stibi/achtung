@@ -13,6 +13,9 @@ struct InboxView: View {
     @State private var model: InboxModel
     @State private var selectedScope: OccurrenceScope? = .allChannels
     @State private var selectedID: Int?
+    /// Live's card the user last clicked (`LiveView.kept`), here so marking all read can
+    /// let it go.
+    @State private var liveKept: Int?
     /// A channel just opened whose first unread occurrence is still to be selected, after
     /// its first refresh.
     @State private var selectFirstUnreadIn: OccurrenceScope?
@@ -49,6 +52,7 @@ struct InboxView: View {
         // the first refresh has brought its list up to date (a cached one may be stale).
         .onChange(of: selectedScope) {
             selectedID = nil
+            liveKept = nil
             if case .channel = selectedScope {
                 selectFirstUnreadIn = selectedScope
             }
@@ -121,7 +125,9 @@ struct InboxView: View {
                         ToolbarItem(placement: .navigation) {
                             ListHeader(
                                 title: "Live", subtitle: nil,
-                                unreadOnly: hidesRead(in: .allChannels))
+                                unreadOnly: hidesRead(in: .allChannels),
+                                hasUnread: model.hasUnread(in: .allChannels)
+                            ) { markAllRead(in: .allChannels) }
                         }
                         .sharedBackgroundVisibility(.hidden)
                     }
@@ -142,7 +148,9 @@ struct InboxView: View {
                     ToolbarItem(placement: .navigation) {
                         ListHeader(
                             title: "#\(channel.slug)", subtitle: channel.instance,
-                            unreadOnly: hidesRead(in: .channel(channel)))
+                            unreadOnly: hidesRead(in: .channel(channel)),
+                            hasUnread: model.hasUnread(in: .channel(channel))
+                        ) { markAllRead(in: .channel(channel)) }
                     }
                     .sharedBackgroundVisibility(.hidden)
                 }
@@ -158,12 +166,20 @@ struct InboxView: View {
                 occurrences: list.occurrences, firing: model.firing, readState: model.readState,
                 hasOlder: model.hasOlder(in: .allChannels), lastUpdated: model.lastUpdated,
                 loadOlder: { await model.loadOlder(in: .allChannels) },
-                hidesRead: hidesRead(in: .allChannels),
+                hidesRead: hidesRead(in: .allChannels), kept: $liveKept,
                 markRead: { model.markRead($0) },
                 silence: { await model.silence($0, for: $1) })
         } else {
             loading(.allChannels)
         }
+    }
+
+    /// Also lets go of the open alert, so with read alerts hidden the list empties into "All
+    /// caught up" rather than keeping one that would look as if it wasn't marked.
+    private func markAllRead(in scope: OccurrenceScope) {
+        model.markAllRead(in: scope)
+        selectedID = nil
+        liveKept = nil
     }
 
     private func hidesRead(in scope: OccurrenceScope) -> Binding<Bool> {

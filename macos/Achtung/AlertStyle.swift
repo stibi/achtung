@@ -162,11 +162,15 @@ struct CaughtUpView: View {
 }
 
 /// A list's title with the switch that hides its read alerts, so it shows only new ones
-/// and resends. It stands in the toolbar in place of the window title, on the list's line.
+/// and resends, and a button that marks everything unread in it read. It stands in the
+/// toolbar in place of the window title, on the list's line.
 struct ListHeader: View {
     let title: String
     let subtitle: String?
     @Binding var unreadOnly: Bool
+    /// Disables the button when there's nothing to mark.
+    let hasUnread: Bool
+    let markAllRead: () -> Void
 
     var body: some View {
         HStack(spacing: 16) {
@@ -194,6 +198,14 @@ struct ListHeader: View {
                     .labelsHidden()
             }
             .help("Show only new alerts and resends")
+            Button(action: markAllRead) {
+                Label("Mark All as Read", systemImage: "checkmark.circle")
+                    .labelStyle(.titleAndIcon)
+            }
+            .controlSize(.small)
+            .disabled(!hasUnread)
+            .keyboardShortcut("k", modifiers: [.command, .shift])
+            .help("Mark every unread alert here as read (⇧⌘K)")
         }
         .padding(.horizontal, 8)
     }

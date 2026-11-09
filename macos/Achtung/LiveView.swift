@@ -21,6 +21,9 @@ struct LiveView: View {
     let lastUpdated: Date?
     let loadOlder: () async -> Void
     @Binding var hidesRead: Bool
+    /// The card the user last clicked or showed from the timeline. It stays in the stream
+    /// once read, until another one takes its place or the user marks all read.
+    @Binding var kept: Int?
     let markRead: (Occurrence) -> Void
     let silence: SilenceAction
 
@@ -29,9 +32,6 @@ struct LiveView: View {
     /// Counts clicks, so each one restarts the highlight's two seconds, even on the same
     /// card.
     @State private var highlightRequest = 0
-    /// The card the user last clicked or showed from the timeline. It stays in the stream
-    /// once read, until another one takes its place.
-    @State private var kept: Int?
 
     private var shown: [Occurrence] {
         readState.shown(own: occurrences, feed: occurrences, in: .allChannels, keeping: kept)
@@ -167,6 +167,6 @@ private struct LiveCard: View {
     LiveView(
         occurrences: SampleData.occurrences, firing: [], readState: SampleData.readState,
         hasOlder: false, lastUpdated: nil, loadOlder: {}, hidesRead: .constant(false),
-        markRead: { _ in },
+        kept: .constant(nil), markRead: { _ in },
         silence: { _, _ in nil })
 }

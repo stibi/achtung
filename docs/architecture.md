@@ -289,6 +289,16 @@ The identity below is a contract that features build on
   unread occurrence, never each later one. A resend lists it again. With nothing unread
   the list says "All caught up", with a button that shows read alerts again; Live's
   timeline stays beside it and always shows every alert. Badges are unchanged.
+- Beside the switch, "Mark All as Read" (⇧⌘K) marks everything unread in the list read:
+  what the list shows with unread only on, from the list and the all-channels feed
+  (`ReadState.markAllRead`). That's the badge's set, plus the rare occurrence only the
+  list has, or has newer: a change between a refresh's feed and list loads, or one past
+  the feed's cap. Each occurrence is marked at the `lastEventAt` the client
+  has loaded, never by moving a baseline to now, so whatever arrived after the last
+  refresh, and any later resend, stays unread. It also lets go of the open alert (a
+  channel's selection, Live's last clicked card), so with unread only on the list
+  empties into "All caught up". There's no confirmation: read state is local, and a
+  resend brings an alert back. It's disabled when nothing in the list is unread.
 - Live's "All caught up" has a small pixel scene above it (`CoffeeBreak`): the icon's
   krysa at a table, sipping coffee every few seconds, an unused fire extinguisher in the
   corner. `CoffeeBreakScene` places the pixels for a moment in the loop, and the view

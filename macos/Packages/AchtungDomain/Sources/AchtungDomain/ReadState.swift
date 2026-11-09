@@ -178,14 +178,7 @@ public struct ReadState: Sendable, Codable, Equatable {
     public func shown(
         own: [Occurrence], feed: [Occurrence], in scope: OccurrenceScope, keeping kept: Int?
     ) -> [Occurrence] {
-        var byID: [Int: Occurrence] = [:]
-        for occurrence in feed where scope.contains(occurrence) {
-            byID[occurrence.id] = occurrence
-        }
-        for occurrence in own
-        where occurrence.lastEventAt >= byID[occurrence.id]?.lastEventAt ?? .distantPast {
-            byID[occurrence.id] = occurrence
-        }
+        let byID = Self.latest(own: own, feed: feed, in: scope)
         var list = OccurrenceList()
         if hidesRead(in: scope) {
             list.merge(byID.values.filter { !isRead($0) || $0.id == kept })
@@ -196,5 +189,42 @@ public struct ReadState: Sendable, Codable, Equatable {
             }
         }
         return list.occurrences
+    }
+
+    /// The unread occurrences of a list (see `shown` for `own` and `feed`), each in its
+    /// latest copy: what the list shows with read alerts hidden, and what "Mark All as
+    /// Read" marks. That's the badge's set, plus the rare one only the list has newer: a
+    /// change between a refresh's feed and list loads, or one past the feed's cap.
+    public func unread(own: [Occurrence], feed: [Occurrence], in scope: OccurrenceScope)
+        -> [Occurrence]
+    {
+        Self.latest(own: own, feed: feed, in: scope).values.filter { !isRead($0) }
+    }
+
+    /// Marks what is unread in a list read, each occurrence at the `lastEventAt` the client
+    /// has loaded, rather than moving a baseline to now: whatever changed after the last
+    /// refresh, which the client hasn't seen, stays unread, and so does any later change.
+    public mutating func markAllRead(
+        own: [Occurrence], feed: [Occurrence], in scope: OccurrenceScope
+    ) {
+        for occurrence in unread(own: own, feed: feed, in: scope) {
+            markRead(occurrence)
+        }
+    }
+
+    /// Each occurrence of `scope` in the list or the feed, in its copy with the later
+    /// `lastEventAt`, or on a tie the list's own.
+    private static func latest(own: [Occurrence], feed: [Occurrence], in scope: OccurrenceScope)
+        -> [Int: Occurrence]
+    {
+        var byID: [Int: Occurrence] = [:]
+        for occurrence in feed where scope.contains(occurrence) {
+            byID[occurrence.id] = occurrence
+        }
+        for occurrence in own
+        where occurrence.lastEventAt >= byID[occurrence.id]?.lastEventAt ?? .distantPast {
+            byID[occurrence.id] = occurrence
+        }
+        return byID
     }
 }

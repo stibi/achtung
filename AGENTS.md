@@ -21,7 +21,7 @@ pnpm --dir server run check         # typecheck, lint, architecture, migrations,
 pnpm --dir server run fix           # auto-fix formatting and lint
 pnpm --dir server exec vitest run test/sources/alertmanager.test.ts   # a single test file
 pnpm --dir server run db:generate   # write a migration after changing src/db/schema.ts
-pnpm --dir server run api:generate  # rewrite api/openapi.yaml after changing a route or its schema
+pnpm --dir server run api:generate  # rewrite api/openapi.yaml after changing a route or its schema (update macos/scripts/demo-server.py to match)
 pnpm --dir server run dev           # run the server locally (needs DATABASE_URL; no build step)
 pnpm --dir server run test:mutation # mutation tests (slow; runs nightly in CI)
 ```
@@ -80,7 +80,8 @@ swift test --package-path macos/Packages/AchtungAPI                # API mapping
 cd macos && xcodegen generate && open Achtung.xcodeproj           # work in Xcode
 macos/scripts/install.sh            # Release build into ~/Applications, version = commit hash
 macos/scripts/run.sh                # Debug build of the working tree, started (quits a running Achtung)
-make help                           # make run, run-light, install, check, test, xcode: shortcuts for the above
+macos/scripts/demo.sh               # demo mode: run.sh against demo-server.py, a fake server with made-up alerts
+make help                           # make run, run-light, demo, install, check, test, xcode: shortcuts for the above
 swift macos/scripts/render-icon.swift   # render macos/Icon/AppIcon.svg into the app icon set
 ```
 

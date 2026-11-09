@@ -1,7 +1,7 @@
 # Shortcuts for the macOS client's scripts in macos/scripts. The server has its own
 # commands: pnpm --dir server run ... (see AGENTS.md).
 
-.PHONY: help run run-light install check test xcode
+.PHONY: help run run-light demo install check test xcode
 
 help: ## Show the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -11,6 +11,9 @@ run: ## Build a Debug app from the working tree and start it
 
 run-light: ## Like run, with the app in light mode
 	macos/scripts/run.sh -NSRequiresAquaSystemAppearance YES
+
+demo: ## Start the app with made-up alerts from a fake server, to show or record it
+	macos/scripts/demo.sh
 
 install: ## Build a Release app into ~/Applications and start it
 	macos/scripts/install.sh

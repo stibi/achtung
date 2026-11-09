@@ -2,6 +2,11 @@
 
 A self-hosted alert inbox with a native macOS client.
 
+![The macOS client in demo mode: Live with its 24-hour timeline, the Unread only switch, a resent alert's history, silencing, and a new critical alert arriving](docs/media/achtung-demo.gif)
+
+A 30-second tour of the client in demo mode, with made-up alerts (`make demo`).
+[Full-quality video (MP4)](docs/media/achtung-demo.mp4).
+
 > **Status:** early development. The server ingests Alertmanager webhooks into Postgres
 > and serves a read-only client API ([`api/openapi.yaml`](api/openapi.yaml)). Live
 > updates (SSE), acknowledgement and the macOS client's API connection are next. Open
@@ -134,6 +139,9 @@ array of `alerts`. Each alert has `status`, `labels`, `annotations`, `startsAt`,
 - A menu bar presence with an unread or firing badge, and optional macOS notifications.
 - Layout: channels in a sidebar, then the alert list, then alert details (a standard
   three-column macOS layout).
+- **Demo mode:** `make demo` starts the client against a fake server with made-up alerts
+  (`macos/scripts/demo-server.py`), to try it or record it without a server or real
+  data. A new critical alert fires 45 seconds in. Quitting the app ends the demo.
 
 ## Non-goals (for now)
 

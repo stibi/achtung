@@ -19,6 +19,11 @@ public struct ReadState: Sendable, Codable, Equatable {
     /// user never opened one by one doesn't show up as unread; `advanceBaseline` then moves
     /// it forward.
     public private(set) var baseline: Date?
+    /// Channels whose list shows read alerts too. Every other channel hides them, so the
+    /// default is on and only the exceptions are stored.
+    private var showsReadIn: Set<ChannelID> = []
+    /// Whether Live shows read alerts too; it hides them unless the user said otherwise.
+    private var showsReadInLive = false
 
     public init() {}
 
@@ -27,6 +32,8 @@ public struct ReadState: Sendable, Codable, Equatable {
         case channelSeenUpTo
         case seenUntil
         case baseline
+        case showsReadIn
+        case showsReadInLive
     }
 
     /// Also reads the format from before channels had an instance (ADR 0006). Its channel
@@ -37,6 +44,10 @@ public struct ReadState: Sendable, Codable, Equatable {
         readUpTo = try container.decode([Int: Date].self, forKey: .readUpTo)
         seenUntil = try container.decodeIfPresent(Date.self, forKey: .seenUntil)
         baseline = try container.decodeIfPresent(Date.self, forKey: .baseline)
+        showsReadIn =
+            try container.decodeIfPresent(Set<ChannelID>.self, forKey: .showsReadIn) ?? []
+        showsReadInLive =
+            try container.decodeIfPresent(Bool.self, forKey: .showsReadInLive) ?? false
         do {
             channelSeenUpTo = try container.decode(
                 [ChannelID: Date].self, forKey: .channelSeenUpTo)
@@ -129,5 +140,61 @@ public struct ReadState: Sendable, Codable, Equatable {
             let seen = channelSeenUpTo[channel.id] ?? seenUntil
         else { return false }
         return lastEventAt > seen
+    }
+
+    /// Whether a list hides read alerts, showing only new ones and resends: each channel's
+    /// and Live's on its own. On unless the user turned it off there.
+    public func hidesRead(in scope: OccurrenceScope) -> Bool {
+        switch scope {
+        case .allChannels: !showsReadInLive
+        case .channel(let id): !showsReadIn.contains(id)
+        }
+    }
+
+    public mutating func setHidesRead(_ hides: Bool, in scope: OccurrenceScope) {
+        switch scope {
+        case .allChannels:
+            showsReadInLive = !hides
+        case .channel(let id) where hides:
+            showsReadIn.remove(id)
+        case .channel(let id):
+            showsReadIn.insert(id)
+        }
+    }
+
+    /// What a list shows. `own` is the list as far as it's loaded, `feed` the all-channels
+    /// feed, which holds every unread occurrence down to the baseline (for Live, `own` is
+    /// the feed). Showing read alerts, the list is `own`. Hiding them, it's the unread ones
+    /// (new alerts and resends) of both that belong to `scope`, so a channel's list matches
+    /// the sidebar's count without older pages. Either way it keeps `kept`, the occurrence
+    /// the user has open (a channel's selection, Live's last clicked card): opening one
+    /// marks it read, and it must not vanish while the user reads it, nor when they turn
+    /// hiding off while it came from the feed. It drops out once they move on; a later
+    /// resend brings it back as unread.
+    ///
+    /// Where both hold an occurrence, the copy with the later `lastEventAt` counts: either
+    /// list can be behind (a channel's is refreshed only while it's open). On a tie, the
+    /// list's own copy, which a silence updates too.
+    public func shown(
+        own: [Occurrence], feed: [Occurrence], in scope: OccurrenceScope, keeping kept: Int?
+    ) -> [Occurrence] {
+        var byID: [Int: Occurrence] = [:]
+        for occurrence in feed where scope.contains(occurrence) {
+            byID[occurrence.id] = occurrence
+        }
+        for occurrence in own
+        where occurrence.lastEventAt >= byID[occurrence.id]?.lastEventAt ?? .distantPast {
+            byID[occurrence.id] = occurrence
+        }
+        var list = OccurrenceList()
+        if hidesRead(in: scope) {
+            list.merge(byID.values.filter { !isRead($0) || $0.id == kept })
+        } else {
+            list.merge(own.map { byID[$0.id] ?? $0 })
+            if let kept, !own.contains(where: { $0.id == kept }), let occurrence = byID[kept] {
+                list.merge([occurrence])
+            }
+        }
+        return list.occurrences
     }
 }

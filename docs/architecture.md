@@ -274,6 +274,21 @@ The identity below is a contract that features build on
   bound. "New since last visit" means a `lastEventAt`
   after the newest event the client had loaded when the app last went to the
   background.
+- A channel's list and Live hide read occurrences by default, showing only new alerts and
+  resends. An "Unread only" switch (`ListHeader`) sits in the toolbar in place of the
+  window title, on the line of the list's name, and turns this off and on for each
+  channel and for Live separately. The exceptions are stored in the read state
+  (`ReadState.hidesRead`, a channel keyed by `ChannelID`). While hiding, a channel's list
+  also takes the channel's unread occurrences from the all-channels feed, which holds
+  every unread one, so it matches the sidebar count and needs no older pages: the "load
+  older" row is hidden, in Live too. Where the feed and the channel's list hold different
+  copies of an occurrence, the later `lastEventAt` wins. Opening an occurrence marks it
+  read, so the one the user has open stays listed until they move on, also when hiding is
+  turned off (`ReadState.shown`): a channel's selected occurrence, and in Live the card
+  last clicked or shown from the timeline. Only opening a channel selects its first
+  unread occurrence, never each later one. A resend lists it again. With nothing unread
+  the list says "All caught up", with a button that shows read alerts again; Live's
+  timeline stays beside it and always shows every alert. Badges are unchanged.
 - The server address is a setting (Settings window). The app allows plain HTTP (ATS
   exception in the generated Info.plist): servers are self-hosted and protected by the
   operator's network, not by TLS (ADR 0002).

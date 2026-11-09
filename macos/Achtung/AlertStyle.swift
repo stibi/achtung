@@ -135,6 +135,59 @@ struct AllClearView: View {
     }
 }
 
+/// A list with read alerts hidden and nothing unread.
+struct CaughtUpView: View {
+    let showRead: () -> Void
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("All caught up", systemImage: "checkmark.circle")
+        } description: {
+            Text("New alerts and resends show up here.")
+        } actions: {
+            Button("Show Read Alerts", action: showRead)
+        }
+    }
+}
+
+/// A list's title with the switch that hides its read alerts, so it shows only new ones
+/// and resends. It stands in the toolbar in place of the window title, on the list's line.
+struct ListHeader: View {
+    let title: String
+    let subtitle: String?
+    @Binding var unreadOnly: Bool
+
+    var body: some View {
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title)
+                    .font(.headline)
+                    .lineLimit(1)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            // A toolbar hides a toggle's own label, so it's spelled out beside the switch.
+            HStack(spacing: 6) {
+                Text("Unread only")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                    // The switch carries the same label for VoiceOver.
+                    .accessibilityHidden(true)
+                Toggle("Unread only", isOn: $unreadOnly)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .labelsHidden()
+            }
+            .help("Show only new alerts and resends")
+        }
+        .padding(.horizontal, 8)
+    }
+}
+
 /// The time alone when `date` is today, else the date too.
 func timeOrDate(_ date: Date) -> String {
     Calendar.current.isDateInToday(date)

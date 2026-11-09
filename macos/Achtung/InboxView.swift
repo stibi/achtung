@@ -26,7 +26,8 @@ struct InboxView: View {
     }
 
     private var selectedOccurrence: Occurrence? {
-        selectedScope.flatMap { model.lists[$0] }?.occurrences.first { $0.id == selectedID }
+        selectedScope.flatMap { model.shownOccurrences(in: $0, keeping: selectedID) }?
+            .first { $0.id == selectedID }
     }
 
     var body: some View {
@@ -95,9 +96,11 @@ struct InboxView: View {
 
     private func selectFirstUnread() {
         guard let scope = selectFirstUnreadIn, scope == selectedScope,
-            let list = model.lists[scope]
+            let occurrences = model.shownOccurrences(in: scope, keeping: nil)
         else { return }
-        selectedID = model.readState.firstUnread(in: list.occurrences)?.id
+        // Once, on opening the channel: selecting marks it read, and with read alerts
+        // hidden, selecting the next unread one each time would read the whole list.
+        selectedID = model.readState.firstUnread(in: occurrences)?.id
         selectFirstUnreadIn = nil
     }
 
@@ -113,11 +116,20 @@ struct InboxView: View {
             case .allChannels:
                 liveStream
                     .navigationTitle("Live")
+                    .toolbar(removing: .title)
+                    .toolbar {
+                        ToolbarItem(placement: .navigation) {
+                            ListHeader(
+                                title: "Live", subtitle: nil,
+                                unreadOnly: hidesRead(in: .allChannels))
+                        }
+                        .sharedBackgroundVisibility(.hidden)
+                    }
             case .channel(let channel):
                 // HSplitView sizes its panes to their ideal height unless told to fill.
                 HSplitView {
                     // A fixed width; summaries wrap rather than get cut off.
-                    channelList(.channel(channel))
+                    channelList(channel)
                         .frame(minWidth: 380, idealWidth: 380, maxWidth: 380, maxHeight: .infinity)
                     occurrenceDetail
                         .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
@@ -125,6 +137,15 @@ struct InboxView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .navigationTitle("#\(channel.slug)")
                 .navigationSubtitle(channel.instance)
+                .toolbar(removing: .title)
+                .toolbar {
+                    ToolbarItem(placement: .navigation) {
+                        ListHeader(
+                            title: "#\(channel.slug)", subtitle: channel.instance,
+                            unreadOnly: hidesRead(in: .channel(channel)))
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                }
             case nil:
                 ContentUnavailableView("Select a channel", systemImage: "tray")
             }
@@ -137,6 +158,7 @@ struct InboxView: View {
                 occurrences: list.occurrences, firing: model.firing, readState: model.readState,
                 hasOlder: model.hasOlder(in: .allChannels), lastUpdated: model.lastUpdated,
                 loadOlder: { await model.loadOlder(in: .allChannels) },
+                hidesRead: hidesRead(in: .allChannels),
                 markRead: { model.markRead($0) },
                 silence: { await model.silence($0, for: $1) })
         } else {
@@ -144,13 +166,26 @@ struct InboxView: View {
         }
     }
 
-    @ViewBuilder private func channelList(_ scope: OccurrenceScope) -> some View {
-        if let list = model.lists[scope] {
+    private func hidesRead(in scope: OccurrenceScope) -> Binding<Bool> {
+        Binding {
+            model.hidesRead(in: scope)
+        } set: {
+            model.setHidesRead($0, in: scope)
+        }
+    }
+
+    @ViewBuilder private func channelList(_ channel: ChannelID) -> some View {
+        let scope = OccurrenceScope.channel(channel)
+        if let occurrences = model.shownOccurrences(in: scope, keeping: selectedID) {
+            let hidingRead = model.hidesRead(in: scope)
             AlertList(
-                occurrences: list.occurrences, readState: model.readState,
-                hasOlder: model.hasOlder(in: scope),
+                occurrences: occurrences, readState: model.readState,
+                // Hidden while read alerts are: the feed already brought every unread one,
+                // so older pages would add nothing to show.
+                hasOlder: !hidingRead && model.hasOlder(in: scope),
                 lastUpdated: model.lastUpdated,
                 loadOlder: { await model.loadOlder(in: scope) },
+                hidesRead: hidesRead(in: scope),
                 selection: $selectedID)
         } else {
             loading(scope)

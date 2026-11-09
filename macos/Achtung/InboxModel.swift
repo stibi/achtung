@@ -123,6 +123,23 @@ final class InboxModel {
         }
     }
 
+    /// What a list shows, nil until its first page arrives: with read alerts hidden, the
+    /// unread ones and `kept`, the occurrence the user has open (`ReadState.shown`).
+    func shownOccurrences(in scope: OccurrenceScope, keeping kept: Int?) -> [Occurrence]? {
+        guard let own = lists[scope]?.occurrences else { return nil }
+        return readState.shown(
+            own: own, feed: lists[.allChannels]?.occurrences ?? [], in: scope, keeping: kept)
+    }
+
+    func hidesRead(in scope: OccurrenceScope) -> Bool {
+        readState.hidesRead(in: scope)
+    }
+
+    func setHidesRead(_ hides: Bool, in scope: OccurrenceScope) {
+        readState.setHidesRead(hides, in: scope)
+        saveReadState()
+    }
+
     func markRead(_ occurrence: Occurrence) {
         readState.markRead(occurrence)
         saveReadState()

@@ -4,6 +4,14 @@ import Foundation
 public enum OccurrenceScope: Hashable, Sendable {
     case allChannels
     case channel(ChannelID)
+
+    /// Whether `occurrence` belongs in a list of this scope.
+    public func contains(_ occurrence: Occurrence) -> Bool {
+        switch self {
+        case .allChannels: true
+        case .channel(let id): occurrence.channel == id
+        }
+    }
 }
 
 /// The occurrences in one `OccurrenceScope` as far as the client has loaded them, most

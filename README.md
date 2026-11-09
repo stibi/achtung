@@ -47,6 +47,8 @@ their own instance.
 - **Channels grouped by where they come from.** Each Alertmanager is an instance (for
   example one Kubernetes cluster), and its channels sit under it in the client's sidebar.
 - **What's new since you last looked**, per occurrence and per channel, kept on your Mac.
+  Each channel and Live list only new alerts and resends, until you switch
+  "Unread only" off there.
 - **Live view:** every channel's alerts in one stream, newest change first.
 - **Zero setup per channel:** pointing a receiver at a new URL creates the channel.
 - **Silence an alert** for a while, on the Alertmanager it came from. Every alert shows

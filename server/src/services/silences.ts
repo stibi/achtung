@@ -27,6 +27,8 @@ export interface Silences {
   create(occurrence: Occurrence, durationSeconds: number): Promise<Date>;
   /** Every instance's silences that mute alerts now, the soonest to end first. */
   listActive(): Promise<InstanceSilence[]>;
+  /** The silences that mute alerts on the instance now, reading only its Alertmanager. */
+  activeOn(instance: string): Promise<Silence[]>;
 }
 
 export type InstanceSilence = Silence & { readonly instance: string };
@@ -54,6 +56,11 @@ export function silencesFrom(
   // The last silences read, or none: a down Alertmanager doesn't fail a read (ADR 0008).
   const silencesOf = async (instance: string): Promise<readonly Silence[]> =>
     (await caches.get(instance)?.read())?.last?.value ?? [];
+  const activeOn = async (instance: string): Promise<Silence[]> => {
+    const silences = await silencesOf(instance);
+    const at = now();
+    return silences.filter((silence) => isActive(silence, at));
+  };
 
   return {
     canSilence: (instance) => endpoints.has(instance),
@@ -98,15 +105,13 @@ export function silencesFrom(
     async listActive() {
       const perInstance = await Promise.all(
         [...caches.keys()].map(async (instance) =>
-          (await silencesOf(instance)).map((silence) => ({ ...silence, instance })),
+          (await activeOn(instance)).map((silence) => ({ ...silence, instance })),
         ),
       );
-      const at = now();
-      return perInstance
-        .flat()
-        .filter((silence) => isActive(silence, at))
-        .toSorted((a, b) => a.endsAt.getTime() - b.endsAt.getTime());
+      return perInstance.flat().toSorted((a, b) => a.endsAt.getTime() - b.endsAt.getTime());
     },
+
+    activeOn,
   };
 }
 

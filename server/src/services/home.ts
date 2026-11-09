@@ -7,6 +7,7 @@ import type { Database } from "../db/client.ts";
 import {
   listFiringOccurrences,
   listNoisiestAlerts,
+  listOccurrenceFirings,
   listOccurrencesChangedSince,
   listReceivers,
 } from "../db/queries.ts";
@@ -14,9 +15,11 @@ import type { Occurrence } from "../domain/occurrence.ts";
 import {
   type AlertCounts,
   type AlertmanagerAlert,
+  alertListOf,
   countAlerts,
   type Delivery,
   deliveryOf,
+  type ListedAlert,
   longestFiring,
 } from "../domain/overview.ts";
 import type { SilencedOccurrence } from "../domain/silence.ts";
@@ -28,6 +31,8 @@ import type { InstanceSilence, Silences } from "./silences.ts";
 export interface AlertmanagerAlerts {
   /** One reading per configured instance, by instance name. */
   readAll(): Promise<{ instance: string; reading: Reading<readonly AlertmanagerAlert[]> }[]>;
+  /** The instance's reading, from the same cache; null when it has no Alertmanager. */
+  read(instance: string): Promise<Reading<readonly AlertmanagerAlert[]> | null>;
 }
 
 export interface AlertmanagerAlertsOptions {
@@ -40,21 +45,25 @@ export function alertmanagerAlertsFrom(
   endpoints: ReadonlyMap<string, AlertmanagerEndpoint>,
   { now = () => new Date(), onReadError = () => {} }: AlertmanagerAlertsOptions = {},
 ): AlertmanagerAlerts {
-  const caches = [...endpoints]
-    .toSorted(([a], [b]) => a.localeCompare(b))
-    .map(([instance, endpoint]) => ({
-      instance,
-      cache: cachedRead(
-        () => listAlerts(endpoint),
-        now,
-        (error) => onReadError(instance, error),
-      ),
-    }));
+  // By instance name, the order readAll answers in.
+  const caches = new Map(
+    [...endpoints]
+      .toSorted(([a], [b]) => a.localeCompare(b))
+      .map(([instance, endpoint]) => [
+        instance,
+        cachedRead(
+          () => listAlerts(endpoint),
+          now,
+          (error) => onReadError(instance, error),
+        ),
+      ]),
+  );
   return {
     readAll: () =>
       Promise.all(
-        caches.map(async ({ instance, cache }) => ({ instance, reading: await cache.read() })),
+        [...caches].map(async ([instance, cache]) => ({ instance, reading: await cache.read() })),
       ),
+    read: async (instance) => (await caches.get(instance)?.read()) ?? null,
   };
 }
 
@@ -69,6 +78,15 @@ export interface AlertmanagerOverview {
     readonly counts: AlertCounts;
     readonly delivery: Delivery<SilencedOccurrence>;
   } | null;
+}
+
+/** One instance's Alertmanager's alerts, as the tile counts them, for its list. */
+export interface AlertmanagerAlertList {
+  readonly instance: string;
+  /** Why the latest read failed; null when it succeeded. */
+  readonly error: string | null;
+  /** From the last read that succeeded; null until one has. */
+  readonly last: { readonly readAt: Date; readonly alerts: readonly ListedAlert[] } | null;
 }
 
 interface NoisyAlert {
@@ -181,4 +199,40 @@ async function withSilences(
     occurrence,
     events: noisy[index]?.events ?? 0,
   }));
+}
+
+/**
+ * The alerts behind the instance's tile, from the same read as its counts; null when the
+ * instance has no Alertmanager.
+ */
+export async function listAlertmanagerAlerts(
+  db: Database,
+  silences: Silences,
+  alerts: AlertmanagerAlerts,
+  instance: string,
+): Promise<AlertmanagerAlertList | null> {
+  const reading = await alerts.read(instance);
+  if (reading === null) {
+    return null;
+  }
+  const error = reading.error?.reason ?? null;
+  const { last } = reading;
+  if (last === null) {
+    return { instance, error, last: null };
+  }
+  const [occurrences, active] = await Promise.all([
+    listOccurrenceFirings(db, alertmanagerSource.id, instance, last.value),
+    silences.activeOn(instance),
+  ]);
+  return {
+    instance,
+    error,
+    last: {
+      readAt: last.readAt,
+      alerts: alertListOf(last.value, {
+        occurrences,
+        silences: active,
+      }),
+    },
+  };
 }

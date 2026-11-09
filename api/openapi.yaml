@@ -436,6 +436,102 @@ components:
         - silences
         - noisiest
         - longestFiring
+    AlertmanagerAlert:
+      type: object
+      properties:
+        fingerprint:
+          type: string
+          description: Alertmanager's fingerprint, an occurrence's sourceKey
+        title:
+          type: string
+          description: The alertname, else the fingerprint
+        severity:
+          type: string
+          enum:
+            - critical
+            - warning
+            - info
+            - unknown
+        summary:
+          nullable: true
+          description: The summary annotation, else the description
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        annotations:
+          type: object
+          additionalProperties:
+            type: string
+        state:
+          type: string
+          enum:
+            - active
+            - silenced
+            - inhibited
+          description: "active: notifying, or not routed yet; silenced: a silence mutes
+            it, inhibited or not; inhibited: only inhibited"
+        silencedUntil:
+          nullable: true
+          description: When the latest silence muting it ends; null unless silenced, or
+            when Achtung doesn't know that silence yet
+          type: string
+          format: date-time
+        occurrenceId:
+          nullable: true
+          description: The occurrence of this firing (same fingerprint and startsAt) on
+            the instance; null when Achtung has none
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+      required:
+        - fingerprint
+        - title
+        - severity
+        - summary
+        - startsAt
+        - labels
+        - annotations
+        - state
+        - silencedUntil
+        - occurrenceId
+    AlertmanagerAlertList:
+      type: object
+      properties:
+        instance:
+          type: string
+        reachable:
+          type: boolean
+          description: Whether the latest read of its alerts succeeded
+        error:
+          nullable: true
+          description: Why the latest read failed; null when reachable
+          type: string
+        checkedAt:
+          nullable: true
+          description: When its alerts were last read successfully; the fields below are
+            from that read
+          type: string
+          format: date-time
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlertmanagerAlert"
+          description: By severity (critical, warning, info, unknown), then the newest
+            start first; empty when never read
+      required:
+        - instance
+        - reachable
+        - error
+        - checkedAt
+        - alerts
+      description: "The alerts the tile counts: active ones are open, the others
+        silenced and inhibited. Leaves out Watchdog and InfoInhibitor"
     IngestSummary:
       type: object
       properties:
@@ -816,3 +912,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Home"
+  /api/alertmanagers/{instance}/alerts:
+    get:
+      operationId: listAlertmanagerAlerts
+      summary: The alerts behind an Alertmanager's tile on Home
+      tags:
+        - client
+      description: "From the same read as /api/home's counts, so they agree: active
+        alerts are its open, the others its silenced and inhibited. An
+        unreachable Alertmanager keeps its last read. 404 when the instance has
+        no Alertmanager configured."
+      parameters:
+        - schema:
+            type: string
+          in: path
+          name: instance
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertmanagerAlertList"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"

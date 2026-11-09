@@ -1,12 +1,40 @@
 import { z } from "zod";
-import type { AlertmanagerOverview, Home } from "../services/home.ts";
+import type { ListedAlert } from "../domain/overview.ts";
+import type { AlertmanagerAlertList, AlertmanagerOverview, Home } from "../services/home.ts";
 import type { Api, Inbox } from "./api-contract.ts";
-import { occurrenceBody, severity, timestamp, toOccurrenceBody } from "./api-schemas.ts";
+import {
+  errorBody,
+  labelSet,
+  occurrenceBody,
+  severity,
+  timestamp,
+  toOccurrenceBody,
+} from "./api-schemas.ts";
 
-// GET /api/home (ADR 0010). Its shapes live here, next to the one route that uses them;
-// api-schemas.ts explains how a shape change reaches the client.
+// GET /api/home and the alerts behind each Alertmanager's tile (ADR 0010). Their shapes
+// live here, next to the routes that use them; api-schemas.ts explains how a shape change
+// reaches the client.
 
 const count = z.int().nonnegative();
+const fingerprint = z.string().describe("Alertmanager's fingerprint, an occurrence's sourceKey");
+
+// How the latest read of an Alertmanager's alerts went, the same in both views.
+const readFields = {
+  instance: z.string(),
+  reachable: z.boolean().describe("Whether the latest read of its alerts succeeded"),
+  error: z.string().nullable().describe("Why the latest read failed; null when reachable"),
+  checkedAt: timestamp
+    .nullable()
+    .describe("When its alerts were last read successfully; the fields below are from that read"),
+};
+
+function toReadFields(
+  instance: string,
+  error: string | null,
+  readAt: Date | undefined,
+): { [K in keyof typeof readFields]: z.infer<(typeof readFields)[K]> } {
+  return { instance, reachable: error === null, error, checkedAt: readAt?.toISOString() ?? null };
+}
 
 const openCountsBody = z
   .object({
@@ -20,7 +48,7 @@ const openCountsBody = z
 
 const missingAlertBody = z
   .object({
-    fingerprint: z.string().describe("Alertmanager's fingerprint, an occurrence's sourceKey"),
+    fingerprint,
     title: z.string().describe("The alertname"),
     severity,
     startsAt: timestamp,
@@ -44,12 +72,7 @@ const deliveryBody = z
 
 const alertmanagerBody = z
   .object({
-    instance: z.string(),
-    reachable: z.boolean().describe("Whether the latest read of its alerts succeeded"),
-    error: z.string().nullable().describe("Why the latest read failed; null when reachable"),
-    checkedAt: timestamp
-      .nullable()
-      .describe("When its alerts were last read successfully; the fields below are from that read"),
+    ...readFields,
     open: openCountsBody
       .nullable()
       .describe(
@@ -119,10 +142,7 @@ function toAlertmanagerBody({
   last,
 }: AlertmanagerOverview): z.infer<typeof alertmanagerBody> {
   return {
-    instance,
-    reachable: error === null,
-    error,
-    checkedAt: last?.readAt.toISOString() ?? null,
+    ...toReadFields(instance, error, last?.readAt),
     open: last?.counts.open ?? null,
     silenced: last?.counts.silenced ?? null,
     inhibited: last?.counts.inhibited ?? null,
@@ -157,7 +177,76 @@ function toHomeBody(home: Home): z.infer<typeof homeBody> {
   };
 }
 
-export function registerHomeRoute(api: Api, inbox: Inbox): void {
+const listedAlertBody = z
+  .object({
+    fingerprint,
+    title: z.string().describe("The alertname, else the fingerprint"),
+    severity,
+    summary: z.string().nullable().describe("The summary annotation, else the description"),
+    startsAt: timestamp,
+    labels: labelSet,
+    annotations: labelSet,
+    state: z
+      .enum(["active", "silenced", "inhibited"])
+      .describe(
+        "active: notifying, or not routed yet; silenced: a silence mutes it, inhibited or not; inhibited: only inhibited",
+      ),
+    silencedUntil: timestamp
+      .nullable()
+      .describe(
+        "When the latest silence muting it ends; null unless silenced, or when Achtung doesn't know that silence yet",
+      ),
+    occurrenceId: z
+      .int()
+      .positive()
+      .nullable()
+      .describe(
+        "The occurrence of this firing (same fingerprint and startsAt) on the instance; null when Achtung has none",
+      ),
+  })
+  .meta({ id: "AlertmanagerAlert" });
+
+const alertListBody = z
+  .object({
+    ...readFields,
+    alerts: z
+      .array(listedAlertBody)
+      .describe(
+        "By severity (critical, warning, info, unknown), then the newest start first; empty when never read",
+      ),
+  })
+  .describe(
+    "The alerts the tile counts: active ones are open, the others silenced and inhibited. Leaves out Watchdog and InfoInhibitor",
+  )
+  .meta({ id: "AlertmanagerAlertList" });
+
+function toListedAlertBody(alert: ListedAlert): z.infer<typeof listedAlertBody> {
+  return {
+    fingerprint: alert.fingerprint,
+    title: alert.title,
+    severity: alert.severity,
+    summary: alert.summary,
+    startsAt: alert.startsAt.toISOString(),
+    labels: alert.labels,
+    annotations: alert.annotations,
+    state: alert.state,
+    silencedUntil: alert.state === "silenced" ? (alert.silencedUntil?.toISOString() ?? null) : null,
+    occurrenceId: alert.occurrenceId,
+  };
+}
+
+function toAlertListBody({
+  instance,
+  error,
+  last,
+}: AlertmanagerAlertList): z.infer<typeof alertListBody> {
+  return {
+    ...toReadFields(instance, error, last?.readAt),
+    alerts: last?.alerts.map(toListedAlertBody) ?? [],
+  };
+}
+
+export function registerHomeRoutes(api: Api, inbox: Inbox): void {
   api.get(
     "/api/home",
     {
@@ -172,5 +261,27 @@ export function registerHomeRoute(api: Api, inbox: Inbox): void {
       },
     },
     async () => toHomeBody(await inbox.getHome()),
+  );
+  api.get(
+    "/api/alertmanagers/:instance/alerts",
+    {
+      schema: {
+        tags: ["client"],
+        operationId: "listAlertmanagerAlerts",
+        summary: "The alerts behind an Alertmanager's tile on Home",
+        description:
+          "From the same read as /api/home's counts, so they agree: active alerts are its open, the others its silenced and inhibited. " +
+          "An unreachable Alertmanager keeps its last read. 404 when the instance has no Alertmanager configured.",
+        params: z.object({ instance: z.string() }),
+        response: { 200: alertListBody, 404: errorBody },
+      },
+    },
+    async (request, reply) => {
+      const list = await inbox.listAlertmanagerAlerts(request.params.instance);
+      if (list === null) {
+        return reply.code(404).send({ error: "Alertmanager not found" });
+      }
+      return toAlertListBody(list);
+    },
   );
 }

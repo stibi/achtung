@@ -10,7 +10,7 @@ import type { ChannelOverview, OccurrenceDetail } from "../services/inbox.ts";
 // Swift enums are closed, so regenerate the client in the same change.
 
 export const timestamp = z.iso.datetime({ offset: true });
-const labelSet = z.record(z.string(), z.string());
+export const labelSet = z.record(z.string(), z.string());
 const eventKind = z.enum(["fired", "resolved", "reopened", "resent"]);
 export const severity = z.enum(["critical", "warning", "info", "unknown"]);
 

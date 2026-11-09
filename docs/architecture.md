@@ -160,6 +160,17 @@ The identity below is a contract that features build on
     last notified over 10 minutes before the read, that Alertmanager no longer has
     (`staleInAchtung`). It only reports; nothing is resolved. The counting and the comparison are pure functions in
     `domain/overview.ts`.
+  - `GET /api/alertmanagers/{instance}/alerts` (ADR 0010): the alerts behind an
+    instance's Home tile, from the same cached read as its counts, so they always agree:
+    `active` alerts (notifying or unprocessed) are its `open`, `silenced` and `inhibited`
+    its other two counts; Watchdog and InfoInhibitor are left out. By severity, then the
+    newest start first. Each has its `occurrenceId`, the occurrence on that instance with
+    the same fingerprint and `startsAt` (a re-fire doesn't match), or null, and a silenced
+    one its `silencedUntil`, from the silences cache by the ids Alertmanager names. It
+    reports `reachable`, `error` and `checkedAt` like a Home entry; one never read has no
+    alerts. 404 for an instance without an Alertmanager. The standing, matching and order
+    are `alertListOf` in `domain/overview.ts`, which shares its classification with
+    `countAlerts`.
 - Every occurrence carries `silencedUntil`: the end of the latest active silence on its
   instance's Alertmanager whose matchers match its labels, else null. Alertmanager is the
   source of truth; Achtung stores no silences. `services/silences.ts` reads each

@@ -89,3 +89,17 @@ Achtung got, not what is wrong.
   is the information it would need.
 - Adding the column and the index is a plain migration (`0005_channel_receiver`). Building
   the index briefly blocks writes to `events` during the deploy.
+
+## Addendum (2026-11-09): the alerts behind a tile
+
+Clicking a tile in the client lists that Alertmanager's alerts, so the server has
+`GET /api/alertmanagers/{instance}/alerts`. It adds no read: it takes the same cached
+`GET /api/v2/alerts` read as the tile (30 seconds, one at a time, the last good read kept),
+so the list and the counts can't disagree. Each alert stands where the counts put it
+(`active`, `silenced` or `inhibited`, from one shared function), without Watchdog and
+InfoInhibitor; a suppressed alert that is neither silenced nor inhibited (muted by a time
+interval) is in no count, so it isn't listed either. `occurrenceId` matches the firing
+like the delivery check does (fingerprint and `startsAt`, ADR 0007); when two channels of
+the instance have the firing, the lowest id wins. `silencedUntil` comes from the silences
+cache by the silence ids Alertmanager names, so it is null while that cache hasn't seen
+the silence yet.

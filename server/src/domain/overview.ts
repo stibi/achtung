@@ -1,4 +1,4 @@
-import { parseSeverity, type Severity } from "./alert.ts";
+import { parseSeverity, type Severity, summaryOf } from "./alert.ts";
 
 // The home view's picture of each Alertmanager (ADR 0010): what it has open, read from
 // the Alertmanager itself, and whether Achtung got what it should have.
@@ -7,6 +7,7 @@ import { parseSeverity, type Severity } from "./alert.ts";
 export interface AlertmanagerAlert {
   readonly fingerprint: string;
   readonly labels: Readonly<Record<string, string>>;
+  readonly annotations: Readonly<Record<string, string>>;
   readonly startsAt: Date;
   /** `suppressed`: silenced, inhibited or muted; `unprocessed`: not routed yet. */
   readonly state: "active" | "suppressed" | "unprocessed";
@@ -36,6 +37,32 @@ export interface AlertCounts {
   /** Whether the always-firing Watchdog alert is there, i.e. the alerting pipeline works. */
   readonly watchdog: "firing" | "absent";
 }
+
+/**
+ * Where an alert stands, as the counts see it: `active` notifies (an unprocessed alert
+ * will), `silenced` has a silence, `inhibited` is only inhibited.
+ */
+type Standing = "active" | "silenced" | "inhibited";
+
+/** An alert of an Alertmanager's list, with the Achtung occurrence of its firing, if any. */
+export type ListedAlert = {
+  readonly fingerprint: string;
+  readonly title: string;
+  readonly severity: Severity;
+  readonly summary: string | null;
+  readonly startsAt: Date;
+  readonly labels: Readonly<Record<string, string>>;
+  readonly annotations: Readonly<Record<string, string>>;
+  /** The occurrence with the alert's fingerprint and start; null when Achtung has none. */
+  readonly occurrenceId: number | null;
+} & (
+  | { readonly state: "active" | "inhibited" }
+  | {
+      readonly state: "silenced";
+      /** When the latest silence muting it ends; null when none of them is known yet. */
+      readonly silencedUntil: Date | null;
+    }
+);
 
 /** An alert Alertmanager has open that should have reached Achtung but didn't. */
 interface MissingAlert {
@@ -74,6 +101,8 @@ const watchdog = "Watchdog";
 const alwaysFiring: ReadonlySet<string | undefined> = new Set([watchdog, "InfoInhibitor"]);
 
 const nameOf = (alert: AlertmanagerAlert) => alert.labels["alertname"];
+const titleOf = (alert: AlertmanagerAlert) => nameOf(alert) ?? alert.fingerprint;
+const severityOf = (alert: AlertmanagerAlert) => parseSeverity(alert.labels["severity"]);
 
 // Fingerprint and start, like an occurrence (ADR 0007): a re-fire is a new one.
 const keyOf = ({ sourceKey, startsAt }: Firing) => `${sourceKey}@${startsAt.getTime()}`;
@@ -84,13 +113,31 @@ const isAlwaysFiring = (alert: AlertmanagerAlert) => alwaysFiring.has(nameOf(ale
 
 const isNotifying = (alert: AlertmanagerAlert) => alert.state !== "suppressed";
 
+// Goes by the state: an active alert naming a silence notifies. A suppressed alert with
+// neither a silence nor an inhibition (muted by a time interval) stands nowhere.
+function standingOf(alert: AlertmanagerAlert): Standing | null {
+  if (isNotifying(alert)) {
+    return "active";
+  }
+  if (alert.silencedBy.length > 0) {
+    return "silenced";
+  }
+  return alert.inhibitedBy.length > 0 ? "inhibited" : null;
+}
+
+/** The alerts the counts and the list are about, each with its standing. */
+function standings(alerts: readonly AlertmanagerAlert[]) {
+  return alerts.flatMap((alert) => {
+    const standing = isAlwaysFiring(alert) ? null : standingOf(alert);
+    return standing === null ? [] : [{ alert, standing }];
+  });
+}
+
 export function countAlerts(alerts: readonly AlertmanagerAlert[]): AlertCounts {
-  const counted = alerts.filter((alert) => !isAlwaysFiring(alert));
-  const suppressed = counted.filter((alert) => !isNotifying(alert));
-  const silenced = suppressed.filter((alert) => alert.silencedBy.length > 0);
-  const severities = counted
-    .filter(isNotifying)
-    .map((alert) => parseSeverity(alert.labels["severity"]));
+  const counted = standings(alerts);
+  const inStanding = (standing: Standing) =>
+    counted.filter((entry) => entry.standing === standing).map(({ alert }) => alert);
+  const severities = inStanding("active").map(severityOf);
   const withSeverity = (severity: Severity) => severities.filter((s) => s === severity).length;
   return {
     open: {
@@ -100,12 +147,66 @@ export function countAlerts(alerts: readonly AlertmanagerAlert[]): AlertCounts {
       info: withSeverity("info"),
       other: withSeverity("unknown"),
     },
-    silenced: silenced.length,
-    inhibited: suppressed.filter(
-      (alert) => alert.silencedBy.length === 0 && alert.inhibitedBy.length > 0,
-    ).length,
+    silenced: inStanding("silenced").length,
+    inhibited: inStanding("inhibited").length,
     watchdog: alerts.some((alert) => nameOf(alert) === watchdog) ? "firing" : "absent",
   };
+}
+
+const severityOrder: readonly Severity[] = ["critical", "warning", "info", "unknown"];
+
+/**
+ * The alerts `countAlerts` counts, each with its standing and its occurrence in Achtung,
+ * matched firing by firing (fingerprint and start, ADR 0007). By severity, then the newest
+ * start first, then by fingerprint.
+ */
+export function alertListOf(
+  alerts: readonly AlertmanagerAlert[],
+  achtung: {
+    /** The instance's occurrences from this Alertmanager, in any status. */
+    readonly occurrences: readonly (Firing & { readonly id: number })[];
+    /** The instance's silences known now, to tell when a silenced alert's silence ends. */
+    readonly silences: readonly { readonly id: string; readonly endsAt: Date }[];
+  },
+): ListedAlert[] {
+  // The lowest id wins when channels of the instance both have the firing.
+  const occurrenceIds = new Map(
+    achtung.occurrences
+      .toSorted((a, b) => b.id - a.id)
+      .map((occurrence) => [keyOf(occurrence), occurrence.id]),
+  );
+  return standings(alerts)
+    .map(({ alert, standing }) => {
+      const listed = {
+        fingerprint: alert.fingerprint,
+        title: titleOf(alert),
+        severity: severityOf(alert),
+        summary: summaryOf(alert.annotations),
+        startsAt: alert.startsAt,
+        labels: alert.labels,
+        annotations: alert.annotations,
+        occurrenceId: occurrenceIds.get(alertKey(alert)) ?? null,
+      };
+      return standing === "silenced"
+        ? { ...listed, state: standing, silencedUntil: silenceEnd(alert, achtung.silences) }
+        : { ...listed, state: standing };
+    })
+    .toSorted(
+      (a, b) =>
+        severityOrder.indexOf(a.severity) - severityOrder.indexOf(b.severity) ||
+        b.startsAt.getTime() - a.startsAt.getTime() ||
+        a.fingerprint.localeCompare(b.fingerprint),
+    );
+}
+
+function silenceEnd(
+  alert: AlertmanagerAlert,
+  silences: readonly { readonly id: string; readonly endsAt: Date }[],
+): Date | null {
+  const ends = silences
+    .filter((silence) => alert.silencedBy.includes(silence.id))
+    .map((silence) => silence.endsAt.getTime());
+  return ends.length === 0 ? null : new Date(Math.max(...ends));
 }
 
 /**
@@ -145,8 +246,8 @@ export function deliveryOf<T extends FiringOccurrence>(
       .toSorted(oldestFirst)
       .map((alert) => ({
         fingerprint: alert.fingerprint,
-        title: nameOf(alert) ?? alert.fingerprint,
-        severity: parseSeverity(alert.labels["severity"]),
+        title: titleOf(alert),
+        severity: severityOf(alert),
         startsAt: alert.startsAt,
       })),
     staleInAchtung: firing

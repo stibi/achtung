@@ -76,6 +76,7 @@ export async function listSilences(endpoint: AlertmanagerEndpoint): Promise<Sile
 const alertBody = z.object({
   fingerprint: z.string(),
   labels: z.record(z.string(), z.string()),
+  annotations: z.record(z.string(), z.string()),
   startsAt: z.iso.datetime({ offset: true }),
   status: z.object({
     state: z.enum(["active", "suppressed", "unprocessed"]),
@@ -95,6 +96,7 @@ export async function listAlerts(endpoint: AlertmanagerEndpoint): Promise<Alertm
   return parsed.data.map((alert) => ({
     fingerprint: alert.fingerprint,
     labels: alert.labels,
+    annotations: alert.annotations,
     startsAt: new Date(alert.startsAt),
     state: alert.status.state,
     silencedBy: alert.status.silencedBy,

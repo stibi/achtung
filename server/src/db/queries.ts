@@ -217,6 +217,39 @@ export async function listOccurrencesChangedSince(
   return rows.map((row) => ({ ...row, instance: row.instance as InstanceName }));
 }
 
+/**
+ * The instance's occurrences of exactly these firings (sourceKey and start), in any
+ * status, with their ids.
+ */
+export function listOccurrenceFirings(
+  db: Database,
+  source: string,
+  instance: string,
+  firings: readonly { readonly fingerprint: string; readonly startsAt: Date }[],
+): Promise<{ id: number; sourceKey: string; startsAt: Date }[]> {
+  if (firings.length === 0) {
+    return Promise.resolve([]);
+  }
+  return db
+    .select({
+      id: occurrences.id,
+      sourceKey: occurrences.sourceKey,
+      startsAt: occurrences.startsAt,
+    })
+    .from(occurrences)
+    .innerJoin(channels, eq(channels.id, occurrences.channelId))
+    .where(
+      and(
+        eq(channels.instance, instance),
+        eq(occurrences.source, source),
+        sql`(${occurrences.sourceKey}, ${occurrences.startsAt}) in (${sql.join(
+          firings.map(({ fingerprint, startsAt }) => sql`(${fingerprint}, ${startsAt})`),
+          sql`, `,
+        )})`,
+      ),
+    );
+}
+
 /** The receivers that have delivered to each instance's channels (ADR 0010). */
 export async function listReceivers(
   db: Database,

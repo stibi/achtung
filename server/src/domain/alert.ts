@@ -36,3 +36,8 @@ export function parseSeverity(value: string | undefined): Severity {
   }
   return "unknown";
 }
+
+/** What an alert is about: its `summary` annotation, else its `description`. */
+export function summaryOf(annotations: Readonly<Record<string, string>>): string | null {
+  return annotations["summary"] ?? annotations["description"] ?? null;
+}

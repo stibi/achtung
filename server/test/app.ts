@@ -19,6 +19,7 @@ export const unusedServices: Services = {
   getOccurrence: unused,
   silenceOccurrence: unused,
   getHome: unused,
+  listAlertmanagerAlerts: unused,
 };
 
 export interface TestAppOptions {

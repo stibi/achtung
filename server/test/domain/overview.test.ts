@@ -6,29 +6,7 @@ import {
   deliveryOf,
   longestFiring,
 } from "../../src/domain/overview.ts";
-
-const readAt = new Date("2026-10-13T10:00:00Z");
-const minutesBefore = (minutes: number) => new Date(readAt.getTime() - minutes * 60_000);
-
-function alert(
-  name: string,
-  fields: Partial<Omit<AlertmanagerAlert, "labels">> & { severity?: string } = {},
-): AlertmanagerAlert {
-  const { severity, ...rest } = fields;
-  return {
-    fingerprint: `fp-${name}`,
-    labels: severity === undefined ? { alertname: name } : { alertname: name, severity },
-    startsAt: minutesBefore(60),
-    state: "active",
-    silencedBy: [],
-    inhibitedBy: [],
-    receivers: ["team"],
-    ...rest,
-  };
-}
-
-const silenced = { state: "suppressed", silencedBy: ["s1"] } as const;
-const inhibited = { state: "suppressed", inhibitedBy: ["fp-cause"] } as const;
+import { alert, inhibited, minutesBefore, readAt, silenced } from "./alertmanager-alerts.ts";
 
 describe("countAlerts", () => {
   it("counts nothing for an Alertmanager with no alerts", () => {

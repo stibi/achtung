@@ -3,6 +3,7 @@ import {
   type AlertState,
   type IncomingAlert,
   parseSeverity,
+  summaryOf,
 } from "../../domain/alert.ts";
 import type { WebhookAlert } from "./payload.ts";
 
@@ -12,7 +13,7 @@ export function toIncomingAlert(alert: WebhookAlert): IncomingAlert {
     sourceKey: alert.fingerprint,
     severity: parseSeverity(alert.labels["severity"]),
     title: alert.labels["alertname"] ?? alert.fingerprint,
-    summary: alert.annotations["summary"] ?? alert.annotations["description"] ?? null,
+    summary: summaryOf(alert.annotations),
     labels: alert.labels,
     annotations: alert.annotations,
     startsAt: new Date(alert.startsAt),

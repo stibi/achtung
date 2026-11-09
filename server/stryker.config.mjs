@@ -5,6 +5,10 @@ export default {
   // pnpm does not hoist packages, so Stryker cannot discover the runner by itself.
   plugins: ["@stryker-mutator/vitest-runner"],
   mutate: ["src/domain/**/*.ts", "src/sources/**/*.ts"],
+  // Tests run from a copy of server/ in .stryker-tmp/, where the OpenAPI test's relative
+  // path to api/openapi.yaml (outside server/) points nowhere, so it fails in CI. It
+  // checks the committed contract, not the mutated code, and `check` runs it anyway.
+  ignorePatterns: ["test/http/openapi.test.ts"],
   reporters: ["clear-text", "progress", "html"],
   thresholds: { high: 90, low: 80, break: 75 },
 };

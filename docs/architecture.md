@@ -289,6 +289,17 @@ The identity below is a contract that features build on
   unread occurrence, never each later one. A resend lists it again. With nothing unread
   the list says "All caught up", with a button that shows read alerts again; Live's
   timeline stays beside it and always shows every alert. Badges are unchanged.
+- Live's "All caught up" has a small pixel scene above it (`CoffeeBreak`): the icon's
+  krysa at a table, sipping coffee every few seconds, an unused fire extinguisher in the
+  corner. `CoffeeBreakScene` places the pixels for a moment in the loop, and the view
+  draws them on a `Canvas`, one path per colour. It only moves while its window is key,
+  through a `TimelineSchedule` that wakes 8 times a second while the mug moves, not at
+  all while the krysa holds it at its mouth, 4 times a second otherwise, and once a
+  second when the system asks for low frequency. With Reduce Motion, or in the
+  background, it's a plain still `Canvas`, because even a paused
+  `TimelineView(.animation)` keeps the window redrawing. A setting ("Animate even when
+  Reduce Motion is on", `MotionSetting`, off by default) lets it move despite the
+  system's Reduce Motion, for people who want it in Achtung only.
 - The server address is a setting (Settings window). The app allows plain HTTP (ATS
   exception in the generated Info.plist): servers are self-hosted and protected by the
   operator's network, not by TLS (ADR 0002).

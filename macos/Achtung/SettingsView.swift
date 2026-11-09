@@ -16,8 +16,15 @@ enum ServerSetting {
     }
 }
 
+/// Whether Achtung's own animation (the krysa's coffee break in Live) plays even when
+/// Reduce Motion is on in System Settings. Off by default: the app follows the system.
+enum MotionSetting {
+    static let key = "animatesDespiteReduceMotion"
+}
+
 struct SettingsView: View {
     @AppStorage(ServerSetting.key) private var serverAddress = ServerSetting.defaultAddress
+    @AppStorage(MotionSetting.key) private var animatesDespiteReduceMotion = false
     @State private var draft = ""
 
     var body: some View {
@@ -33,6 +40,15 @@ struct SettingsView: View {
                     .disabled(ServerSetting.url(from: draft) == nil || draft == serverAddress)
                     .keyboardShortcut(.defaultAction)
             }
+            Divider()
+                .padding(.vertical, 6)
+            Toggle("Animate even when Reduce Motion is on", isOn: $animatesDespiteReduceMotion)
+            Text(
+                "The krysa's coffee break in Live moves although Reduce Motion is on in "
+                    + "System Settings. When off, Achtung follows the system."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         .padding(20)
         .frame(width: 440)

@@ -135,13 +135,24 @@ struct AllClearView: View {
     }
 }
 
-/// A list with read alerts hidden and nothing unread.
+/// A list with read alerts hidden and nothing unread. Live's shows the krysa on a coffee
+/// break above it (`CoffeeBreak`), as a small reward.
 struct CaughtUpView: View {
+    var coffeeBreak = false
     let showRead: () -> Void
 
     var body: some View {
         ContentUnavailableView {
-            Label("All caught up", systemImage: "checkmark.circle")
+            VStack(spacing: 18) {
+                if coffeeBreak {
+                    CoffeeBreak()
+                }
+                Label {
+                    Text("All caught up")
+                } icon: {
+                    Image(systemName: "checkmark.circle").foregroundStyle(.green)
+                }
+            }
         } description: {
             Text("New alerts and resends show up here.")
         } actions: {

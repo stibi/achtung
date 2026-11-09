@@ -45,7 +45,7 @@ struct LiveView: View {
                 GeometryReader { geometry in
                     HStack(spacing: 0) {
                         if shown.isEmpty && hidesRead {
-                            CaughtUpView { hidesRead = false }
+                            CaughtUpView(coffeeBreak: true) { hidesRead = false }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
                             cards(proxy)

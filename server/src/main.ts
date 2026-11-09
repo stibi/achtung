@@ -2,6 +2,7 @@ import { loadConfig } from "./config.ts";
 import { openDatabase, ping } from "./db/client.ts";
 import { migrateDatabase } from "./db/migrate.ts";
 import { buildApp } from "./http/app.ts";
+import { alertmanagerAlertsFrom } from "./services/home.ts";
 import { servicesFor } from "./services/index.ts";
 import { silencesFrom } from "./services/silences.ts";
 import { alertmanagerSource } from "./sources/alertmanager/index.ts";
@@ -13,10 +14,15 @@ const silences = silencesFrom(config.alertmanagers, {
   onReadError: (instance, error) =>
     app.log.warn({ instance, err: error }, "could not read silences from Alertmanager"),
 });
+const alerts = alertmanagerAlertsFrom(config.alertmanagers, {
+  // The home view shows the instance as unreachable, with its last alerts if any.
+  onReadError: (instance, error) =>
+    app.log.warn({ instance, err: error }, "could not read alerts from Alertmanager"),
+});
 const app = buildApp({
   logLevel: config.logLevel,
   sources: [alertmanagerSource],
-  services: servicesFor(db, silences),
+  services: servicesFor(db, { silences, alerts }),
   checkReady: () => ping(pool),
 });
 

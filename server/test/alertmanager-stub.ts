@@ -13,6 +13,24 @@ interface StubSilence {
   comment: string;
 }
 
+/** An alert as Alertmanager's API v2 returns it (GET /api/v2/alerts), the fields Achtung reads. */
+export interface StubAlert {
+  fingerprint: string;
+  labels: Record<string, string>;
+  annotations: Record<string, string>;
+  startsAt: string;
+  endsAt: string;
+  updatedAt: string;
+  generatorURL: string;
+  status: {
+    state: "active" | "suppressed" | "unprocessed";
+    silencedBy: string[];
+    inhibitedBy: string[];
+    mutedBy: string[];
+  };
+  receivers: { name: string }[];
+}
+
 interface StubRequest {
   readonly method: string;
   readonly path: string;
@@ -21,16 +39,18 @@ interface StubRequest {
 }
 
 /**
- * A stand-in for Alertmanager's silences API, so tests never reach a real one. It keeps
- * the silences it creates and lists them back.
+ * A stand-in for Alertmanager's silences and alerts API, so tests never reach a real one.
+ * It keeps the silences it creates and lists them back, and lists the alerts a test puts
+ * in `alerts`.
  */
 export interface AlertmanagerStub {
   readonly url: string;
   readonly requests: StubRequest[];
   readonly silences: StubSilence[];
+  readonly alerts: StubAlert[];
   /** Answer every request with this status and body instead. */
   fail(status: number, body: string): void;
-  /** Answer only reads of the silences with this status and body. */
+  /** Answer only reads (of silences and alerts) with this status and body. */
   failReads(status: number, body: string): void;
   /**
    * The next list of silences is taken when the request arrives but sent only once
@@ -44,6 +64,7 @@ export interface AlertmanagerStub {
 export async function startAlertmanagerStub(): Promise<AlertmanagerStub> {
   const requests: StubRequest[] = [];
   const silences: StubSilence[] = [];
+  const alerts: StubAlert[] = [];
   let failure: { status: number; body: string } | null = null;
   let held: { arrived: () => void; released: Promise<void> } | null = null;
   let broken = false;
@@ -51,28 +72,42 @@ export async function startAlertmanagerStub(): Promise<AlertmanagerStub> {
   const failureFor = (method: string | undefined) =>
     failure ?? (method === "GET" ? readFailure : null);
 
+  async function answer(route: string, body: unknown, response: Response) {
+    switch (route) {
+      case "GET /api/v2/silences": {
+        const hold = held;
+        held = null;
+        await list(response, JSON.stringify(silences), hold);
+        break;
+      }
+      case "GET /api/v2/alerts":
+        sendJson(response, alerts);
+        break;
+      case "POST /api/v2/silences": {
+        const id = `silence-${silences.length + 1}`;
+        silences.push({
+          ...(body as Omit<StubSilence, "id" | "status">),
+          id,
+          status: { state: "active" },
+        });
+        sendJson(response, { silenceID: id });
+        break;
+      }
+      default:
+        response.writeHead(404).end("not found");
+    }
+  }
+
   const server = createServer(async (request, response) => {
     const body = await readBody(request);
     requests.push(recordOf(request, body));
+    const failed = failureFor(request.method);
     if (broken) {
       breakBody(response);
-    } else if (failureFor(request.method) !== null) {
-      const { status, body: text } = failureFor(request.method) as { status: number; body: string };
-      response.writeHead(status, { "content-type": "text/plain" }).end(text);
-    } else if (request.method === "GET" && request.url === "/api/v2/silences") {
-      const hold = held;
-      held = null;
-      await list(response, JSON.stringify(silences), hold);
-    } else if (request.method === "POST" && request.url === "/api/v2/silences") {
-      const id = `silence-${silences.length + 1}`;
-      silences.push({
-        ...(body as Omit<StubSilence, "id" | "status">),
-        id,
-        status: { state: "active" },
-      });
-      sendJson(response, { silenceID: id });
+    } else if (failed !== null) {
+      response.writeHead(failed.status, { "content-type": "text/plain" }).end(failed.body);
     } else {
-      response.writeHead(404).end("not found");
+      await answer(`${request.method} ${request.url}`, body, response);
     }
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -82,6 +117,7 @@ export async function startAlertmanagerStub(): Promise<AlertmanagerStub> {
     url: `http://127.0.0.1:${port}`,
     requests,
     silences,
+    alerts,
     fail: (status, text) => {
       failure = { status, body: text };
     },
@@ -158,4 +194,35 @@ export async function unreachableUrl(): Promise<string> {
   const { port } = server.address() as AddressInfo;
   await new Promise<void>((resolve) => server.close(() => resolve()));
   return `http://127.0.0.1:${port}`;
+}
+
+/** An alert for the stub's `alerts`: active, routed to `receivers`, started an hour before 10:00. */
+export function stubAlert(
+  fingerprint: string,
+  labels: Record<string, string>,
+  {
+    state = "active",
+    silencedBy = [],
+    inhibitedBy = [],
+    receivers = ["achtung-example-prod"],
+    startsAt = "2026-10-13T09:00:00Z",
+  }: {
+    state?: StubAlert["status"]["state"];
+    silencedBy?: string[];
+    inhibitedBy?: string[];
+    receivers?: string[];
+    startsAt?: string;
+  } = {},
+): StubAlert {
+  return {
+    fingerprint,
+    labels,
+    annotations: {},
+    startsAt,
+    endsAt: "2026-10-13T12:00:00Z",
+    updatedAt: startsAt,
+    generatorURL: "",
+    status: { state, silencedBy, inhibitedBy, mutedBy: [] },
+    receivers: receivers.map((name) => ({ name })),
+  };
 }

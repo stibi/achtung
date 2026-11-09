@@ -1,4 +1,19 @@
-import { and, asc, count, desc, eq, getTableColumns, max, ne, type SQL, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  gt,
+  inArray,
+  isNotNull,
+  max,
+  ne,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import type { AlertState } from "../domain/alert.ts";
 import type { ChannelRef, ChannelSlug, InstanceName } from "../domain/channel.ts";
@@ -154,4 +169,116 @@ export async function listOtherOccurrences(
     .orderBy(desc(occurrences.startsAt))
     .limit(limit);
   return rows.map(toOccurrence);
+}
+
+/** Every firing occurrence, the longest firing first. */
+export async function listFiringOccurrences(db: Database): Promise<Occurrence[]> {
+  const rows = await selectOccurrences(db, eq(occurrences.status, "firing")).orderBy(
+    asc(occurrences.startsAt),
+    asc(occurrences.id),
+  );
+  return rows.map(toOccurrence);
+}
+
+/**
+ * A source's occurrences, in any status, with an event after the time given for their
+ * instance. Each instance is bounded by its own time, so one far in the past costs only
+ * that instance's history.
+ */
+export async function listOccurrencesChangedSince(
+  db: Database,
+  source: string,
+  since: readonly { readonly instance: string; readonly at: Date }[],
+) {
+  if (since.length === 0) {
+    return [];
+  }
+  const rows = await db
+    .select({
+      instance: channels.instance,
+      source: occurrences.source,
+      sourceKey: occurrences.sourceKey,
+      startsAt: occurrences.startsAt,
+      lastEventAt: occurrences.lastEventAt,
+    })
+    .from(occurrences)
+    .innerJoin(channels, eq(channels.id, occurrences.channelId))
+    .where(
+      and(
+        eq(occurrences.source, source),
+        or(
+          ...since.map(({ instance, at }) =>
+            and(eq(channels.instance, instance), gt(occurrences.lastEventAt, at)),
+          ),
+        ),
+      ),
+    )
+    .orderBy(desc(occurrences.lastEventAt), desc(occurrences.id));
+  return rows.map((row) => ({ ...row, instance: row.instance as InstanceName }));
+}
+
+/** The receivers that have delivered to each instance's channels (ADR 0010). */
+export async function listReceivers(
+  db: Database,
+): Promise<{ instance: InstanceName; receiver: string }[]> {
+  const rows = await db
+    .selectDistinct({ instance: channels.instance, receiver: channels.receiver })
+    .from(channels)
+    .where(isNotNull(channels.receiver));
+  return rows.flatMap(({ instance, receiver }) =>
+    receiver === null ? [] : [{ instance: instance as InstanceName, receiver }],
+  );
+}
+
+/**
+ * The alerts with the most fired, reopened and resent events since `since`, at least
+ * `minEvents` of them, most first, each with its newest occurrence. Ties go to the alert
+ * whose latest event is newer.
+ */
+export async function listNoisiestAlerts(
+  db: Database,
+  { since, minEvents, limit }: { since: Date; minEvents: number; limit: number },
+): Promise<{ occurrence: Occurrence; events: number }[]> {
+  const identity = [occurrences.channelId, occurrences.source, occurrences.sourceKey] as const;
+  const noisiest = await db
+    .select({
+      channelId: occurrences.channelId,
+      source: occurrences.source,
+      sourceKey: occurrences.sourceKey,
+      events: count(),
+    })
+    .from(events)
+    .innerJoin(occurrences, eq(occurrences.id, events.occurrenceId))
+    .where(and(gt(events.recordedAt, since), inArray(events.kind, ["fired", "reopened", "resent"])))
+    .groupBy(...identity)
+    .having(sql`count(*) >= ${minEvents}`)
+    .orderBy(
+      desc(count()),
+      desc(max(events.recordedAt)),
+      asc(occurrences.channelId),
+      asc(occurrences.sourceKey),
+    )
+    .limit(limit);
+  if (noisiest.length === 0) {
+    return [];
+  }
+  // The newest occurrence of each, through the identity index's leading columns.
+  const newest = await db
+    .selectDistinctOn([...identity], occurrenceColumns)
+    .from(occurrences)
+    .innerJoin(channels, eq(channels.id, occurrences.channelId))
+    .where(
+      sql`(${occurrences.channelId}, ${occurrences.source}, ${occurrences.sourceKey}) in (${sql.join(
+        noisiest.map((alert) => sql`(${alert.channelId}, ${alert.source}, ${alert.sourceKey})`),
+        sql`, `,
+      )})`,
+    )
+    .orderBy(...identity, desc(occurrences.startsAt));
+  const keyOf = (alert: { channelId: number; source: string; sourceKey: string }) =>
+    JSON.stringify([alert.channelId, alert.source, alert.sourceKey]);
+  const byIdentity = new Map(newest.map((row) => [keyOf(row), toOccurrence(row)]));
+  return noisiest.flatMap((alert) => {
+    const occurrence = byIdentity.get(keyOf(alert));
+    return occurrence === undefined ? [] : [{ occurrence, events: alert.events }];
+  });
 }

@@ -17,6 +17,8 @@ export interface Notification {
   readonly source: string;
   readonly channel: ChannelAddress;
   readonly alerts: readonly IncomingAlert[];
+  /** The sender's name for what sent it, e.g. Alertmanager's receiver (SourceAdapter). */
+  readonly receiver: string | null;
   readonly receivedAt: Date;
 }
 
@@ -41,7 +43,12 @@ export function ingestNotification(
     const address = notification.channel;
     const instances =
       address.instance === null ? await findInstancesWithChannel(tx, address.slug) : [];
-    const channelId = await findOrCreateChannel(tx, resolveChannel(address, instances), now);
+    const channelId = await findOrCreateChannel(
+      tx,
+      resolveChannel(address, instances),
+      notification.receiver,
+      now,
+    );
     const recorded: (EventKind | null)[] = [];
     // Sequential on purpose: one transaction, and a fixed lock order (see inLockOrder).
     for (const alert of inLockOrder(notification.alerts)) {

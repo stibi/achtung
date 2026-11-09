@@ -16,6 +16,9 @@ Alertmanager ──POST /ingest/alertmanager/{instance}/{channel}──▶ http 
                                                        db (Postgres)
                                                         │
 macOS client ◀──── REST API + Server-Sent Events ───── http
+
+services ──▶ clients ──GET silences, GET alerts (each ≤ 1 per 30 s per instance)──▶ Alertmanager API
+                     ──POST silence (the silence button)──────────────────────────▶
 ```
 
 Planned parts not built yet: SSE and acknowledgement. When you add one, follow the layer
@@ -31,7 +34,7 @@ layers above it.
 | Composition root | `main.ts` | everything | Read config, build dependencies, start the HTTP server, shut down on SIGTERM. Nothing imports it. |
 | HTTP | `http/` | services, sources (index only), domain, config types | Fastify app, routes, request/response schemas. Thin: parse the request, call a service, map the result to a response. Never touches `db/`; `main.ts` passes services in. |
 | Services | `services/` | db, clients, sources (index only), domain | Use cases such as ingest, silence, list. Owns transactions. |
-| Clients | `clients/` | domain, zod | Calls to other systems' APIs, e.g. Alertmanager's silences. Maps their answers to domain types. |
+| Clients | `clients/` | domain, zod | Calls to other systems' APIs, e.g. Alertmanager's silences and alerts. Maps their answers to domain types. |
 | Storage | `db/` | domain | Drizzle schema, migrations, repositories. Maps rows to domain types and back. |
 | Sources | `sources/` | domain, zod | One folder per source. Turns a raw webhook body into `IncomingAlert[]`. No I/O. |
 | Domain | `domain/` | nothing | Types and pure functions: alert model, severity, lifecycle rules. No libraries, no I/O. |
@@ -55,7 +58,9 @@ A source is a folder `src/sources/<id>/` containing:
 
 - `payload.ts`: Zod schema of the webhook body, with a link to the upstream docs.
 - `map.ts`: pure mapping from the payload to `IncomingAlert`.
-- `index.ts`: exports one `SourceAdapter` (`src/sources/source-adapter.ts`).
+- `index.ts`: exports one `SourceAdapter` (`src/sources/source-adapter.ts`). Besides the
+  alerts, its result names the sender's configuration that sent the notification
+  (`receiver`, Alertmanager's receiver), or null when the source has no such name.
 - Tests in `test/sources/<id>.test.ts`, run against anonymized real payloads in
   `test/fixtures/<id>/`.
 
@@ -106,8 +111,10 @@ The identity below is a contract that features build on
   NOTHING`, and existing ones are locked (`FOR UPDATE`) before they change. Alerts are
   processed in a fixed order, so concurrent deliveries of the same notification (an
   Alertmanager HA pair) wait for each other instead of deadlocking or double-counting.
-- Tables (`src/db/schema.ts`): `channels`, `occurrences` (one row per occurrence, with
-  the latest fields reported for it), and `events` (append-only history). Raw payloads
+- Tables (`src/db/schema.ts`): `channels` (with the `receiver` that last delivered to
+  it, written only when it changes, so ingest doesn't lock the row), `occurrences` (one
+  row per occurrence, with the latest fields reported for it), and `events` (append-only
+  history). Raw payloads
   are not stored. `events.id` is not a safe stream cursor: ids are assigned at insert,
   so a lower id can commit after a higher one. Solve that when SSE is built.
 - Migrations are SQL files in `server/drizzle/`, generated from the schema by
@@ -137,11 +144,28 @@ The identity below is a contract that features build on
     Alertmanager, from now, and returns the occurrence
     ([ADR 0008](adr/0008-silences-through-the-server.md)). 409 when the instance has no
     Alertmanager configured, 502 when Alertmanager is unreachable or refuses it.
+  - `GET /api/home` ([ADR 0010](adr/0010-home-view.md)): one entry per configured
+    Alertmanager, by instance name, plus the silences active on all of them (soonest to
+    end first, from the silences cache below), the 10 noisiest alerts (most `fired`,
+    `reopened` and `resent` events in the last 24 hours, at least 2, each as its newest
+    occurrence) and the 10 longest firing occurrences. An entry's counts come from the
+    Alertmanager itself (`GET /api/v2/alerts`), read at most every 30 seconds per
+    instance by `services/home.ts` through the same cached reader as the silences
+    (`services/alertmanager-reads.ts`: one read at a time, the last good one kept when a
+    read fails, with `reachable: false` and the error, without the response body). Its
+    `delivery` compares that read with what fires in Achtung, firing by firing
+    (fingerprint and `startsAt`): alerts notifying for over 10 minutes, routed to a
+    receiver a channel of that instance recorded, but not firing in Achtung and not
+    changed there since the read (`missingInAchtung`), and occurrences firing in Achtung,
+    last notified over 10 minutes before the read, that Alertmanager no longer has
+    (`staleInAchtung`). It only reports; nothing is resolved. The counting and the comparison are pure functions in
+    `domain/overview.ts`.
 - Every occurrence carries `silencedUntil`: the end of the latest active silence on its
   instance's Alertmanager whose matchers match its labels, else null. Alertmanager is the
   source of truth; Achtung stores no silences. `services/silences.ts` reads each
   instance's silences at most every 30 seconds, keeps the last ones when Alertmanager
   can't be read (and logs a warning), and `domain/silence.ts` evaluates the matchers.
+  The home view's alerts are read the same way, and a failed read is logged the same way.
 - Errors are `{ "error": "…" }`: 400 for invalid input (including a cursor the server
   never issued), 404 for an unknown channel or occurrence.
 - "New since last visit" is computed by the client from `lastEventAt` and its own read
@@ -172,7 +196,8 @@ The identity below is a contract that features build on
   URL-encoding.
 - `ALERTMANAGERS` is a JSON object of instance name → `{ "url": "…", "username": "…",
   "password": "…" }` (the credentials are optional, basic auth). It holds credentials,
-  so set it from a secret. An instance without an entry can't be silenced.
+  so set it from a secret. An instance without an entry can't be silenced and has no
+  entry in the home view.
 - Logs are structured JSON from pino (through Fastify). `/healthz` reports liveness and
   `/readyz` reports readiness, which fails with a 503 while the database is unreachable.
 

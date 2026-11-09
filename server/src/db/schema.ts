@@ -25,6 +25,9 @@ export const channels = pgTable(
     // Rows from before instances existed get the default instance (ADR 0006).
     instance: text().notNull().default("default"),
     slug: text().notNull(),
+    // What last delivered to the channel, e.g. Alertmanager's receiver (ADR 0010); null
+    // until a notification names one.
+    receiver: text(),
     createdAt: timestamptz().notNull(),
   },
   (table) => [unique("channels_instance_slug").on(table.instance, table.slug)],
@@ -104,5 +107,10 @@ export const events = pgTable(
     kind: eventKind().notNull(),
     recordedAt: timestamptz().notNull(),
   },
-  (table) => [index("events_occurrence_id").on(table.occurrenceId)],
+  (table) => [
+    index("events_occurrence_id").on(table.occurrenceId),
+    // The home view counts the last day's events (noisiest alerts). Without it, every
+    // refresh would scan the whole history, which only grows.
+    index("events_recorded_at").on(table.recordedAt),
+  ],
 );

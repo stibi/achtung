@@ -36,6 +36,13 @@
       "when": 1794178330056,
       "tag": "0004_resent_events",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794226226977,
+      "tag": "0005_channel_receiver",
+      "breakpoints": true
     }
   ]
 }

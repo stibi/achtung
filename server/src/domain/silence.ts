@@ -15,6 +15,13 @@ export interface Silence {
   readonly matchers: readonly LabelMatcher[];
   readonly startsAt: Date;
   readonly endsAt: Date;
+  readonly createdBy: string;
+  readonly comment: string;
+}
+
+/** Whether the silence mutes alerts at `now`: started, and not yet ended. */
+export function isActive(silence: Silence, now: Date): boolean {
+  return silence.startsAt <= now && silence.endsAt > now;
 }
 
 /** An occurrence with the end of the silence that mutes it now, if any (ADR 0008). */
@@ -34,7 +41,7 @@ export function silencedUntil(
   now: Date,
 ): Date | null {
   const ends = silences
-    .filter((silence) => silence.startsAt <= now && silence.endsAt > now)
+    .filter((silence) => isActive(silence, now))
     .filter((silence) => silence.matchers.every((matcher) => matches(matcher, labels)))
     .map((silence) => silence.endsAt.getTime());
   return ends.length === 0 ? null : new Date(Math.max(...ends));

@@ -61,6 +61,13 @@ describe("alertmanager source", () => {
     expect(alertmanagerSource.parse(payload)).toMatchObject({ ok: true, truncatedAlerts: 3 });
   });
 
+  it("names the receiver that sent the notification", () => {
+    expect(alertmanagerSource.parse(loadFixture("alertmanager", "firing"))).toMatchObject({
+      ok: true,
+      receiver: "achtung-example-prod",
+    });
+  });
+
   it("rejects payloads that are not Alertmanager webhook v4", () => {
     const payload = { ...(loadFixture("alertmanager", "firing") as object), version: "3" };
 

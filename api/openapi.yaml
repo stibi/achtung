@@ -218,6 +218,224 @@ components:
       required:
         - occurrences
         - nextCursor
+    OpenAlertCounts:
+      type: object
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        critical:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        warning:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        info:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        other:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+          description: No severity label, or one Achtung doesn't know
+      required:
+        - total
+        - critical
+        - warning
+        - info
+        - other
+    MissingAlert:
+      type: object
+      properties:
+        fingerprint:
+          type: string
+          description: Alertmanager's fingerprint, an occurrence's sourceKey
+        title:
+          type: string
+          description: The alertname
+        severity:
+          type: string
+          enum:
+            - critical
+            - warning
+            - info
+            - unknown
+        startsAt:
+          type: string
+          format: date-time
+      required:
+        - fingerprint
+        - title
+        - severity
+        - startsAt
+    Delivery:
+      type: object
+      properties:
+        missingInAchtung:
+          type: array
+          items:
+            $ref: "#/components/schemas/MissingAlert"
+          description: Notifying in Alertmanager for over 10 minutes, routed to a receiver
+            that delivers to Achtung, but not firing in Achtung. Oldest first
+        staleInAchtung:
+          type: array
+          items:
+            $ref: "#/components/schemas/Occurrence"
+          description: "Firing in Achtung, last notified over 10 minutes before the read,
+            but gone from Alertmanager: a resolve that never arrived. Oldest
+            first"
+      required:
+        - missingInAchtung
+        - staleInAchtung
+    AlertmanagerOverview:
+      type: object
+      properties:
+        instance:
+          type: string
+        reachable:
+          type: boolean
+          description: Whether the latest read of its alerts succeeded
+        error:
+          nullable: true
+          description: Why the latest read failed; null when reachable
+          type: string
+        checkedAt:
+          nullable: true
+          description: When its alerts were last read successfully; the fields below are
+            from that read
+          type: string
+          format: date-time
+        open:
+          nullable: true
+          description: Alerts that are notifying (not silenced or inhibited), by severity;
+            null when never read
+          allOf:
+            - $ref: "#/components/schemas/OpenAlertCounts"
+        silenced:
+          nullable: true
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        inhibited:
+          nullable: true
+          description: Inhibited and not silenced
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        watchdog:
+          nullable: true
+          description: Whether the Watchdog alert is there, i.e. the alerting pipeline works
+          type: string
+          enum:
+            - firing
+            - absent
+        delivery:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Delivery"
+      required:
+        - instance
+        - reachable
+        - error
+        - checkedAt
+        - open
+        - silenced
+        - inhibited
+        - watchdog
+        - delivery
+      description: Counts leave out Watchdog and InfoInhibitor, which fire all the time
+    Matcher:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        isRegex:
+          type: boolean
+        isEqual:
+          type: boolean
+          description: False negates the match (!= or !~)
+      required:
+        - name
+        - value
+        - isRegex
+        - isEqual
+    Silence:
+      type: object
+      properties:
+        instance:
+          type: string
+        id:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        comment:
+          type: string
+        matchers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Matcher"
+      required:
+        - instance
+        - id
+        - startsAt
+        - endsAt
+        - createdBy
+        - comment
+        - matchers
+    NoisyAlert:
+      type: object
+      properties:
+        occurrence:
+          $ref: "#/components/schemas/Occurrence"
+        events:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+          description: Its fired, reopened and resent events in the last 24 hours
+      required:
+        - occurrence
+        - events
+    Home:
+      type: object
+      properties:
+        alertmanagers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlertmanagerOverview"
+          description: Every configured Alertmanager, by instance name
+        silences:
+          type: array
+          items:
+            $ref: "#/components/schemas/Silence"
+          description: Silences active now on every Alertmanager, the soonest to end first
+        noisiest:
+          type: array
+          items:
+            $ref: "#/components/schemas/NoisyAlert"
+          description: Up to 10 alerts with 2 or more events in the last 24 hours, most
+            first, each as its newest occurrence
+        longestFiring:
+          type: array
+          items:
+            $ref: "#/components/schemas/Occurrence"
+          description: Up to 10 firing occurrences, the earliest start first
+      required:
+        - alertmanagers
+        - silences
+        - noisiest
+        - longestFiring
     IngestSummary:
       type: object
       properties:
@@ -581,3 +799,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/home:
+    get:
+      operationId: getHome
+      summary: Each Alertmanager's state, active silences, and the noisiest and
+        longest alerts
+      tags:
+        - client
+      description: Counts come from each Alertmanager, read at most every 30 seconds;
+        an unreachable one keeps its last read. delivery compares that read with
+        what fires in Achtung, and only reports (ADR 0010).
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Home"

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isActive,
   type LabelMatcher,
   matchersFor,
   type Silence,
@@ -14,7 +15,14 @@ function silence(
   endsAt = "2026-10-13T11:00:00Z",
   startsAt = "2026-10-13T09:00:00Z",
 ): Silence {
-  return { id: "s", matchers, startsAt: new Date(startsAt), endsAt: new Date(endsAt) };
+  return {
+    id: "s",
+    matchers,
+    startsAt: new Date(startsAt),
+    endsAt: new Date(endsAt),
+    createdBy: "someone",
+    comment: "maintenance",
+  };
 }
 
 const equal = (name: string, value: string): LabelMatcher => ({
@@ -110,5 +118,16 @@ describe("silencedUntil", () => {
       silence(matchers, "2026-10-13T12:00:00Z"),
     ];
     expect(silencedUntil(labels, silences, now)).toEqual(new Date("2026-10-14T10:00:00Z"));
+  });
+});
+
+describe("isActive", () => {
+  it("is active from its start until just before its end", () => {
+    const window = silence([], "2026-10-13T11:00:00Z", "2026-10-13T09:00:00Z");
+
+    expect(isActive(window, new Date("2026-10-13T08:59:59.999Z"))).toBe(false);
+    expect(isActive(window, new Date("2026-10-13T09:00:00Z"))).toBe(true);
+    expect(isActive(window, new Date("2026-10-13T10:59:59.999Z"))).toBe(true);
+    expect(isActive(window, new Date("2026-10-13T11:00:00Z"))).toBe(false);
   });
 });

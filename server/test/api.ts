@@ -29,6 +29,7 @@ export function deliver(
   at: string,
   channel = "example-prod",
   instance = "lab",
+  receiver: string | null = "achtung-example-prod",
 ) {
   return services.ingest({
     source: "alertmanager",
@@ -37,6 +38,7 @@ export function deliver(
       slug: parseChannelSlug(channel) as ChannelSlug,
     },
     alerts,
+    receiver,
     receivedAt: new Date(at),
   });
 }

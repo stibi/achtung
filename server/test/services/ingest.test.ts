@@ -26,12 +26,18 @@ function slug(value: string): ChannelSlug {
 function deliver(
   db: Database,
   alerts: readonly IncomingAlert[],
-  { channel = "example-prod", at = "2026-10-13T08:30:00Z", instance = lab } = {},
+  {
+    channel = "example-prod",
+    at = "2026-10-13T08:30:00Z",
+    instance = lab,
+    receiver = "achtung-example-prod" as string | null,
+  } = {},
 ) {
   return ingestNotification(db, {
     source: "alertmanager",
     channel: { instance, slug: slug(channel) },
     alerts,
+    receiver,
     receivedAt: new Date(at),
   });
 }
@@ -190,6 +196,7 @@ describe("ingestNotification", () => {
         source: "alertmanager",
         channel: { instance: null, slug: slug("ops") },
         alerts,
+        receiver: "achtung-ops",
         receivedAt: new Date("2026-10-13T08:45:00Z"),
       });
     await byNameOnly(firing);
@@ -210,5 +217,31 @@ describe("ingestNotification", () => {
       .from(channels);
     expect(rows).toEqual([{ instance: "lab", slug: "ops" }]);
     expect(await eventKinds(db)).toEqual(["fired", "fired", "resolved"]);
+  });
+
+  it("records which receiver delivers to the channel, and follows a change", async () => {
+    const { db } = await createTestDatabase();
+    const receivers = async () =>
+      (await db.select({ receiver: channels.receiver }).from(channels)).map((row) => row.receiver);
+
+    await deliver(db, firing, { receiver: "team-a" });
+    expect(await receivers()).toEqual(["team-a"]);
+
+    await deliver(db, firing, { receiver: "team-b" });
+    expect(await receivers()).toEqual(["team-b"]);
+
+    // A source that names none leaves the one known in place.
+    await deliver(db, firing, { receiver: null });
+    expect(await receivers()).toEqual(["team-b"]);
+  });
+
+  it("leaves the receiver unknown until a notification names one", async () => {
+    const { db } = await createTestDatabase();
+
+    await deliver(db, firing, { receiver: null });
+
+    expect(await db.select({ receiver: channels.receiver }).from(channels)).toEqual([
+      { receiver: null },
+    ]);
   });
 });

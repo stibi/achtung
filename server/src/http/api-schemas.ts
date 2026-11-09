@@ -9,9 +9,10 @@ import type { ChannelOverview, OccurrenceDetail } from "../services/inbox.ts";
 // Adding a field is safe for existing clients. Adding an enum value is not: generated
 // Swift enums are closed, so regenerate the client in the same change.
 
-const timestamp = z.iso.datetime({ offset: true });
+export const timestamp = z.iso.datetime({ offset: true });
 const labelSet = z.record(z.string(), z.string());
 const eventKind = z.enum(["fired", "resolved", "reopened", "resent"]);
+export const severity = z.enum(["critical", "warning", "info", "unknown"]);
 
 export const errorBody = z.object({ error: z.string() }).meta({ id: "Error" });
 
@@ -32,7 +33,7 @@ export const occurrenceBody = z
     source: z.string(),
     sourceKey: z.string().describe("Identity of the alert in its source, e.g. a fingerprint"),
     status: z.enum(["firing", "resolved"]),
-    severity: z.enum(["critical", "warning", "info", "unknown"]),
+    severity,
     title: z.string(),
     summary: z.string().nullable(),
     labels: labelSet,

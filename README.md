@@ -55,6 +55,13 @@ their own instance.
   Each channel and Live list only new alerts and resends, until you switch
   "Unread only" off there, and "Mark All as Read" (⇧⌘K) clears a list in one go.
 - **Live view:** every channel's alerts in one stream, newest change first.
+- **Home view** (server API, `GET /api/home`): each Alertmanager at a glance, what it has
+  open by severity, silenced and inhibited, read from the Alertmanager itself, and whether
+  its Watchdog fires. It also flags delivery problems: alerts Alertmanager should have
+  sent Achtung but didn't, and alerts still firing in Achtung that Alertmanager has
+  dropped (a missed resolve). It only reports them. Plus the active silences, the
+  noisiest alerts of the last day and the longest firing ones
+  ([ADR 0010](docs/adr/0010-home-view.md)).
 - **Zero setup per channel:** pointing a receiver at a new URL creates the channel.
 - **Silence an alert** for a while, on the Alertmanager it came from. Every alert shows
   whether it is silenced and until when, including silences made in Alertmanager itself

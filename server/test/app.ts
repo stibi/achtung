@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { onTestFinished } from "vitest";
 import type { AlertmanagerEndpoint } from "../src/clients/alertmanager.ts";
 import { buildApp, type Services } from "../src/http/app.ts";
+import { type AlertmanagerAlertsOptions, alertmanagerAlertsFrom } from "../src/services/home.ts";
 import { servicesFor } from "../src/services/index.ts";
 import { type SilencesOptions, silencesFrom } from "../src/services/silences.ts";
 import { alertmanagerSource } from "../src/sources/alertmanager/index.ts";
@@ -17,6 +18,7 @@ export const unusedServices: Services = {
   listOccurrences: unused,
   getOccurrence: unused,
   silenceOccurrence: unused,
+  getHome: unused,
 };
 
 export interface TestAppOptions {
@@ -25,6 +27,9 @@ export interface TestAppOptions {
   /** Each instance's Alertmanager, e.g. a stub (test/alertmanager-stub.ts). None by default. */
   readonly alertmanagers?: Readonly<Record<string, AlertmanagerEndpoint>>;
   readonly silences?: SilencesOptions;
+  readonly alerts?: AlertmanagerAlertsOptions;
+  /** The clock of the services themselves, e.g. the home view's last 24 hours. */
+  readonly now?: () => Date;
 }
 
 /** The real app on a fresh test database. */
@@ -33,11 +38,15 @@ export async function appWithDatabase(
 ): Promise<{ app: FastifyInstance; services: Services }> {
   const logLines = options.logLines ?? [];
   const { db } = await createTestDatabase();
-  const silences = silencesFrom(
-    new Map(Object.entries(options.alertmanagers ?? {})),
-    options.silences,
+  const endpoints = new Map(Object.entries(options.alertmanagers ?? {}));
+  const services = servicesFor(
+    db,
+    {
+      silences: silencesFrom(endpoints, options.silences),
+      alerts: alertmanagerAlertsFrom(endpoints, options.alerts),
+    },
+    options.now,
   );
-  const services = servicesFor(db, silences);
   const app = buildApp({
     logLevel: "warn",
     logStream: { write: (line) => logLines.push(JSON.parse(line) as Record<string, unknown>) },

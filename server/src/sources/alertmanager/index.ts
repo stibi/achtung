@@ -14,6 +14,7 @@ export const alertmanagerSource: SourceAdapter = {
       ok: true,
       alerts: result.data.alerts.map(toIncomingAlert),
       truncatedAlerts: result.data.truncatedAlerts,
+      receiver: result.data.receiver,
     };
   },
 };

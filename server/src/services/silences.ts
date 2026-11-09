@@ -8,12 +8,14 @@ import type { Database } from "../db/client.ts";
 import { findOccurrence } from "../db/queries.ts";
 import type { Occurrence } from "../domain/occurrence.ts";
 import {
+  isActive,
   matchersFor,
   type Silence,
   type SilencedOccurrence,
   silencedUntil,
 } from "../domain/silence.ts";
 import { alertmanagerSource } from "../sources/alertmanager/index.ts";
+import { cachedRead } from "./alertmanager-reads.ts";
 
 /** Alertmanager decides what is silenced (ADR 0008); this asks it, per instance. */
 export interface Silences {
@@ -23,76 +25,16 @@ export interface Silences {
   annotate(occurrences: readonly Occurrence[]): Promise<SilencedOccurrence[]>;
   /** Silences exactly this alert on its instance's Alertmanager, from now; returns the end. */
   create(occurrence: Occurrence, durationSeconds: number): Promise<Date>;
+  /** Every instance's silences that mute alerts now, the soonest to end first. */
+  listActive(): Promise<InstanceSilence[]>;
 }
+
+export type InstanceSilence = Silence & { readonly instance: string };
 
 export interface SilencesOptions {
   readonly now?: () => Date;
   /** An Alertmanager could not be read; the last silences it reported are used meanwhile. */
   readonly onReadError?: (instance: string, error: AlertmanagerError) => void;
-}
-
-// How long one instance's silences are reused before Alertmanager is asked again, so a
-// page of occurrences costs at most one request per instance.
-const freshForMs = 30_000;
-
-/** One instance's silences, read from its Alertmanager at most once per window. */
-interface SilenceCache {
-  read(): Promise<readonly Silence[]>;
-  /** Achtung just created a silence: forget what was read, and any read in flight. */
-  invalidate(): void;
-}
-
-function silenceCache(
-  endpoint: AlertmanagerEndpoint,
-  now: () => Date,
-  onReadError: (error: AlertmanagerError) => void,
-): SilenceCache {
-  let known: { silences: readonly Silence[]; fetchedAt: number } | null = null;
-  let pending: Promise<readonly Silence[]> | null = null;
-  // Bumped by every silence Achtung creates: a read that started before it is outdated.
-  let generation = 0;
-
-  function fetchNow(): Promise<readonly Silence[]> {
-    const startedIn = generation;
-    const last = known;
-    const request: Promise<readonly Silence[]> = listSilences(endpoint)
-      .catch((error: unknown) => {
-        if (!(error instanceof AlertmanagerError)) {
-          throw error;
-        }
-        onReadError(error);
-        // Kept as if freshly read, so a down Alertmanager is asked once per window.
-        return last?.silences ?? [];
-      })
-      .then((silences) => {
-        if (startedIn === generation) {
-          known = { silences, fetchedAt: now().getTime() };
-        }
-        return silences;
-      })
-      .finally(() => {
-        if (pending === request) {
-          pending = null;
-        }
-      });
-    pending = request;
-    return request;
-  }
-
-  return {
-    read() {
-      if (known !== null && now().getTime() - known.fetchedAt < freshForMs) {
-        return Promise.resolve(known.silences);
-      }
-      return pending ?? fetchNow();
-    },
-    invalidate() {
-      generation += 1;
-      // Stale, not forgotten: a read that fails next still falls back to these.
-      known = known === null ? null : { ...known, fetchedAt: Number.NEGATIVE_INFINITY };
-      pending = null;
-    },
-  };
 }
 
 export function silencesFrom(
@@ -102,10 +44,16 @@ export function silencesFrom(
   const caches = new Map(
     [...endpoints].map(([instance, endpoint]) => [
       instance,
-      silenceCache(endpoint, now, (error) => onReadError(instance, error)),
+      cachedRead(
+        () => listSilences(endpoint),
+        now,
+        (error) => onReadError(instance, error),
+      ),
     ]),
   );
-  const silencesOf = (instance: string) => caches.get(instance)?.read() ?? Promise.resolve([]);
+  // The last silences read, or none: a down Alertmanager doesn't fail a read (ADR 0008).
+  const silencesOf = async (instance: string): Promise<readonly Silence[]> =>
+    (await caches.get(instance)?.read())?.last?.value ?? [];
 
   return {
     canSilence: (instance) => endpoints.has(instance),
@@ -145,6 +93,19 @@ export function silencesFrom(
       });
       caches.get(occurrence.instance)?.invalidate();
       return endsAt;
+    },
+
+    async listActive() {
+      const perInstance = await Promise.all(
+        [...caches.keys()].map(async (instance) =>
+          (await silencesOf(instance)).map((silence) => ({ ...silence, instance })),
+        ),
+      );
+      const at = now();
+      return perInstance
+        .flat()
+        .filter((silence) => isActive(silence, at))
+        .toSorted((a, b) => a.endsAt.getTime() - b.endsAt.getTime());
     },
   };
 }

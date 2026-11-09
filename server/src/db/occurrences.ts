@@ -11,27 +11,39 @@ export interface OccurrenceKey {
   readonly alert: IncomingAlert;
 }
 
+/** The channel's id, created if needed, with `receiver` recorded when it names one. */
 export async function findOrCreateChannel(
   tx: Transaction,
   { instance, slug }: ChannelRef,
+  receiver: string | null,
   now: Date,
 ): Promise<number> {
   // DO NOTHING plus a read, not a no-op DO UPDATE: that would lock the channel row and
   // serialize every notification for the channel behind it.
   const [inserted] = await tx
     .insert(channels)
-    .values({ instance, slug, createdAt: now })
+    .values({ instance, slug, receiver, createdAt: now })
     .onConflictDoNothing()
     .returning({ id: channels.id });
   if (inserted !== undefined) {
     return inserted.id;
   }
   const [existing] = await tx
-    .select({ id: channels.id })
+    .select({ id: channels.id, receiver: channels.receiver })
     .from(channels)
     .where(and(eq(channels.instance, instance), eq(channels.slug, slug)));
   if (existing === undefined) {
     throw new Error(`Channel ${instance}/${slug} conflicted on insert but does not exist`);
+  }
+  // Only a change writes, and so locks the row; the receiver rarely changes. The condition
+  // is repeated in the update, so concurrent deliveries that both saw a change write once.
+  if (receiver !== null && receiver !== existing.receiver) {
+    await tx
+      .update(channels)
+      .set({ receiver })
+      .where(
+        and(eq(channels.id, existing.id), sql`${channels.receiver} is distinct from ${receiver}`),
+      );
   }
   return existing.id;
 }

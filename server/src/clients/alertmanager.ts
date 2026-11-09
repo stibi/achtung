@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AlertmanagerAlert } from "../domain/overview.ts";
 import type { LabelMatcher, Silence } from "../domain/silence.ts";
 
 // Alertmanager's API v2: https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml
@@ -21,6 +22,16 @@ export interface NewSilence {
 /** Alertmanager could not be reached, or it refused the request. */
 export class AlertmanagerError extends Error {
   override readonly name = "AlertmanagerError";
+  /**
+   * The message without anything Alertmanager answered, which can be a proxy's error page
+   * naming hosts: safe to show to every client.
+   */
+  readonly reason: string;
+
+  constructor(message: string, reason = message) {
+    super(message);
+    this.reason = reason;
+  }
 }
 
 const timeoutMs = 5000;
@@ -39,6 +50,8 @@ const silenceBody = z.object({
   ),
   startsAt: z.iso.datetime({ offset: true }),
   endsAt: z.iso.datetime({ offset: true }),
+  createdBy: z.string(),
+  comment: z.string(),
 });
 
 /** Every silence that is active or pending; expired ones are dropped. */
@@ -55,7 +68,39 @@ export async function listSilences(endpoint: AlertmanagerEndpoint): Promise<Sile
       matchers: silence.matchers,
       startsAt: new Date(silence.startsAt),
       endsAt: new Date(silence.endsAt),
+      createdBy: silence.createdBy,
+      comment: silence.comment,
     }));
+}
+
+const alertBody = z.object({
+  fingerprint: z.string(),
+  labels: z.record(z.string(), z.string()),
+  startsAt: z.iso.datetime({ offset: true }),
+  status: z.object({
+    state: z.enum(["active", "suppressed", "unprocessed"]),
+    silencedBy: z.array(z.string()),
+    inhibitedBy: z.array(z.string()),
+  }),
+  receivers: z.array(z.object({ name: z.string() })),
+});
+
+/** Every alert Alertmanager has, in any state: active, suppressed or unprocessed. */
+export async function listAlerts(endpoint: AlertmanagerEndpoint): Promise<AlertmanagerAlert[]> {
+  const body = await call(endpoint, "GET", "api/v2/alerts");
+  const parsed = z.array(alertBody).safeParse(body);
+  if (!parsed.success) {
+    throw new AlertmanagerError(`unexpected alerts response: ${parsed.error.message}`);
+  }
+  return parsed.data.map((alert) => ({
+    fingerprint: alert.fingerprint,
+    labels: alert.labels,
+    startsAt: new Date(alert.startsAt),
+    state: alert.status.state,
+    silencedBy: alert.status.silencedBy,
+    inhibitedBy: alert.status.inhibitedBy,
+    receivers: alert.receivers.map((receiver) => receiver.name),
+  }));
 }
 
 /** Creates the silence and returns its id. */
@@ -108,6 +153,7 @@ async function call(
     // Alertmanager explains a rejected silence in the body, e.g. "invalid label matcher".
     throw new AlertmanagerError(
       `Alertmanager answered ${response.status}: ${text.trim().slice(0, 500)}`,
+      `Alertmanager answered ${response.status}`,
     );
   }
   try {

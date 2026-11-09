@@ -108,6 +108,7 @@ async function receive(
     source: source.id,
     channel: { instance: target.instance, slug },
     alerts: parsed.alerts,
+    receiver: parsed.receiver,
     receivedAt: new Date(),
   });
 }

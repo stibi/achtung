@@ -10,6 +10,7 @@ import {
   timestamp,
   toOccurrenceBody,
 } from "./api-schemas.ts";
+import { irmHeartbeatBody, toIrmHeartbeatBody } from "./irm-heartbeat.ts";
 
 // GET /api/home and the alerts behind each Alertmanager's tile (ADR 0010). Their shapes
 // live here, next to the routes that use them; api-schemas.ts explains how a shape change
@@ -83,10 +84,19 @@ const alertmanagerBody = z
     watchdog: z
       .enum(["firing", "absent"])
       .nullable()
-      .describe("Whether the Watchdog alert is there, i.e. the alerting pipeline works"),
+      .describe(
+        "Whether the Watchdog alert is there, i.e. the alerting pipeline works; also while Watchdog is an ignored name",
+      ),
     delivery: deliveryBody.nullable(),
+    irm: irmHeartbeatBody
+      .nullable()
+      .describe(
+        "Null when Grafana IRM isn't configured, or the Alertmanager has no IRM integration",
+      ),
   })
-  .describe("Counts leave out Watchdog and InfoInhibitor, which fire all the time")
+  .describe(
+    "Counts and delivery leave out the ignored alert names (/api/settings/ignored-alerts), e.g. Watchdog, which fires all the time",
+  )
   .meta({ id: "AlertmanagerOverview" });
 
 const silenceBody = z
@@ -140,6 +150,7 @@ function toAlertmanagerBody({
   instance,
   error,
   last,
+  irm,
 }: AlertmanagerOverview): z.infer<typeof alertmanagerBody> {
   return {
     ...toReadFields(instance, error, last?.readAt),
@@ -157,6 +168,7 @@ function toAlertmanagerBody({
             })),
             staleInAchtung: last.delivery.staleInAchtung.map(toOccurrenceBody),
           },
+    irm: irm === null ? null : toIrmHeartbeatBody(irm),
   };
 }
 
@@ -216,7 +228,7 @@ const alertListBody = z
       ),
   })
   .describe(
-    "The alerts the tile counts: active ones are open, the others silenced and inhibited. Leaves out Watchdog and InfoInhibitor",
+    "The alerts the tile counts: active ones are open, the others silenced and inhibited. Leaves out the ignored alert names (/api/settings/ignored-alerts)",
   )
   .meta({ id: "AlertmanagerAlertList" });
 

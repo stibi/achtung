@@ -7,18 +7,24 @@ import {
   listChannels,
 } from "./inbox.ts";
 import { ingestNotification } from "./ingest.ts";
+import type { IrmHeartbeats } from "./irm-heartbeats.ts";
+import { getIgnoredAlertNames, setIgnoredAlertNames } from "./settings.ts";
 import { type Silences, silenceOccurrence } from "./silences.ts";
 
 /**
- * Every use case bound to one database and the instances' Alertmanagers: what src/http
- * needs to serve requests.
+ * Every use case bound to one database, the instances' Alertmanagers and Grafana IRM:
+ * what src/http needs to serve requests.
  */
 export function servicesFor(
   db: Database,
-  alertmanagers: { readonly silences: Silences; readonly alerts: AlertmanagerAlerts },
+  monitors: {
+    readonly silences: Silences;
+    readonly alerts: AlertmanagerAlerts;
+    readonly heartbeats: IrmHeartbeats;
+  },
   now: () => Date = () => new Date(),
 ) {
-  const { silences, alerts } = alertmanagers;
+  const { silences, alerts, heartbeats } = monitors;
   return {
     ingest: (notification: Parameters<typeof ingestNotification>[1]) =>
       ingestNotification(db, notification),
@@ -31,9 +37,11 @@ export function servicesFor(
     getOccurrence: (id: number) => getOccurrence(db, silences, id),
     silenceOccurrence: (id: number, durationSeconds: number) =>
       silenceOccurrence(db, silences, id, durationSeconds),
-    getHome: () => getHome(db, silences, alerts, now()),
+    getHome: () => getHome(db, silences, alerts, heartbeats, now()),
     listAlertmanagerAlerts: (instance: string) =>
       listAlertmanagerAlerts(db, silences, alerts, instance),
+    getIgnoredAlertNames: () => getIgnoredAlertNames(db),
+    setIgnoredAlertNames: (names: readonly string[]) => setIgnoredAlertNames(db, names, now()),
   };
 }
 

@@ -19,6 +19,7 @@ macOS client ◀──── REST API + Server-Sent Events ───── http
 
 services ──▶ clients ──GET silences, GET alerts (each ≤ 1 per 30 s per instance)──▶ Alertmanager API
                      ──POST silence (the silence button)──────────────────────────▶
+                     ──GET alert_groups (≤ 1 per minute per integration)──────────▶ Grafana IRM API
 ```
 
 Planned parts not built yet: SSE and acknowledgement. When you add one, follow the layer
@@ -34,7 +35,7 @@ layers above it.
 | Composition root | `main.ts` | everything | Read config, build dependencies, start the HTTP server, shut down on SIGTERM. Nothing imports it. |
 | HTTP | `http/` | services, sources (index only), domain, config types | Fastify app, routes, request/response schemas. Thin: parse the request, call a service, map the result to a response. Never touches `db/`; `main.ts` passes services in. |
 | Services | `services/` | db, clients, sources (index only), domain | Use cases such as ingest, silence, list. Owns transactions. |
-| Clients | `clients/` | domain, zod | Calls to other systems' APIs, e.g. Alertmanager's silences and alerts. Maps their answers to domain types. |
+| Clients | `clients/` | domain, zod | Calls to other systems' APIs, e.g. Alertmanager's silences and alerts, Grafana IRM's alert groups. Maps their answers to domain types. |
 | Storage | `db/` | domain | Drizzle schema, migrations, repositories. Maps rows to domain types and back. |
 | Sources | `sources/` | domain, zod | One folder per source. Turns a raw webhook body into `IncomingAlert[]`. No I/O. |
 | Domain | `domain/` | nothing | Types and pure functions: alert model, severity, lifecycle rules. No libraries, no I/O. |
@@ -113,8 +114,8 @@ The identity below is a contract that features build on
   Alertmanager HA pair) wait for each other instead of deadlocking or double-counting.
 - Tables (`src/db/schema.ts`): `channels` (with the `receiver` that last delivered to
   it, written only when it changes, so ingest doesn't lock the row), `occurrences` (one
-  row per occurrence, with the latest fields reported for it), and `events` (append-only
-  history). Raw payloads
+  row per occurrence, with the latest fields reported for it), `events` (append-only
+  history), and `ignored_alert_names` (a setting, ADR 0011). Raw payloads
   are not stored. `events.id` is not a safe stream cursor: ids are assigned at insert,
   so a lower id can commit after a higher one. Solve that when SSE is built.
 - Migrations are SQL files in `server/drizzle/`, generated from the schema by
@@ -124,7 +125,8 @@ The identity below is a contract that features build on
 
 ## Client API
 
-- Routes under `/api/` (`src/http/api.ts`), all read-only for now:
+- Routes under `/api/` (`src/http/api.ts`), read-only except the silence button and the
+  ignored alert names:
   - `GET /api/channels`: channels by instance and name, with how many occurrences are
     firing and the latest event time. The client shows them as a tree: instances, then
     their channels. `Channel` and `Occurrence` both carry `instance`.
@@ -159,11 +161,21 @@ The identity below is a contract that features build on
     changed there since the read (`missingInAchtung`), and occurrences firing in Achtung,
     last notified over 10 minutes before the read, that Alertmanager no longer has
     (`staleInAchtung`). It only reports; nothing is resolved. The counting and the comparison are pure functions in
-    `domain/overview.ts`.
+    `domain/overview.ts`. The counts and both delivery lists leave out the ignored alert
+    names (below); `watchdog` doesn't, it still says whether `Watchdog` is there.
+    An entry's `irm` ([ADR 0012](adr/0012-irm-heartbeat.md)) says whether Grafana IRM
+    receives the instance's heartbeat: `receiving`, `missing` (since IRM opened its
+    `OnCallHeartBeatMissing` alert group) or `unknown` (never read), with the last missed
+    heartbeat, `checkedAt` and `error`. `services/irm-heartbeats.ts` reads the latest
+    groups of the instance's `irmIntegrationId` through `clients/irm.ts`, at most once a
+    minute per integration with the same `cachedRead` (one read at a time, the last good
+    one kept on failure), in parallel with the rest of Home; `domain/irm-heartbeat.ts`
+    maps them to the status. `irm` is null when IRM isn't configured or the instance has
+    no integration.
   - `GET /api/alertmanagers/{instance}/alerts` (ADR 0010): the alerts behind an
     instance's Home tile, from the same cached read as its counts, so they always agree:
     `active` alerts (notifying or unprocessed) are its `open`, `silenced` and `inhibited`
-    its other two counts; Watchdog and InfoInhibitor are left out. By severity, then the
+    its other two counts; the ignored alert names are left out. By severity, then the
     newest start first. Each has its `occurrenceId`, the occurrence on that instance with
     the same fingerprint and `startsAt` (a re-fire doesn't match), or null, and a silenced
     one its `silencedUntil`, from the silences cache by the ids Alertmanager names. It
@@ -171,6 +183,17 @@ The identity below is a contract that features build on
     alerts. 404 for an instance without an Alertmanager. The standing, matching and order
     are `alertListOf` in `domain/overview.ts`, which shares its classification with
     `countAlerts`.
+  - `GET` and `PUT /api/settings/ignored-alerts` ([ADR 0011](adr/0011-ignored-alert-names.md)):
+    `{ names }`, the alert names the Home views above leave out, matched exactly and
+    case-sensitively against `alertname`. One list shared by every client, stored in
+    `ignored_alert_names` and seeded by its migration with `Watchdog`, `InfoInhibitor` and
+    `grafana-irm-heartbeat`. `PUT` replaces the whole list in one transaction (the table
+    locked, so two at once don't merge) and returns it; names are trimmed and stored once,
+    and an empty name, one over 200 characters or over 200 names is a 400. The service
+    reads the list for every Home request, not with the cached Alertmanager read, so a
+    change applies to the next request; the domain functions take it as a parameter. It
+    only concerns the Alertmanager-derived Home views: the inbox (channels, Live, the feed
+    and the badges) shows these alerts as usual.
 - Every occurrence carries `silencedUntil`: the end of the latest active silence on its
   instance's Alertmanager whose matchers match its labels, else null. Alertmanager is the
   source of truth; Achtung stores no silences. `services/silences.ts` reads each
@@ -202,13 +225,17 @@ The identity below is a contract that features build on
 - Deployed as one container image (`Dockerfile`). It applies migrations on startup and
   writes nothing to disk, so it runs with a read-only root filesystem.
 - Configuration comes from the environment (`src/config.ts`): `DATABASE_URL` (required),
-  `HOST`, `PORT`, `LOG_LEVEL`, `ALERTMANAGERS`. The standard libpq variables
-  (`PGPASSWORD`, …) fill in what `DATABASE_URL` leaves out, so a password never needs
-  URL-encoding.
+  `HOST`, `PORT`, `LOG_LEVEL`, `ALERTMANAGERS`, `IRM_API_URL`, `IRM_API_TOKEN`. The
+  standard libpq variables (`PGPASSWORD`, …) fill in what `DATABASE_URL` leaves out, so a
+  password never needs URL-encoding.
 - `ALERTMANAGERS` is a JSON object of instance name → `{ "url": "…", "username": "…",
   "password": "…" }` (the credentials are optional, basic auth). It holds credentials,
   so set it from a secret. An instance without an entry can't be silenced and has no
-  entry in the home view.
+  entry in the home view. An entry may also name `irmIntegrationId`, its cluster's
+  Grafana IRM integration, whose heartbeat its Home tile shows (ADR 0012).
+- `IRM_API_URL` (e.g. `https://oncall-prod-eu-west-0.grafana.net/oncall`, no credentials
+  in it) and `IRM_API_TOKEN` (sent raw as `Authorization`) go together or not at all.
+  The token is a secret. Without them, no tile has an IRM heartbeat.
 - Logs are structured JSON from pino (through Fastify). `/healthz` reports liveness and
   `/readyz` reports readiness, which fails with a 503 while the database is unreachable.
 

@@ -26,7 +26,9 @@ Achtung got, not what is wrong.
   `severity` label; an unknown or missing one is `other`. `silenced` counts suppressed
   alerts with a silence, and `inhibited` counts the ones only inhibited, so an alert both
   silenced and inhibited is counted once, as silenced. `Watchdog` and `InfoInhibitor`
-  fire all the time by design, so no count includes them. `watchdog` says whether a
+  fire all the time by design, so no count includes them (since ADR 0011, a list of
+  ignored alert names, shared and editable, seeded with these two and
+  `grafana-irm-heartbeat`). `watchdog` says whether a
   `Watchdog` alert is there in any state: when it is absent, the alerting pipeline
   upstream of Alertmanager is broken.
 - **Reads are cached like silences** (ADR 0008): each instance's alerts are read at most
@@ -44,9 +46,10 @@ Achtung got, not what is wrong.
   and ingest stores it on the channel (`channels.receiver`), updating it when it changes.
   The core stays source-agnostic: it stores a name, and only the delivery check gives it
   Alertmanager's meaning.
-- **The delivery check compares the two** and reports per instance. It compares firings,
-  not alerts: an Alertmanager alert matches an occurrence when both its fingerprint and
-  its `startsAt` do, as an occurrence's identity does (ADR 0007).
+- **The delivery check compares the two** and reports per instance. Since ADR 0011, an
+  alert with an ignored name is in neither of its lists. It compares firings, not
+  alerts: an Alertmanager alert matches an occurrence when both its fingerprint and its
+  `startsAt` do, as an occurrence's identity does (ADR 0007).
   - `missingInAchtung`: alerts that notify, are routed to a receiver some channel of that
     instance has recorded, started over 10 minutes before the read, and have no firing
     occurrence on that instance. Alerts routed only elsewhere are not expected, so a
@@ -97,8 +100,9 @@ Clicking a tile in the client lists that Alertmanager's alerts, so the server ha
 `GET /api/v2/alerts` read as the tile (30 seconds, one at a time, the last good read kept),
 so the list and the counts can't disagree. Each alert stands where the counts put it
 (`active`, `silenced` or `inhibited`, from one shared function), without Watchdog and
-InfoInhibitor; a suppressed alert that is neither silenced nor inhibited (muted by a time
-interval) is in no count, so it isn't listed either. `occurrenceId` matches the firing
+InfoInhibitor (since ADR 0011, without the ignored alert names); a suppressed alert that
+is neither silenced nor inhibited (muted by a time interval) is in no count, so it isn't
+listed either. `occurrenceId` matches the firing
 like the delivery check does (fingerprint and `startsAt`, ADR 0007); when two channels of
 the instance have the firing, the lowest id wins. `silencedUntil` comes from the silences
 cache by the silence ids Alertmanager names, so it is null while that cache hasn't seen

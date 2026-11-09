@@ -29,12 +29,21 @@ interface OpenCounts {
   readonly other: number;
 }
 
+/**
+ * Alert names the Home views leave out, matched exactly against `alertname` (ADR 0011): a
+ * shared setting, e.g. alerts that fire all the time by design, like Watchdog.
+ */
+export type IgnoredAlertNames = ReadonlySet<string | undefined>;
+
 export interface AlertCounts {
   readonly open: OpenCounts;
   readonly silenced: number;
   /** Inhibited and not silenced: a silenced alert counts as silenced only. */
   readonly inhibited: number;
-  /** Whether the always-firing Watchdog alert is there, i.e. the alerting pipeline works. */
+  /**
+   * Whether the always-firing Watchdog alert is there, i.e. the alerting pipeline works.
+   * Independent of the ignored names: ignoring Watchdog only keeps it out of the counts.
+   */
   readonly watchdog: "firing" | "absent";
 }
 
@@ -81,6 +90,7 @@ interface Firing {
 /** What Achtung stores of a firing occurrence that the delivery check needs. */
 interface FiringOccurrence extends Firing {
   readonly lastReceivedAt: Date;
+  readonly labels: Readonly<Record<string, string>>;
 }
 
 export interface Delivery<T extends FiringOccurrence> {
@@ -97,8 +107,6 @@ export interface Delivery<T extends FiringOccurrence> {
 export const deliveryGraceMs = 10 * 60 * 1000;
 
 const watchdog = "Watchdog";
-// They fire all the time by design, so they would only ever inflate the counts.
-const alwaysFiring: ReadonlySet<string | undefined> = new Set([watchdog, "InfoInhibitor"]);
 
 const nameOf = (alert: AlertmanagerAlert) => alert.labels["alertname"];
 const titleOf = (alert: AlertmanagerAlert) => nameOf(alert) ?? alert.fingerprint;
@@ -109,7 +117,9 @@ const keyOf = ({ sourceKey, startsAt }: Firing) => `${sourceKey}@${startsAt.getT
 const alertKey = (alert: AlertmanagerAlert) =>
   keyOf({ sourceKey: alert.fingerprint, startsAt: alert.startsAt });
 
-const isAlwaysFiring = (alert: AlertmanagerAlert) => alwaysFiring.has(nameOf(alert));
+// An alert without an alertname is never ignored: no name in the set is undefined.
+const isIgnored = (labels: Readonly<Record<string, string>>, ignored: IgnoredAlertNames) =>
+  ignored.has(labels["alertname"]);
 
 const isNotifying = (alert: AlertmanagerAlert) => alert.state !== "suppressed";
 
@@ -126,15 +136,19 @@ function standingOf(alert: AlertmanagerAlert): Standing | null {
 }
 
 /** The alerts the counts and the list are about, each with its standing. */
-function standings(alerts: readonly AlertmanagerAlert[]) {
+function standings(alerts: readonly AlertmanagerAlert[], ignored: IgnoredAlertNames) {
   return alerts.flatMap((alert) => {
-    const standing = isAlwaysFiring(alert) ? null : standingOf(alert);
+    const standing = isIgnored(alert.labels, ignored) ? null : standingOf(alert);
     return standing === null ? [] : [{ alert, standing }];
   });
 }
 
-export function countAlerts(alerts: readonly AlertmanagerAlert[]): AlertCounts {
-  const counted = standings(alerts);
+/** Counts the alerts, leaving out the ignored ones; `watchdog` looks at every alert. */
+export function countAlerts(
+  alerts: readonly AlertmanagerAlert[],
+  ignored: IgnoredAlertNames,
+): AlertCounts {
+  const counted = standings(alerts, ignored);
   const inStanding = (standing: Standing) =>
     counted.filter((entry) => entry.standing === standing).map(({ alert }) => alert);
   const severities = inStanding("active").map(severityOf);
@@ -162,6 +176,7 @@ const severityOrder: readonly Severity[] = ["critical", "warning", "info", "unkn
  */
 export function alertListOf(
   alerts: readonly AlertmanagerAlert[],
+  ignored: IgnoredAlertNames,
   achtung: {
     /** The instance's occurrences from this Alertmanager, in any status. */
     readonly occurrences: readonly (Firing & { readonly id: number })[];
@@ -175,7 +190,7 @@ export function alertListOf(
       .toSorted((a, b) => b.id - a.id)
       .map((occurrence) => [keyOf(occurrence), occurrence.id]),
   );
-  return standings(alerts)
+  return standings(alerts, ignored)
     .map(({ alert, standing }) => {
       const listed = {
         fingerprint: alert.fingerprint,
@@ -212,11 +227,12 @@ function silenceEnd(
 /**
  * Compares what an Alertmanager had open at `readAt` with what fires in Achtung for that
  * instance, firing by firing (fingerprint and start). Only alerts routed to a receiver
- * Achtung has heard from can be missing: Achtung sees nothing else. Nothing is changed;
- * this only reports (ADR 0010).
+ * Achtung has heard from can be missing: Achtung sees nothing else. Ignored alerts are
+ * neither missing nor stale. Nothing is changed; this only reports (ADR 0010).
  */
 export function deliveryOf<T extends FiringOccurrence>(
   alerts: readonly AlertmanagerAlert[],
+  ignored: IgnoredAlertNames,
   {
     receivers,
     firing,
@@ -241,6 +257,7 @@ export function deliveryOf<T extends FiringOccurrence>(
   return {
     missingInAchtung: alerts
       .filter(isNotifying)
+      .filter((alert) => !isIgnored(alert.labels, ignored))
       .filter((alert) => alert.receivers.some((receiver) => receivers.has(receiver)))
       .filter((alert) => settled(alert.startsAt) && !inAchtung.has(alertKey(alert)))
       .toSorted(oldestFirst)
@@ -251,6 +268,7 @@ export function deliveryOf<T extends FiringOccurrence>(
         startsAt: alert.startsAt,
       })),
     staleInAchtung: firing
+      .filter((occurrence) => !isIgnored(occurrence.labels, ignored))
       .filter((occurrence) => !inAlertmanager.has(keyOf(occurrence)))
       .filter((occurrence) => settled(occurrence.lastReceivedAt))
       .toSorted(oldestFirst),

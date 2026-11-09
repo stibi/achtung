@@ -43,6 +43,13 @@
       "when": 1794226226977,
       "tag": "0005_channel_receiver",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794235133116,
+      "tag": "0006_ignored_alert_names",
+      "breakpoints": true
     }
   ]
 }

@@ -15,7 +15,7 @@ import {
   silencedUntil,
 } from "../domain/silence.ts";
 import { alertmanagerSource } from "../sources/alertmanager/index.ts";
-import { cachedRead } from "./alertmanager-reads.ts";
+import { alertmanagerReads, cachedRead } from "./alertmanager-reads.ts";
 
 /** Alertmanager decides what is silenced (ADR 0008); this asks it, per instance. */
 export interface Silences {
@@ -50,6 +50,7 @@ export function silencesFrom(
         () => listSilences(endpoint),
         now,
         (error) => onReadError(instance, error),
+        alertmanagerReads,
       ),
     ]),
   );

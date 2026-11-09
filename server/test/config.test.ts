@@ -11,6 +11,7 @@ describe("loadConfig", () => {
       logLevel: "info",
       databaseUrl,
       alertmanagers: new Map(),
+      irm: null,
     });
   });
 
@@ -29,19 +30,27 @@ describe("loadConfig", () => {
     const config = loadConfig({
       DATABASE_URL: databaseUrl,
       ALERTMANAGERS: JSON.stringify({
-        onprem: { url: "http://alertmanager.monitoring.svc:9093" },
+        onprem: { url: "http://alertmanager.monitoring.svc:9093", irmIntegrationId: "CABC123" },
         edge: { url: "https://alertmanager.example.com/", username: "achtung", password: "pw" },
       }),
     });
 
     expect(config.alertmanagers).toEqual(
       new Map([
-        ["onprem", { url: "http://alertmanager.monitoring.svc:9093", basicAuth: null }],
+        [
+          "onprem",
+          {
+            url: "http://alertmanager.monitoring.svc:9093",
+            basicAuth: null,
+            irmIntegrationId: "CABC123",
+          },
+        ],
         [
           "edge",
           {
             url: "https://alertmanager.example.com/",
             basicAuth: { username: "achtung", password: "pw" },
+            irmIntegrationId: null,
           },
         ],
       ]),
@@ -59,6 +68,14 @@ describe("loadConfig", () => {
     ["an unknown field", JSON.stringify({ onprem: { url: "http://am", token: "t" } })],
     ["credentials in the URL", JSON.stringify({ onprem: { url: "http://a:s3cret@am:9093" } })],
     ["a URL that is not a URL", JSON.stringify({ onprem: { url: "not a url" } })],
+    [
+      "an IRM integration ID that is not one",
+      JSON.stringify({ onprem: { url: "http://am", irmIntegrationId: "C1&perpage=100" } }),
+    ],
+    [
+      "an empty IRM integration ID",
+      JSON.stringify({ onprem: { url: "http://am", irmIntegrationId: "" } }),
+    ],
   ])("rejects ALERTMANAGERS with %s", (_, value) => {
     expect(() => loadConfig({ DATABASE_URL: databaseUrl, ALERTMANAGERS: value })).toThrow(
       /ALERTMANAGERS/,
@@ -72,5 +89,37 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ DATABASE_URL: databaseUrl, ALERTMANAGERS: value })).toThrow(
       expect.not.objectContaining({ message: expect.stringContaining("s3cret") }),
     );
+  });
+
+  const irmUrl = "https://oncall.example.com/oncall";
+
+  it("reads Grafana IRM's API URL and token", () => {
+    expect(
+      loadConfig({ DATABASE_URL: databaseUrl, IRM_API_URL: irmUrl, IRM_API_TOKEN: "t0ken" }).irm,
+    ).toEqual({ url: irmUrl, token: "t0ken" });
+  });
+
+  it.each([
+    ["a URL without a token", { IRM_API_URL: irmUrl }, /IRM_API_TOKEN/],
+    ["a token without a URL", { IRM_API_TOKEN: "t0ken" }, /IRM_API_TOKEN/],
+    ["an empty token", { IRM_API_URL: irmUrl, IRM_API_TOKEN: "" }, /IRM_API_TOKEN/],
+    ["a URL that is not HTTP", { IRM_API_URL: "ftp://oncall", IRM_API_TOKEN: "t" }, /IRM_API_URL/],
+    [
+      "credentials in the URL",
+      { IRM_API_URL: "https://user:s3cret@oncall.example.com/oncall", IRM_API_TOKEN: "t" },
+      /IRM_API_URL/,
+    ],
+  ])("rejects IRM with %s", (_, env, field) => {
+    expect(() => loadConfig({ DATABASE_URL: databaseUrl, ...env })).toThrow(field);
+  });
+
+  it("never puts the IRM token or URL credentials in its error", () => {
+    expect(() =>
+      loadConfig({
+        DATABASE_URL: databaseUrl,
+        IRM_API_URL: "https://user:s3cret@oncall.example.com/oncall",
+        IRM_API_TOKEN: "t0ken-s3cret",
+      }),
+    ).toThrow(expect.not.objectContaining({ message: expect.stringMatching(/s3cret/) }));
   });
 });

@@ -4,6 +4,7 @@ import { migrateDatabase } from "./db/migrate.ts";
 import { buildApp } from "./http/app.ts";
 import { alertmanagerAlertsFrom } from "./services/home.ts";
 import { servicesFor } from "./services/index.ts";
+import { irmHeartbeatsFrom } from "./services/irm-heartbeats.ts";
 import { silencesFrom } from "./services/silences.ts";
 import { alertmanagerSource } from "./sources/alertmanager/index.ts";
 
@@ -19,10 +20,23 @@ const alerts = alertmanagerAlertsFrom(config.alertmanagers, {
   onReadError: (instance, error) =>
     app.log.warn({ instance, err: error }, "could not read alerts from Alertmanager"),
 });
+const heartbeats = irmHeartbeatsFrom(
+  config.irm,
+  new Map(
+    [...config.alertmanagers].flatMap(([instance, { irmIntegrationId }]) =>
+      irmIntegrationId === null ? [] : [[instance, irmIntegrationId] as const],
+    ),
+  ),
+  {
+    // The home view shows the heartbeat as unknown, or its last status, with the error.
+    onReadError: (integrationId, error) =>
+      app.log.warn({ integrationId, err: error }, "could not read heartbeats from Grafana IRM"),
+  },
+);
 const app = buildApp({
   logLevel: config.logLevel,
   sources: [alertmanagerSource],
-  services: servicesFor(db, { silences, alerts }),
+  services: servicesFor(db, { silences, alerts, heartbeats }),
   checkReady: () => ping(pool),
 });
 

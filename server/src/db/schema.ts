@@ -114,3 +114,13 @@ export const events = pgTable(
     index("events_recorded_at").on(table.recordedAt),
   ],
 );
+
+/**
+ * Alert names the Home views leave out (ADR 0011): one list shared by every client, as
+ * there are no users (ADR 0002). Migration 0006 seeds it.
+ */
+export const ignoredAlertNames = pgTable("ignored_alert_names", {
+  // An alertname, matched exactly and case-sensitively.
+  name: text().primaryKey(),
+  createdAt: timestamptz().notNull(),
+});

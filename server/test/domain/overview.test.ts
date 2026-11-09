@@ -1,16 +1,10 @@
 import { describe, expect, it } from "vitest";
-import {
-  type AlertmanagerAlert,
-  countAlerts,
-  deliveryGraceMs,
-  deliveryOf,
-  longestFiring,
-} from "../../src/domain/overview.ts";
-import { alert, inhibited, minutesBefore, readAt, silenced } from "./alertmanager-alerts.ts";
+import { type AlertmanagerAlert, countAlerts, longestFiring } from "../../src/domain/overview.ts";
+import { alert, inhibited, nothingIgnored, silenced } from "./alertmanager-alerts.ts";
 
 describe("countAlerts", () => {
   it("counts nothing for an Alertmanager with no alerts", () => {
-    expect(countAlerts([])).toEqual({
+    expect(countAlerts([], nothingIgnored)).toEqual({
       open: { total: 0, critical: 0, warning: 0, info: 0, other: 0 },
       silenced: 0,
       inhibited: 0,
@@ -19,20 +13,25 @@ describe("countAlerts", () => {
   });
 
   it("buckets notifying alerts by severity, unknown ones as other", () => {
-    const counts = countAlerts([
-      alert("A", { severity: "critical" }),
-      alert("B", { severity: "critical" }),
-      alert("C", { severity: "warning" }),
-      alert("D", { severity: "Info" }),
-      alert("E", { severity: "page" }),
-      alert("F"),
-    ]);
+    const counts = countAlerts(
+      [
+        alert("A", { severity: "critical" }),
+        alert("B", { severity: "critical" }),
+        alert("C", { severity: "warning" }),
+        alert("D", { severity: "Info" }),
+        alert("E", { severity: "page" }),
+        alert("F"),
+      ],
+      nothingIgnored,
+    );
 
     expect(counts.open).toEqual({ total: 6, critical: 2, warning: 1, info: 1, other: 2 });
   });
 
   it("counts unprocessed alerts as open: they will notify", () => {
-    expect(countAlerts([alert("A", { state: "unprocessed", severity: "warning" })]).open).toEqual({
+    expect(
+      countAlerts([alert("A", { state: "unprocessed", severity: "warning" })], nothingIgnored).open,
+    ).toEqual({
       total: 1,
       critical: 0,
       warning: 1,
@@ -42,12 +41,15 @@ describe("countAlerts", () => {
   });
 
   it("counts silenced and inhibited alerts apart from the open ones", () => {
-    const counts = countAlerts([
-      alert("A", { ...silenced, severity: "critical" }),
-      alert("B", { ...inhibited, severity: "critical" }),
-      alert("C", { ...inhibited }),
-      alert("D", { severity: "critical" }),
-    ]);
+    const counts = countAlerts(
+      [
+        alert("A", { ...silenced, severity: "critical" }),
+        alert("B", { ...inhibited, severity: "critical" }),
+        alert("C", { ...inhibited }),
+        alert("D", { severity: "critical" }),
+      ],
+      nothingIgnored,
+    );
 
     expect(counts).toMatchObject({
       open: { total: 1, critical: 1 },
@@ -59,200 +61,101 @@ describe("countAlerts", () => {
   it("counts an alert both silenced and inhibited as silenced only", () => {
     const both = alert("A", { state: "suppressed", silencedBy: ["s1"], inhibitedBy: ["fp-x"] });
 
-    expect(countAlerts([both])).toMatchObject({ silenced: 1, inhibited: 0 });
+    expect(countAlerts([both], nothingIgnored)).toMatchObject({ silenced: 1, inhibited: 0 });
   });
 
   it("goes by the state: an active alert naming a silence is open", () => {
     const active = alert("A", { silencedBy: ["s1"], severity: "warning" });
 
-    expect(countAlerts([active])).toMatchObject({ open: { total: 1, warning: 1 }, silenced: 0 });
+    expect(countAlerts([active], nothingIgnored)).toMatchObject({
+      open: { total: 1, warning: 1 },
+      silenced: 0,
+    });
   });
 
   it("counts a suppressed alert neither silenced nor inhibited nowhere", () => {
     const muted = alert("A", { state: "suppressed", severity: "critical" });
 
-    expect(countAlerts([muted])).toMatchObject({
+    expect(countAlerts([muted], nothingIgnored)).toMatchObject({
       open: { total: 0, critical: 0 },
       silenced: 0,
       inhibited: 0,
     });
   });
 
-  it("leaves out Watchdog and InfoInhibitor, in any state", () => {
-    const counts = countAlerts([
-      alert("Watchdog", { severity: "none" }),
-      alert("InfoInhibitor", { severity: "none" }),
-      alert("Watchdog", { ...silenced }),
-      alert("InfoInhibitor", { ...inhibited }),
-    ]);
+  it("leaves out the ignored alert names, in any state", () => {
+    const ignored = new Set(["Watchdog", "grafana-irm-heartbeat"]);
+    const counts = countAlerts(
+      [
+        alert("Watchdog", { severity: "none" }),
+        alert("grafana-irm-heartbeat", { severity: "critical" }),
+        alert("Watchdog", { ...silenced }),
+        alert("grafana-irm-heartbeat", { ...inhibited }),
+        alert("InfoInhibitor", { severity: "none" }),
+      ],
+      ignored,
+    );
 
-    expect(counts).toMatchObject({ open: { total: 0, other: 0 }, silenced: 0, inhibited: 0 });
+    expect(counts).toEqual({
+      open: { total: 1, critical: 0, warning: 0, info: 0, other: 1 },
+      silenced: 0,
+      inhibited: 0,
+      watchdog: "firing",
+    });
+  });
+
+  it("matches an ignored name exactly and case-sensitively", () => {
+    const ignored = new Set(["Watchdog"]);
+    const counts = countAlerts(
+      [alert("watchdog"), alert("WatchdogX"), alert("Watch"), alert(" Watchdog")],
+      ignored,
+    );
+
+    expect(counts.open.total).toBe(4);
+  });
+
+  it("counts every alert when nothing is ignored, Watchdog too", () => {
+    const counts = countAlerts(
+      [alert("Watchdog", { severity: "none" }), alert("InfoInhibitor", { ...inhibited })],
+      nothingIgnored,
+    );
+
+    expect(counts).toEqual({
+      open: { total: 1, critical: 0, warning: 0, info: 0, other: 1 },
+      silenced: 0,
+      inhibited: 1,
+      watchdog: "firing",
+    });
+  });
+
+  it("never ignores an alert without an alertname", () => {
+    const nameless: AlertmanagerAlert = { ...alert("A"), labels: {} };
+
+    expect(countAlerts([nameless], new Set(["A", "fp-A"])).open.total).toBe(1);
+  });
+
+  it("says the Watchdog fires while it is ignored: the heart doesn't depend on the list", () => {
+    const ignored = new Set(["Watchdog"]);
+
+    expect(countAlerts([alert("Watchdog")], ignored).watchdog).toBe("firing");
+    expect(countAlerts([alert("Watchdog", { ...inhibited })], ignored).watchdog).toBe("firing");
+    expect(countAlerts([], ignored).watchdog).toBe("absent");
   });
 
   it("says whether the Watchdog fires, even when it is suppressed", () => {
-    expect(countAlerts([alert("Watchdog")]).watchdog).toBe("firing");
-    expect(countAlerts([alert("Watchdog", { ...silenced })]).watchdog).toBe("firing");
-    expect(countAlerts([alert("InfoInhibitor"), alert("WatchdogX")]).watchdog).toBe("absent");
+    expect(countAlerts([alert("Watchdog")], nothingIgnored).watchdog).toBe("firing");
+    expect(countAlerts([alert("Watchdog", { ...silenced })], nothingIgnored).watchdog).toBe(
+      "firing",
+    );
+    expect(countAlerts([alert("InfoInhibitor"), alert("WatchdogX")], nothingIgnored).watchdog).toBe(
+      "absent",
+    );
   });
 
   it("counts an alert without an alertname", () => {
     const nameless: AlertmanagerAlert = { ...alert("A"), labels: { severity: "info" } };
 
-    expect(countAlerts([nameless]).open).toMatchObject({ total: 1, info: 1 });
-  });
-});
-
-function firing(sourceKey: string, startedMinutesAgo: number, lastReceivedMinutesAgo: number) {
-  return {
-    sourceKey,
-    startsAt: minutesBefore(startedMinutesAgo),
-    lastReceivedAt: minutesBefore(lastReceivedMinutesAgo),
-  };
-}
-
-const graceMinutes = deliveryGraceMs / 60_000;
-const justOverGrace = (startsAt: Date) => new Date(startsAt.getTime() - 1);
-
-describe("deliveryOf: missing in Achtung", () => {
-  const receivers = new Set(["team"]);
-  const missing = (
-    alerts: AlertmanagerAlert[],
-    firingKeys: string[] = [],
-    changedAfterRead: { sourceKey: string; startsAt: Date }[] = [],
-  ) =>
-    deliveryOf(alerts, {
-      receivers,
-      firing: firingKeys.map((key) => firing(key, 60, 1)),
-      changedAfterRead,
-      readAt,
-    }).missingInAchtung;
-
-  it("expects a new firing even while an older occurrence of the alert still fires", () => {
-    // fp-A fires in Achtung since 60 minutes ago; Alertmanager's firing started 30 ago.
-    expect(missing([alert("A", { startsAt: minutesBefore(30) })], ["fp-A"])).toEqual([
-      expect.objectContaining({ fingerprint: "fp-A", startsAt: minutesBefore(30) }),
-    ]);
-  });
-
-  it("doesn't expect an alert that changed in Achtung after the read, e.g. resolved", () => {
-    const changed = [{ sourceKey: "fp-A", startsAt: minutesBefore(60) }];
-    const olderFiring = [{ sourceKey: "fp-B", startsAt: minutesBefore(90) }];
-
-    expect(missing([alert("A"), alert("B")], [], [...changed, ...olderFiring])).toEqual([
-      expect.objectContaining({ fingerprint: "fp-B" }),
-    ]);
-  });
-
-  it("lists a notifying alert routed to Achtung that doesn't fire there", () => {
-    const startsAt = minutesBefore(30);
-
-    expect(missing([alert("A", { severity: "critical", startsAt })])).toEqual([
-      { fingerprint: "fp-A", title: "A", severity: "critical", startsAt },
-    ]);
-  });
-
-  it("leaves out an alert that fires in Achtung", () => {
-    expect(missing([alert("A"), alert("B")], ["fp-A"])).toEqual([
-      expect.objectContaining({ fingerprint: "fp-B" }),
-    ]);
-  });
-
-  it("waits out the grace for notifications in flight", () => {
-    const exactlyGrace = minutesBefore(graceMinutes);
-
-    expect(missing([alert("A", { startsAt: exactlyGrace })])).toEqual([]);
-    expect(missing([alert("A", { startsAt: justOverGrace(exactlyGrace) })])).toHaveLength(1);
-  });
-
-  it("only expects alerts routed to a receiver that delivers to Achtung", () => {
-    expect(missing([alert("A", { receivers: ["null"] })])).toEqual([]);
-    expect(missing([alert("A", { receivers: [] })])).toEqual([]);
-    expect(missing([alert("A", { receivers: ["null", "team"] })])).toHaveLength(1);
-  });
-
-  it("expects nothing before Achtung has heard of any receiver", () => {
-    const delivery = deliveryOf([alert("A")], {
-      receivers: new Set(),
-      firing: [],
-      changedAfterRead: [],
-      readAt,
-    });
-
-    expect(delivery.missingInAchtung).toEqual([]);
-  });
-
-  it("doesn't expect silenced or inhibited alerts, but does unprocessed ones", () => {
-    expect(missing([alert("A", { ...silenced }), alert("B", { ...inhibited })])).toEqual([]);
-    expect(missing([alert("A", { state: "unprocessed" })])).toHaveLength(1);
-  });
-
-  it("titles an alert without an alertname by its fingerprint", () => {
-    const nameless: AlertmanagerAlert = { ...alert("A"), labels: {} };
-
-    expect(missing([nameless])).toEqual([
-      expect.objectContaining({ title: "fp-A", severity: "unknown" }),
-    ]);
-  });
-
-  it("lists the oldest first", () => {
-    const alerts = [
-      alert("B", { startsAt: minutesBefore(20) }),
-      alert("A", { startsAt: minutesBefore(40) }),
-      alert("C", { startsAt: minutesBefore(30) }),
-    ];
-
-    expect(missing(alerts).map((item) => item.title)).toEqual(["A", "C", "B"]);
-  });
-});
-
-describe("deliveryOf: stale in Achtung", () => {
-  const stale = (alerts: AlertmanagerAlert[], occurrences: ReturnType<typeof firing>[]) =>
-    deliveryOf(alerts, {
-      receivers: new Set(["team"]),
-      firing: occurrences,
-      changedAfterRead: [],
-      readAt,
-    }).staleInAchtung;
-
-  it("lists an occurrence whose alert has since fired again with a new start", () => {
-    // A resolve muted by a silence never arrived (ADR 0008); the alert fired again later.
-    const old = firing("fp-A", 120, 30);
-
-    expect(stale([alert("A", { startsAt: minutesBefore(20) })], [old])).toEqual([old]);
-  });
-
-  it("lists an occurrence that fires in Achtung but is gone from Alertmanager", () => {
-    const occurrence = firing("fp-gone", 60, 30);
-
-    expect(stale([alert("A")], [occurrence, firing("fp-A", 60, 30)])).toEqual([occurrence]);
-  });
-
-  it("keeps an occurrence Alertmanager still has, in any state or route", () => {
-    const alerts = [
-      alert("A", { ...silenced }),
-      alert("B", { ...inhibited }),
-      alert("C", { receivers: ["null"] }),
-    ];
-    const occurrences = ["fp-A", "fp-B", "fp-C"].map((key) => firing(key, 60, 30));
-
-    expect(stale(alerts, occurrences)).toEqual([]);
-  });
-
-  it("waits out the grace after the last notification", () => {
-    const exactlyGrace = firing("fp-gone", 60, graceMinutes);
-    const overGrace = {
-      ...exactlyGrace,
-      lastReceivedAt: justOverGrace(exactlyGrace.lastReceivedAt),
-    };
-
-    expect(stale([], [exactlyGrace])).toEqual([]);
-    expect(stale([], [overGrace])).toEqual([overGrace]);
-  });
-
-  it("lists the oldest first", () => {
-    const occurrences = [firing("b", 20, 15), firing("a", 40, 15), firing("c", 30, 15)];
-
-    expect(stale([], occurrences).map((item) => item.sourceKey)).toEqual(["a", "c", "b"]);
+    expect(countAlerts([nameless], nothingIgnored).open).toMatchObject({ total: 1, info: 1 });
   });
 });
 

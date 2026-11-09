@@ -66,6 +66,17 @@ their own instance.
   dropped (a missed resolve). It only reports them. Plus the active silences, the
   noisiest alerts of the last day and the longest firing ones
   ([ADR 0010](docs/adr/0010-home-view.md)).
+- **IRM heartbeat on Home** (server API, `irm` on each `/api/home` tile): whether Grafana
+  IRM actually receives the heartbeat the Alertmanager sends it, read from IRM's
+  `OnCallHeartBeatMissing` alert groups at most once a minute, with the last missed
+  heartbeat. Needs `IRM_API_URL`, `IRM_API_TOKEN` and the instance's `irmIntegrationId`
+  ([ADR 0012](docs/adr/0012-irm-heartbeat.md)).
+- **Ignored alert names** (server API, `/api/settings/ignored-alerts`): alerts that fire
+  forever by design, such as `Watchdog`, `InfoInhibitor` and `grafana-irm-heartbeat` (the
+  defaults), are left out of Home's counts, tile lists and delivery check. One list,
+  shared by every client and editable by anyone who can reach the API; the inbox still
+  shows these alerts, and the Watchdog heart still watches `Watchdog`
+  ([ADR 0011](docs/adr/0011-ignored-alert-names.md)).
 - **Zero setup per channel:** pointing a receiver at a new URL creates the channel.
 - **Silence an alert** for a while, on the Alertmanager it came from. Every alert shows
   whether it is silenced and until when, including silences made in Alertmanager itself

@@ -30,6 +30,10 @@ export interface Inbox {
   getHome(): Promise<Home>;
   /** The alerts behind an Alertmanager's tile; null when the instance has none. */
   listAlertmanagerAlerts(instance: string): Promise<AlertmanagerAlertList | null>;
+  /** The alert names the Home views leave out, sorted (ADR 0011). */
+  getIgnoredAlertNames(): Promise<string[]>;
+  /** Replaces them with `names` and returns them as stored, sorted. */
+  setIgnoredAlertNames(names: readonly string[]): Promise<string[]>;
 }
 
 /** The app with Zod schemas typing each route's request and reply. */

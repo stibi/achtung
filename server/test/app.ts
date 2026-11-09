@@ -1,9 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { onTestFinished } from "vitest";
 import type { AlertmanagerEndpoint } from "../src/clients/alertmanager.ts";
+import type { IrmEndpoint } from "../src/clients/irm.ts";
 import { buildApp, type Services } from "../src/http/app.ts";
 import { type AlertmanagerAlertsOptions, alertmanagerAlertsFrom } from "../src/services/home.ts";
 import { servicesFor } from "../src/services/index.ts";
+import { type IrmHeartbeatsOptions, irmHeartbeatsFrom } from "../src/services/irm-heartbeats.ts";
 import { type SilencesOptions, silencesFrom } from "../src/services/silences.ts";
 import { alertmanagerSource } from "../src/sources/alertmanager/index.ts";
 import { createTestDatabase } from "./database.ts";
@@ -20,6 +22,8 @@ export const unusedServices: Services = {
   silenceOccurrence: unused,
   getHome: unused,
   listAlertmanagerAlerts: unused,
+  getIgnoredAlertNames: unused,
+  setIgnoredAlertNames: unused,
 };
 
 export interface TestAppOptions {
@@ -29,6 +33,13 @@ export interface TestAppOptions {
   readonly alertmanagers?: Readonly<Record<string, AlertmanagerEndpoint>>;
   readonly silences?: SilencesOptions;
   readonly alerts?: AlertmanagerAlertsOptions;
+  /** Grafana IRM, e.g. a stub (test/irm-stub.ts), and each instance's integration ID. None by default. */
+  readonly irm?: {
+    /** Null: integrations configured, but not IRM itself. */
+    readonly endpoint: IrmEndpoint | null;
+    readonly integrations: Readonly<Record<string, string>>;
+    readonly options?: IrmHeartbeatsOptions;
+  };
   /** The clock of the services themselves, e.g. the home view's last 24 hours. */
   readonly now?: () => Date;
 }
@@ -45,6 +56,11 @@ export async function appWithDatabase(
     {
       silences: silencesFrom(endpoints, options.silences),
       alerts: alertmanagerAlertsFrom(endpoints, options.alerts),
+      heartbeats: irmHeartbeatsFrom(
+        options.irm?.endpoint ?? null,
+        new Map(Object.entries(options.irm?.integrations ?? {})),
+        options.irm?.options,
+      ),
     },
     options.now,
   );

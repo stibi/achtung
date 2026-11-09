@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { type AlertmanagerAlert, alertListOf, countAlerts } from "../../src/domain/overview.ts";
-import { alert, inhibited, minutesBefore, silenced } from "./alertmanager-alerts.ts";
+import {
+  alert,
+  inhibited,
+  minutesBefore,
+  nothingIgnored,
+  silenced,
+} from "./alertmanager-alerts.ts";
 
 describe("alertListOf", () => {
   const none = { occurrences: [], silences: [] };
   const names = (alerts: readonly AlertmanagerAlert[]) =>
-    alertListOf(alerts, none).map((listed) => listed.title);
+    alertListOf(alerts, nothingIgnored, none).map((listed) => listed.title);
 
   it("lists an alert with what Alertmanager reported of it", () => {
     const disk = alert("DiskFilling", {
@@ -13,7 +19,7 @@ describe("alertListOf", () => {
       annotations: { summary: "Disk is filling", description: "Long text" },
     });
 
-    expect(alertListOf([disk], none)).toEqual([
+    expect(alertListOf([disk], nothingIgnored, none)).toEqual([
       {
         fingerprint: "fp-DiskFilling",
         title: "DiskFilling",
@@ -31,7 +37,7 @@ describe("alertListOf", () => {
   it("titles an alert without an alertname by its fingerprint, and has no summary without one", () => {
     const nameless: AlertmanagerAlert = { ...alert("A"), labels: {} };
 
-    expect(alertListOf([nameless], none)[0]).toMatchObject({
+    expect(alertListOf([nameless], nothingIgnored, none)[0]).toMatchObject({
       title: "fp-A",
       severity: "unknown",
       summary: null,
@@ -49,6 +55,7 @@ describe("alertListOf", () => {
         alert("Inhibited", { ...inhibited }),
         alert("Muted", { state: "suppressed" }),
       ],
+      nothingIgnored,
       none,
     );
 
@@ -72,9 +79,10 @@ describe("alertListOf", () => {
       alert("Watchdog"),
       alert("InfoInhibitor", { ...inhibited }),
     ];
-    const listed = alertListOf(alerts, none);
+    const ignored = new Set(["Watchdog", "InfoInhibitor"]);
+    const listed = alertListOf(alerts, ignored, none);
     const inState = (state: string) => listed.filter((item) => item.state === state).length;
-    const counts = countAlerts(alerts);
+    const counts = countAlerts(alerts, ignored);
 
     expect([inState("active"), inState("silenced"), inState("inhibited")]).toEqual([
       counts.open.total,
@@ -84,10 +92,27 @@ describe("alertListOf", () => {
     expect(listed.map((item) => item.title)).toEqual(["A", "B", "C", "D"]);
   });
 
-  it("leaves out Watchdog and InfoInhibitor, in any state", () => {
+  it("leaves out the ignored alert names, in any state, matching them exactly", () => {
+    const alerts = [
+      alert("Watchdog"),
+      alert("grafana-irm-heartbeat", { ...silenced }),
+      alert("Heartbeat", { ...inhibited }),
+      alert("WatchdogX"),
+      alert("watchdog"),
+    ];
+
     expect(
-      names([alert("Watchdog"), alert("InfoInhibitor", { ...silenced }), alert("WatchdogX")]),
-    ).toEqual(["WatchdogX"]);
+      alertListOf(alerts, new Set(["Watchdog", "grafana-irm-heartbeat", "Heartbeat"]), none).map(
+        (listed) => listed.title,
+      ),
+    ).toEqual(["watchdog", "WatchdogX"]);
+  });
+
+  it("lists every alert when nothing is ignored, Watchdog too", () => {
+    expect(names([alert("Watchdog"), alert("InfoInhibitor", { ...silenced })])).toEqual([
+      "InfoInhibitor",
+      "Watchdog",
+    ]);
   });
 
   it("orders by severity, then the newest start first, then by fingerprint", () => {
@@ -121,8 +146,8 @@ describe("alertListOf", () => {
       sourceKey,
       startsAt,
     });
-    const idOf = (occurrences: Parameters<typeof alertListOf>[1]["occurrences"]) =>
-      alertListOf([disk], { occurrences, silences: [] })[0]?.occurrenceId;
+    const idOf = (occurrences: Parameters<typeof alertListOf>[2]["occurrences"]) =>
+      alertListOf([disk], nothingIgnored, { occurrences, silences: [] })[0]?.occurrenceId;
 
     it("is the occurrence of the same firing: fingerprint and start", () => {
       expect(idOf([occurrence(7, "fp-Disk", minutesBefore(30))])).toBe(7);
@@ -155,7 +180,7 @@ describe("alertListOf", () => {
       silence("s3", "2026-10-14T08:00:00Z"),
     ];
     const listedWith = (fields: Partial<AlertmanagerAlert>) =>
-      alertListOf([alert("A", fields)], { occurrences: [], silences })[0];
+      alertListOf([alert("A", fields)], nothingIgnored, { occurrences: [], silences })[0];
 
     it("is when the latest of the silences muting it ends", () => {
       expect(listedWith({ state: "suppressed", silencedBy: ["s2", "s1"] })).toMatchObject({

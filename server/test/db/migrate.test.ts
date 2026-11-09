@@ -29,13 +29,33 @@ describe("migrateDatabase", () => {
     const tables = await pool.query<{ name: string }>(
       "select table_name as name from information_schema.tables where table_schema = 'public' order by 1",
     );
-    expect(tables.rows.map((row) => row.name)).toEqual(["channels", "events", "occurrences"]);
+    expect(tables.rows.map((row) => row.name)).toEqual([
+      "channels",
+      "events",
+      "ignored_alert_names",
+      "occurrences",
+    ]);
   });
 
   it("does nothing on an up-to-date database", async () => {
     const { pool } = await createTestDatabase();
 
     await expect(migrateDatabase(pool)).resolves.toBeUndefined();
+  });
+
+  it("seeds the ignored alert names with the always-firing alerts", async () => {
+    const { pool } = await createTestDatabase({ migrated: false });
+
+    await migrateDatabase(pool);
+
+    const rows = await pool.query<{ name: string }>(
+      'select name from ignored_alert_names order by name collate "C"',
+    );
+    expect(rows.rows.map((row) => row.name)).toEqual([
+      "InfoInhibitor",
+      "Watchdog",
+      "grafana-irm-heartbeat",
+    ]);
   });
 
   it("backfills last_event_at for occurrences stored before it existed", async () => {

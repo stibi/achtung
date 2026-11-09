@@ -25,3 +25,6 @@ export function alert(
 
 export const silenced = { state: "suppressed", silencedBy: ["s1"] } as const;
 export const inhibited = { state: "suppressed", inhibitedBy: ["fp-cause"] } as const;
+
+/** No alert name ignored: every alert counts. */
+export const nothingIgnored: ReadonlySet<string> = new Set();

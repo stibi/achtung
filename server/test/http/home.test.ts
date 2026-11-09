@@ -69,6 +69,7 @@ describe("GET /api/home: Alertmanagers", () => {
         inhibited: 1,
         watchdog: "firing",
         delivery: { missingInAchtung: [], staleInAchtung: [] },
+        irm: null,
       },
       {
         instance: "zulu",
@@ -80,6 +81,7 @@ describe("GET /api/home: Alertmanagers", () => {
         inhibited: 0,
         watchdog: "absent",
         delivery: { missingInAchtung: [], staleInAchtung: [] },
+        irm: null,
       },
     ]);
   });
@@ -104,6 +106,7 @@ describe("GET /api/home: Alertmanagers", () => {
         inhibited: null,
         watchdog: null,
         delivery: null,
+        irm: null,
       },
     ]);
     const error = body.alertmanagers[0].error as string;

@@ -4,6 +4,7 @@ import {
   listAlerts,
 } from "../clients/alertmanager.ts";
 import type { Database } from "../db/client.ts";
+import { listIgnoredAlertNames } from "../db/ignored-alert-names.ts";
 import {
   listFiringOccurrences,
   listNoisiestAlerts,
@@ -19,12 +20,14 @@ import {
   countAlerts,
   type Delivery,
   deliveryOf,
+  type IgnoredAlertNames,
   type ListedAlert,
   longestFiring,
 } from "../domain/overview.ts";
 import type { SilencedOccurrence } from "../domain/silence.ts";
 import { alertmanagerSource } from "../sources/alertmanager/index.ts";
-import { cachedRead, type Reading } from "./alertmanager-reads.ts";
+import { alertmanagerReads, cachedRead, type Reading } from "./alertmanager-reads.ts";
+import type { IrmHeartbeatReading, IrmHeartbeats } from "./irm-heartbeats.ts";
 import type { InstanceSilence, Silences } from "./silences.ts";
 
 /** Each instance's alerts, read from its Alertmanager at most once per window (ADR 0010). */
@@ -55,6 +58,7 @@ export function alertmanagerAlertsFrom(
           () => listAlerts(endpoint),
           now,
           (error) => onReadError(instance, error),
+          alertmanagerReads,
         ),
       ]),
   );
@@ -78,6 +82,8 @@ export interface AlertmanagerOverview {
     readonly counts: AlertCounts;
     readonly delivery: Delivery<SilencedOccurrence>;
   } | null;
+  /** Whether Grafana IRM receives its heartbeat; null without an IRM integration (ADR 0012). */
+  readonly irm: IrmHeartbeatReading | null;
 }
 
 /** One instance's Alertmanager's alerts, as the tile counts them, for its list. */
@@ -115,32 +121,36 @@ export async function getHome(
   db: Database,
   silences: Silences,
   alerts: AlertmanagerAlerts,
+  heartbeats: IrmHeartbeats,
   now: Date,
 ): Promise<Home> {
   const reads = alerts.readAll();
-  const [readings, changed, activeSilences, firing, receivers, noisiest] = await Promise.all([
-    reads,
-    reads.then((readings) =>
-      listOccurrencesChangedSince(
-        db,
-        alertmanagerSource.id,
-        readings.flatMap(({ instance, reading }) =>
-          reading.last === null ? [] : [{ instance, at: reading.last.readAt }],
+  const [readings, irm, ignored, changed, activeSilences, firing, receivers, noisiest] =
+    await Promise.all([
+      reads,
+      heartbeats.readAll(),
+      ignoredAlertNames(db),
+      reads.then((readings) =>
+        listOccurrencesChangedSince(
+          db,
+          alertmanagerSource.id,
+          readings.flatMap(({ instance, reading }) =>
+            reading.last === null ? [] : [{ instance, at: reading.last.readAt }],
+          ),
         ),
       ),
-    ),
-    silences.listActive(),
-    listFiringOccurrences(db).then((occurrences) => silences.annotate(occurrences)),
-    listReceivers(db),
-    listNoisiestAlerts(db, {
-      since: new Date(now.getTime() - noisyWindowMs),
-      minEvents: noisyFromEvents,
-      limit: shown,
-    }).then((noisy) => withSilences(silences, noisy)),
-  ]);
+      silences.listActive(),
+      listFiringOccurrences(db).then((occurrences) => silences.annotate(occurrences)),
+      listReceivers(db),
+      listNoisiestAlerts(db, {
+        since: new Date(now.getTime() - noisyWindowMs),
+        minEvents: noisyFromEvents,
+        limit: shown,
+      }).then((noisy) => withSilences(silences, noisy)),
+    ]);
   return {
     alertmanagers: readings.map(({ instance, reading }) =>
-      overviewOf(instance, reading, {
+      overviewOf(instance, reading, irm.get(instance) ?? null, ignored, {
         receivers: new Set(
           receivers.filter((row) => row.instance === instance).map((row) => row.receiver),
         ),
@@ -154,6 +164,14 @@ export async function getHome(
   };
 }
 
+/**
+ * Read for each request, never cached with the alerts, so a change applies to the next
+ * request even within the same Alertmanager read (ADR 0011).
+ */
+async function ignoredAlertNames(db: Database): Promise<IgnoredAlertNames> {
+  return new Set(await listIgnoredAlertNames(db));
+}
+
 /** Occurrences of the instance's Alertmanager in Achtung. */
 const fromAlertmanager =
   (instance: string) => (occurrence: { readonly instance: string; readonly source: string }) =>
@@ -164,6 +182,8 @@ type ChangedOccurrence = Awaited<ReturnType<typeof listOccurrencesChangedSince>>
 function overviewOf(
   instance: string,
   reading: Reading<readonly AlertmanagerAlert[]>,
+  irm: IrmHeartbeatReading | null,
+  ignored: IgnoredAlertNames,
   achtung: {
     readonly receivers: ReadonlySet<string>;
     readonly firing: readonly SilencedOccurrence[];
@@ -179,14 +199,15 @@ function overviewOf(
         ? null
         : {
             readAt: last.readAt,
-            counts: countAlerts(last.value),
-            delivery: deliveryOf(last.value, {
+            counts: countAlerts(last.value, ignored),
+            delivery: deliveryOf(last.value, ignored, {
               receivers: achtung.receivers,
               firing: achtung.firing,
               changedAfterRead: achtung.changed,
               readAt: last.readAt,
             }),
           },
+    irm,
   };
 }
 
@@ -220,16 +241,17 @@ export async function listAlertmanagerAlerts(
   if (last === null) {
     return { instance, error, last: null };
   }
-  const [occurrences, active] = await Promise.all([
+  const [occurrences, active, ignored] = await Promise.all([
     listOccurrenceFirings(db, alertmanagerSource.id, instance, last.value),
     silences.activeOn(instance),
+    ignoredAlertNames(db),
   ]);
   return {
     instance,
     error,
     last: {
       readAt: last.readAt,
-      alerts: alertListOf(last.value, {
+      alerts: alertListOf(last.value, ignored, {
         occurrences,
         silences: active,
       }),

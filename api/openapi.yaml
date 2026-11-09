@@ -218,6 +218,53 @@ components:
       required:
         - occurrences
         - nextCursor
+    IrmHeartbeat:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - receiving
+            - missing
+            - unknown
+          description: "receiving: IRM has no open missed-heartbeat alert group for the
+            integration; missing: it has one; unknown: IRM was never read
+            successfully"
+        since:
+          nullable: true
+          description: While missing, when IRM opened the group for it; else null
+          type: string
+          format: date-time
+        lastMissedFrom:
+          nullable: true
+          description: While receiving, when the last missed heartbeat started; else null
+          type: string
+          format: date-time
+        lastMissedTo:
+          nullable: true
+          description: While receiving, when IRM resolved the last missed heartbeat; else
+            null
+          type: string
+          format: date-time
+        checkedAt:
+          nullable: true
+          description: When IRM was last read successfully; the fields above are from that
+            read
+          type: string
+          format: date-time
+        error:
+          nullable: true
+          description: Why the latest read of IRM failed; null when it worked
+          type: string
+      required:
+        - status
+        - since
+        - lastMissedFrom
+        - lastMissedTo
+        - checkedAt
+        - error
+      description: Whether Grafana IRM receives the heartbeat this Alertmanager sends
+        it, read at most once a minute
     OpenAlertCounts:
       type: object
       properties:
@@ -328,7 +375,8 @@ components:
           maximum: 9007199254740991
         watchdog:
           nullable: true
-          description: Whether the Watchdog alert is there, i.e. the alerting pipeline works
+          description: Whether the Watchdog alert is there, i.e. the alerting pipeline
+            works; also while Watchdog is an ignored name
           type: string
           enum:
             - firing
@@ -337,6 +385,12 @@ components:
           nullable: true
           allOf:
             - $ref: "#/components/schemas/Delivery"
+        irm:
+          nullable: true
+          description: Null when Grafana IRM isn't configured, or the Alertmanager has no
+            IRM integration
+          allOf:
+            - $ref: "#/components/schemas/IrmHeartbeat"
       required:
         - instance
         - reachable
@@ -347,7 +401,9 @@ components:
         - inhibited
         - watchdog
         - delivery
-      description: Counts leave out Watchdog and InfoInhibitor, which fire all the time
+        - irm
+      description: Counts and delivery leave out the ignored alert names
+        (/api/settings/ignored-alerts), e.g. Watchdog, which fires all the time
     Matcher:
       type: object
       properties:
@@ -531,7 +587,22 @@ components:
         - checkedAt
         - alerts
       description: "The alerts the tile counts: active ones are open, the others
-        silenced and inhibited. Leaves out Watchdog and InfoInhibitor"
+        silenced and inhibited. Leaves out the ignored alert names
+        (/api/settings/ignored-alerts)"
+    IgnoredAlertNames:
+      type: object
+      properties:
+        names:
+          type: array
+          items:
+            type: string
+          description: Alert names, sorted
+      required:
+        - names
+      description: Alert names the Home views leave out of an Alertmanager's counts,
+        its alert list and its delivery check. Matched exactly and
+        case-sensitively against the alertname label. The inbox shows these
+        alerts as usual
     IngestSummary:
       type: object
       properties:
@@ -936,6 +1007,59 @@ paths:
               schema:
                 $ref: "#/components/schemas/AlertmanagerAlertList"
         "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/settings/ignored-alerts:
+    get:
+      operationId: getIgnoredAlertNames
+      summary: The alert names the Home views leave out
+      tags:
+        - client
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IgnoredAlertNames"
+    put:
+      operationId: setIgnoredAlertNames
+      summary: Replace the alert names the Home views leave out
+      tags:
+        - client
+      description: "One list shared by every client. It applies to the next request,
+        also to a cached Alertmanager read. Watchdog's heart on Home doesn't
+        depend on it. 400: an empty name, one over 200 characters, or over 200
+        names."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                names:
+                  maxItems: 200
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+                    description: An alertname; surrounding whitespace is trimmed
+                  description: The whole new list; a name given twice is stored once
+              required:
+                - names
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IgnoredAlertNames"
+        "400":
           description: Default Response
           content:
             application/json:

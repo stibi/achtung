@@ -14,6 +14,7 @@ import {
   toOccurrenceDetailBody,
 } from "./api-schemas.ts";
 import { registerHomeRoutes } from "./home.ts";
+import { registerSettingsRoutes } from "./settings.ts";
 import { registerSilenceRoutes } from "./silence.ts";
 
 export type { Inbox } from "./api-contract.ts";
@@ -82,6 +83,7 @@ export function registerApiRoutes(app: FastifyInstance, inbox: Inbox): void {
     registerOccurrenceRoutes(api, inbox);
     registerSilenceRoutes(api, inbox);
     registerHomeRoutes(api, inbox);
+    registerSettingsRoutes(api, inbox);
   });
 }
 

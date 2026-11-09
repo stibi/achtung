@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { AlertmanagerAlert } from "../domain/overview.ts";
 import type { LabelMatcher, Silence } from "../domain/silence.ts";
+import { reasonOf } from "./failure-reason.ts";
 
 // Alertmanager's API v2: https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml
 
@@ -163,13 +164,4 @@ async function call(
   } catch {
     throw new AlertmanagerError("Alertmanager answered with something that is not JSON");
   }
-}
-
-// Only a code or a name, never the error's message: fetch's messages can quote the URL.
-function reasonOf(error: unknown): string {
-  const cause = (error as { cause?: { code?: unknown } }).cause;
-  if (typeof cause?.code === "string") {
-    return cause.code;
-  }
-  return error instanceof Error ? error.name : "unknown error";
 }

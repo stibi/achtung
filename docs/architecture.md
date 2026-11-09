@@ -215,8 +215,8 @@ The identity below is a contract that features build on
   so nothing generated is committed and the spec has one copy. The generated code is
   `internal`; `Mapping.swift` turns it into AchtungDomain types, and failures into
   `ServerError`. The app never sees a generated type. Requests bypass the HTTP cache.
-- `Achtung/`: the app target, SwiftUI. The sidebar (`InboxSidebar`) lists Live, then
-  each instance with its channels underneath. Each row has a trailing badge with its
+- `Achtung/`: the app target, SwiftUI. The sidebar (`InboxSidebar`) lists Home, Live,
+  then each instance with its channels underneath; the app opens on Home. Each row has a trailing badge with its
   unread occurrences and, next to the name in white on red, its unread critical ones
   (hidden at 0); an instance shows the sums of its channels, Live the sums of all. A row
   with nothing unread is greyed out, and a dot means something happened since the user
@@ -324,6 +324,23 @@ The identity below is a contract that features build on
   channel's selection, Live's last clicked card), so with unread only on the list
   empties into "All caught up". There's no confirmation: read state is local, and a
   resend brings an alert back. It's disabled when nothing in the list is unread.
+- Home (`GET /api/home`, `HomeView`) shows each configured Alertmanager as a tile in an
+  adaptive grid (`AlertmanagerTile`), with numbers from the Alertmanager itself, read by
+  the server at most every 30 seconds (ADR 0010): its notifying alerts as a big total
+  coloured by the worst severity present, or a green "All quiet"; a stacked severity bar
+  and breakdown; what's silenced or inhibited; a heart for its Watchdog; a status dot for
+  whether the server can read it (an unreachable one keeps its last numbers, dimmed; one
+  never read says so); and, when delivery between it and Achtung broke, a capsule with
+  the alerts missing in Achtung and those stale in it, in a popover. Below the tiles:
+  silences ending soon, the noisiest alerts of 24 hours and the longest firing. The
+  domain's `AlertmanagerOverview.Status` is either reachable with its read, or
+  unreachable with the error and its last read, if any; the mapping rejects anything
+  else (a read there only in part, reachable but never read, unreachable without an
+  error). Rows with an occurrence open it in its
+  channel, selected even when neither the channel's loaded pages nor the feed hold it
+  (`InboxModel.shownOccurrences(revealing:)`), and let go when the user opens anything
+  else. Home loads on its own, without waiting for the inbox's first refresh. It reloads
+  every 30 seconds while the app is on screen, at once when it comes back, and on ⌘R.
 - Live's "All caught up" has a small pixel scene above it (`CoffeeBreak`): the icon's
   krysa at a table, sipping coffee every few seconds, an unused fire extinguisher in the
   corner. `CoffeeBreakScene` places the pixels for a moment in the loop, and the view

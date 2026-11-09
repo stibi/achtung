@@ -1,0 +1,18 @@
+{
+  "alertmanagers": [
+    {
+      "instance": "cdx",
+      "reachable": true,
+      "error": null,
+      "checkedAt": "2026-11-09T12:00:00.000Z",
+      "open": null,
+      "silenced": 0,
+      "inhibited": 0,
+      "watchdog": "firing",
+      "delivery": null
+    }
+  ],
+  "silences": [],
+  "noisiest": [],
+  "longestFiring": []
+}

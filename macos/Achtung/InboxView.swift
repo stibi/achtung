@@ -2,8 +2,9 @@ import AchtungDomain
 import AppKit
 import SwiftUI
 
-/// Live and the channels in the sidebar (`InboxSidebar`). Live is one stream of every
-/// channel's occurrences, each with all its details; a channel is a list with a detail pane.
+/// Home, Live and the channels in the sidebar (`InboxSidebar`). Home is each Alertmanager
+/// at a glance (`HomeView`); Live is one stream of every channel's occurrences, each with
+/// all its details; a channel is a list with a detail pane. The app opens on Home.
 ///
 /// There is no server push yet, so the inbox refreshes every 30 seconds and right away
 /// whenever the app becomes active.
@@ -11,8 +12,11 @@ struct InboxView: View {
     private static let refreshInterval = Duration.seconds(30)
 
     @State private var model: InboxModel
-    @State private var selectedScope: OccurrenceScope? = .allChannels
+    @State private var page: InboxPage? = .home
     @State private var selectedID: Int?
+    /// An occurrence opened from Home, selected in its channel even if neither the list's
+    /// loaded pages nor the feed hold it; let go once the selection moves on.
+    @State private var revealed: Occurrence?
     /// Live's card the user last clicked (`LiveView.kept`), here so marking all read can
     /// let it go.
     @State private var liveKept: Int?
@@ -28,14 +32,20 @@ struct InboxView: View {
         model.detailProblem == nil ? nil : model.lastUpdated
     }
 
+    private var selectedScope: OccurrenceScope? {
+        if case .list(let scope) = page { scope } else { nil }
+    }
+
     private var selectedOccurrence: Occurrence? {
-        selectedScope.flatMap { model.shownOccurrences(in: $0, keeping: selectedID) }?
-            .first { $0.id == selectedID }
+        selectedScope.flatMap {
+            model.shownOccurrences(in: $0, keeping: selectedID, revealing: revealed)
+        }?
+        .first { $0.id == selectedID }
     }
 
     var body: some View {
         NavigationSplitView {
-            InboxSidebar(model: model, selection: $selectedScope)
+            InboxSidebar(model: model, selection: $page)
         } detail: {
             content
         }
@@ -45,16 +55,29 @@ struct InboxView: View {
             if case .channel(let id) = selectedScope,
                 !model.channels.contains(where: { $0.id == id })
             {
-                selectedScope = .allChannels
+                page = .list(.allChannels)
             }
         }
         // Opening a channel selects its first unread occurrence, newest change first, once
         // the first refresh has brought its list up to date (a cached one may be stale).
+        // One opened from Home is selected instead, in its own channel; anywhere else it's
+        // let go.
         .onChange(of: selectedScope) {
-            selectedID = nil
             liveKept = nil
-            if case .channel = selectedScope {
-                selectFirstUnreadIn = selectedScope
+            if let revealed, selectedScope == .channel(revealed.channel) {
+                selectedID = revealed.id
+                selectFirstUnreadIn = nil
+            } else {
+                revealed = nil
+                selectedID = nil
+                if case .channel = selectedScope {
+                    selectFirstUnreadIn = selectedScope
+                }
+            }
+        }
+        .onChange(of: selectedID) {
+            if selectedID != revealed?.id {
+                revealed = nil
             }
         }
         // Also fires when a refresh brings a newer version of the open occurrence: the user
@@ -109,7 +132,13 @@ struct InboxView: View {
     }
 
     @ViewBuilder private var content: some View {
-        if let problem = model.problem, model.lastUpdated == nil {
+        // Home loads on its own (`HomeView`), not after the inbox's first refresh.
+        if page == .home {
+            HomeView(model: model) { occurrence in
+                revealed = occurrence
+                page = .list(.channel(occurrence.channel))
+            }
+        } else if let problem = model.problem, model.lastUpdated == nil {
             UnreachableView(problem: problem, baseURL: model.baseURL) {
                 Task { await model.refresh(selectedScope, visiting: true) }
             }
@@ -192,7 +221,9 @@ struct InboxView: View {
 
     @ViewBuilder private func channelList(_ channel: ChannelID) -> some View {
         let scope = OccurrenceScope.channel(channel)
-        if let occurrences = model.shownOccurrences(in: scope, keeping: selectedID) {
+        if let occurrences = model.shownOccurrences(
+            in: scope, keeping: selectedID, revealing: revealed)
+        {
             let hidingRead = model.hidesRead(in: scope)
             AlertList(
                 occurrences: occurrences, readState: model.readState,

@@ -1,0 +1,18 @@
+{
+  "silences": [],
+  "noisiest": [],
+  "longestFiring": [],
+  "alertmanagers": [
+    {
+      "instance": "cdx",
+      "checkedAt": null,
+      "open": null,
+      "silenced": null,
+      "inhibited": null,
+      "watchdog": null,
+      "delivery": null,
+      "reachable": false,
+      "error": null
+    }
+  ]
+}

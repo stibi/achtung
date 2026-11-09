@@ -20,6 +20,11 @@ final class InboxModel {
     /// The last failed refresh or page load; nil once a refresh succeeds again.
     private(set) var problem: ServerError?
     private(set) var lastUpdated: Date?
+    /// The Home view's data, nil until it first loads; only Home refreshes it.
+    private(set) var home: Home?
+    /// Why the last Home refresh failed; nil once one succeeds again.
+    private(set) var homeProblem: ServerError?
+    private(set) var homeUpdated: Date?
 
     /// How many occurrences of the all-channels feed a refresh loads at most, for the unread
     /// counts and the Live timeline. Past the cap, both cover only the newest occurrences.
@@ -81,6 +86,18 @@ final class InboxModel {
         }
     }
 
+    /// Reloads the Home view: the server reads each Alertmanager at most every 30 seconds.
+    func refreshHome() async {
+        do throws(ServerError) {
+            home = try await server.home()
+            homeProblem = nil
+            homeUpdated = .now
+        } catch {
+            guard !Task.isCancelled else { return }
+            homeProblem = error
+        }
+    }
+
     func loadOlder(in scope: OccurrenceScope) async {
         do throws(ServerError) {
             try await loadOlderPage(in: scope)
@@ -125,10 +142,14 @@ final class InboxModel {
 
     /// What a list shows, nil until its first page arrives: with read alerts hidden, the
     /// unread ones and `kept`, the occurrence the user has open (`ReadState.shown`).
-    func shownOccurrences(in scope: OccurrenceScope, keeping kept: Int?) -> [Occurrence]? {
+    /// `revealing` is one opened from Home, which neither the list's loaded pages nor the
+    /// feed may hold, e.g. an alert firing for days.
+    func shownOccurrences(
+        in scope: OccurrenceScope, keeping kept: Int?, revealing: Occurrence? = nil
+    ) -> [Occurrence]? {
         guard let own = lists[scope]?.occurrences else { return nil }
-        return readState.shown(
-            own: own, feed: lists[.allChannels]?.occurrences ?? [], in: scope, keeping: kept)
+        let feed = (lists[.allChannels]?.occurrences ?? []) + (revealing.map { [$0] } ?? [])
+        return readState.shown(own: own, feed: feed, in: scope, keeping: kept)
     }
 
     /// Whether anything in `scope` is unread, as the list shows it with read alerts hidden.

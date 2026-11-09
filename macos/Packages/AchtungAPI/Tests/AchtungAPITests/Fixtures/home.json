@@ -1,0 +1,304 @@
+{
+  "alertmanagers": [
+    {
+      "instance": "cdx",
+      "reachable": true,
+      "error": null,
+      "checkedAt": "2026-11-09T12:00:00.000Z",
+      "open": {
+        "total": 15,
+        "critical": 3,
+        "warning": 8,
+        "info": 2,
+        "other": 2
+      },
+      "silenced": 4,
+      "inhibited": 1,
+      "watchdog": "firing",
+      "delivery": {
+        "missingInAchtung": [
+          {
+            "fingerprint": "f00d000000000001",
+            "title": "DiskWillFillIn4Hours",
+            "severity": "critical",
+            "startsAt": "2026-11-09T11:20:00.000Z"
+          },
+          {
+            "fingerprint": "f00d000000000002",
+            "title": "KubeJobFailed",
+            "severity": "unknown",
+            "startsAt": "2026-11-09T11:40:00.000Z"
+          }
+        ],
+        "staleInAchtung": [
+          {
+            "id": 4,
+            "instance": "onprem",
+            "channel": "crm-prod",
+            "source": "alertmanager",
+            "sourceKey": "c0ffee0000000001",
+            "status": "firing",
+            "severity": "warning",
+            "title": "PostgresReplicationLag",
+            "summary": "Replica is 45s behind primary.",
+            "labels": {
+              "severity": "warning",
+              "alertname": "PostgresReplicationLag",
+              "namespace": "example-prod"
+            },
+            "annotations": {
+              "summary": "Replica is 45s behind primary."
+            },
+            "links": [
+              {
+                "kind": "source",
+                "url": "https://prometheus.example.com/graph"
+              }
+            ],
+            "startsAt": "2026-11-07T18:00:00.000Z",
+            "endsAt": null,
+            "firstReceivedAt": "2026-11-07T21:14:19.526Z",
+            "lastReceivedAt": "2026-11-07T21:14:19.526Z",
+            "lastEventAt": "2026-11-07T21:14:19.526Z",
+            "lastEventKind": "fired",
+            "notificationCount": 1,
+            "silencedUntil": "2026-11-07T22:14:19.526Z"
+          }
+        ]
+      }
+    },
+    {
+      "instance": "lab",
+      "reachable": false,
+      "error": "connect ECONNREFUSED 10.0.0.9:9093",
+      "checkedAt": null,
+      "open": null,
+      "silenced": null,
+      "inhibited": null,
+      "watchdog": null,
+      "delivery": null
+    },
+    {
+      "instance": "onprem",
+      "reachable": true,
+      "error": null,
+      "checkedAt": "2026-11-09T12:00:00.000Z",
+      "open": {
+        "total": 0,
+        "critical": 0,
+        "warning": 0,
+        "info": 0,
+        "other": 0
+      },
+      "silenced": 0,
+      "inhibited": 0,
+      "watchdog": "firing",
+      "delivery": {
+        "missingInAchtung": [],
+        "staleInAchtung": []
+      }
+    },
+    {
+      "instance": "staging",
+      "reachable": false,
+      "error": "Alertmanager answered HTTP 503",
+      "checkedAt": "2026-11-09T11:31:00.000Z",
+      "open": {
+        "total": 2,
+        "critical": 0,
+        "warning": 1,
+        "info": 1,
+        "other": 0
+      },
+      "silenced": 0,
+      "inhibited": 0,
+      "watchdog": "absent",
+      "delivery": {
+        "missingInAchtung": [],
+        "staleInAchtung": []
+      }
+    }
+  ],
+  "silences": [
+    {
+      "instance": "cdx",
+      "id": "5c1e0000-0000-0000-0000-000000000001",
+      "startsAt": "2026-11-09T10:00:00.000Z",
+      "endsAt": "2026-11-09T14:10:00.000Z",
+      "createdBy": "ops@example.com",
+      "comment": "Migrating the volume",
+      "matchers": [
+        {
+          "name": "alertname",
+          "value": "DiskWillFillIn4Hours",
+          "isRegex": false,
+          "isEqual": true
+        },
+        {
+          "name": "namespace",
+          "value": "logging",
+          "isRegex": false,
+          "isEqual": true
+        }
+      ]
+    },
+    {
+      "instance": "onprem",
+      "id": "5c1e0000-0000-0000-0000-000000000002",
+      "startsAt": "2026-11-08T09:00:00.000Z",
+      "endsAt": "2026-11-10T09:00:00.000Z",
+      "createdBy": "achtung",
+      "comment": "Silenced from Achtung",
+      "matchers": [
+        {
+          "name": "pod",
+          "value": "api-.*",
+          "isRegex": true,
+          "isEqual": true
+        }
+      ]
+    }
+  ],
+  "noisiest": [
+    {
+      "occurrence": {
+        "id": 9,
+        "instance": "onprem",
+        "channel": "legal-machine-prod",
+        "source": "alertmanager",
+        "sourceKey": "c0ffee0000000004",
+        "status": "firing",
+        "severity": "critical",
+        "title": "HighErrorRate",
+        "summary": "5xx rate above 5% for 10 minutes.",
+        "labels": {
+          "severity": "critical",
+          "alertname": "HighErrorRate",
+          "namespace": "example-prod"
+        },
+        "annotations": {
+          "summary": "5xx rate above 5% for 10 minutes."
+        },
+        "links": [
+          {
+            "kind": "source",
+            "url": "https://prometheus.example.com/graph"
+          }
+        ],
+        "startsAt": "2026-11-07T19:00:00.000Z",
+        "endsAt": null,
+        "firstReceivedAt": "2026-11-07T21:14:19.643Z",
+        "lastReceivedAt": "2026-11-07T22:14:30.000Z",
+        "lastEventAt": "2026-11-07T22:14:30.000Z",
+        "lastEventKind": "resent",
+        "notificationCount": 13,
+        "silencedUntil": null
+      },
+      "events": 7
+    },
+    {
+      "occurrence": {
+        "id": 4,
+        "instance": "onprem",
+        "channel": "crm-prod",
+        "source": "alertmanager",
+        "sourceKey": "c0ffee0000000001",
+        "status": "firing",
+        "severity": "warning",
+        "title": "PostgresReplicationLag",
+        "summary": "Replica is 45s behind primary.",
+        "labels": {
+          "severity": "warning",
+          "alertname": "PostgresReplicationLag",
+          "namespace": "example-prod"
+        },
+        "annotations": {
+          "summary": "Replica is 45s behind primary."
+        },
+        "links": [
+          {
+            "kind": "source",
+            "url": "https://prometheus.example.com/graph"
+          }
+        ],
+        "startsAt": "2026-11-07T18:00:00.000Z",
+        "endsAt": null,
+        "firstReceivedAt": "2026-11-07T21:14:19.526Z",
+        "lastReceivedAt": "2026-11-07T21:14:19.526Z",
+        "lastEventAt": "2026-11-07T21:14:19.526Z",
+        "lastEventKind": "fired",
+        "notificationCount": 1,
+        "silencedUntil": "2026-11-07T22:14:19.526Z"
+      },
+      "events": 3
+    }
+  ],
+  "longestFiring": [
+    {
+      "id": 4,
+      "instance": "onprem",
+      "channel": "crm-prod",
+      "source": "alertmanager",
+      "sourceKey": "c0ffee0000000001",
+      "status": "firing",
+      "severity": "warning",
+      "title": "PostgresReplicationLag",
+      "summary": "Replica is 45s behind primary.",
+      "labels": {
+        "severity": "warning",
+        "alertname": "PostgresReplicationLag",
+        "namespace": "example-prod"
+      },
+      "annotations": {
+        "summary": "Replica is 45s behind primary."
+      },
+      "links": [
+        {
+          "kind": "source",
+          "url": "https://prometheus.example.com/graph"
+        }
+      ],
+      "startsAt": "2026-11-07T18:00:00.000Z",
+      "endsAt": null,
+      "firstReceivedAt": "2026-11-07T21:14:19.526Z",
+      "lastReceivedAt": "2026-11-07T21:14:19.526Z",
+      "lastEventAt": "2026-11-07T21:14:19.526Z",
+      "lastEventKind": "fired",
+      "notificationCount": 1,
+      "silencedUntil": "2026-11-07T22:14:19.526Z"
+    },
+    {
+      "id": 9,
+      "instance": "onprem",
+      "channel": "legal-machine-prod",
+      "source": "alertmanager",
+      "sourceKey": "c0ffee0000000004",
+      "status": "firing",
+      "severity": "critical",
+      "title": "HighErrorRate",
+      "summary": "5xx rate above 5% for 10 minutes.",
+      "labels": {
+        "severity": "critical",
+        "alertname": "HighErrorRate",
+        "namespace": "example-prod"
+      },
+      "annotations": {
+        "summary": "5xx rate above 5% for 10 minutes."
+      },
+      "links": [
+        {
+          "kind": "source",
+          "url": "https://prometheus.example.com/graph"
+        }
+      ],
+      "startsAt": "2026-11-07T19:00:00.000Z",
+      "endsAt": null,
+      "firstReceivedAt": "2026-11-07T21:14:19.643Z",
+      "lastReceivedAt": "2026-11-07T22:14:30.000Z",
+      "lastEventAt": "2026-11-07T22:14:30.000Z",
+      "lastEventKind": "resent",
+      "notificationCount": 13,
+      "silencedUntil": null
+    }
+  ]
+}

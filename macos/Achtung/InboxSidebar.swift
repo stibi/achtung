@@ -1,24 +1,32 @@
 import AchtungDomain
 import SwiftUI
 
-/// Live, then each instance (the sending system, ADR 0006) with its channels underneath,
-/// in the order `Instance.sidebar` gives: anything unread first, then by name.
+/// What the sidebar selects: Home, or a list of occurrences (Live or a channel).
+enum InboxPage: Hashable {
+    case home
+    case list(OccurrenceScope)
+}
+
+/// Home, Live, then each instance (the sending system, ADR 0006) with its channels
+/// underneath, in the order `Instance.sidebar` gives: anything unread first, then by name.
 struct InboxSidebar: View {
     let model: InboxModel
-    @Binding var selection: OccurrenceScope?
+    @Binding var selection: InboxPage?
 
     @State private var collapsedInstances: Set<String> = []
 
     var body: some View {
         let instances = model.sidebar
         List(selection: $selection) {
+            Label("Home", systemImage: "house")
+                .tag(InboxPage.home)
             SidebarRow(
                 title: "Live", systemImage: "dot.radiowaves.left.and.right",
                 unread: instances.reduce(0) { $0 + $1.unread },
                 unreadCritical: instances.reduce(0) { $0 + $1.unreadCritical },
                 hasNews: model.channels.contains { model.readState.hasNews($0) }
             )
-            .tag(OccurrenceScope.allChannels)
+            .tag(InboxPage.list(.allChannels))
             Section("Channels") {
                 ForEach(instances) { instance in
                     DisclosureGroup(isExpanded: expanded(instance)) {
@@ -28,7 +36,7 @@ struct InboxSidebar: View {
                                 unread: summary.unread, unreadCritical: summary.unreadCritical,
                                 hasNews: model.readState.hasNews(summary.channel)
                             )
-                            .tag(OccurrenceScope.channel(summary.id))
+                            .tag(InboxPage.list(.channel(summary.id)))
                         }
                     } label: {
                         SidebarRow(

@@ -165,6 +165,19 @@ public struct AchtungServer: Sendable {
         }
     }
 
+    /// The Home view: each Alertmanager's state as last read (the server reads them at
+    /// most every 30 seconds), active silences, and the noisiest and longest firing alerts.
+    public func home() async throws(ServerError) -> Home {
+        try await call {
+            switch try await client.getHome() {
+            case .ok(let response):
+                return try response.body.json.domain()
+            case .undocumented(let status, _):
+                throw ServerError.invalidResponse("HTTP \(status)")
+            }
+        }
+    }
+
     /// Runs one request and turns whatever it throws into a `ServerError`. The generated
     /// client wraps transport and decoding failures in `ClientError`; a body in an
     /// unexpected content type throws from `body.json`.

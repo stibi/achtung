@@ -1,0 +1,23 @@
+{
+  "instance": "cdx",
+  "reachable": true,
+  "error": null,
+  "checkedAt": "2026-11-09T12:00:00.000Z",
+  "alerts": [
+    {
+      "fingerprint": "f9",
+      "title": "TargetDown",
+      "severity": "info",
+      "summary": null,
+      "startsAt": "2026-11-09T09:40:00.000Z",
+      "labels": {
+        "alertname": "TargetDown",
+        "severity": "info"
+      },
+      "annotations": {},
+      "state": "inhibited",
+      "silencedUntil": "2026-11-09T14:10:00.000Z",
+      "occurrenceId": null
+    }
+  ]
+}

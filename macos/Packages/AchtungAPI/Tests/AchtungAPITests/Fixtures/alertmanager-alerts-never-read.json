@@ -1,0 +1,7 @@
+{
+  "instance": "lab",
+  "reachable": false,
+  "error": "connect ECONNREFUSED 10.0.0.9:9093",
+  "checkedAt": null,
+  "alerts": []
+}

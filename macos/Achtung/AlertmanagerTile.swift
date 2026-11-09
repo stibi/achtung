@@ -8,6 +8,8 @@ import SwiftUI
 struct AlertmanagerTile: View {
     let overview: AlertmanagerOverview
     let open: (Occurrence) -> Void
+    /// Opens the Alertmanager's detail: its alerts by severity.
+    let show: () -> Void
 
     @State private var showsDelivery = false
 
@@ -47,7 +49,18 @@ struct AlertmanagerTile: View {
         // As tall as the tallest in its row, so a row of tiles lines up.
         .frame(maxWidth: .infinity, minHeight: 160, maxHeight: .infinity, alignment: .topLeading)
         .background(.background.secondary, in: .rect(cornerRadius: 14))
+        // The whole tile opens the detail; the delivery capsule, a button of its own,
+        // still opens its popover.
+        .contentShape(.rect(cornerRadius: 14))
+        .onTapGesture(perform: show)
+        .pointerStyle(.link)
         .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isButton)
+        // VoiceOver's press, as well as clicking.
+        .accessibilityAction { show() }
+        // VoiceOver may step into the tile rather than press it; the actions menu has this.
+        .accessibilityAction(named: "Show alerts") { show() }
+        .accessibilityHint("Shows its alerts")
         .accessibilityLabel(accessibilityText)
     }
 

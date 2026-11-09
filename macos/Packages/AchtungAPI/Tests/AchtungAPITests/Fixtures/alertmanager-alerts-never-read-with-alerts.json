@@ -1,0 +1,106 @@
+{
+  "instance": "cdx",
+  "reachable": false,
+  "error": "timeout",
+  "checkedAt": null,
+  "alerts": [
+    {
+      "fingerprint": "f1",
+      "title": "HighErrorRate",
+      "severity": "critical",
+      "summary": "5xx rate above 5% for 10 minutes.",
+      "startsAt": "2026-11-09T09:40:00.000Z",
+      "labels": {
+        "alertname": "HighErrorRate",
+        "severity": "critical",
+        "namespace": "example-prod",
+        "service": "checkout-api"
+      },
+      "annotations": {
+        "summary": "5xx rate above 5% for 10 minutes."
+      },
+      "state": "active",
+      "silencedUntil": null,
+      "occurrenceId": 9
+    },
+    {
+      "fingerprint": "f2",
+      "title": "DiskWillFillIn4Hours",
+      "severity": "critical",
+      "summary": null,
+      "startsAt": "2026-11-09T11:20:00.000Z",
+      "labels": {
+        "alertname": "DiskWillFillIn4Hours",
+        "severity": "critical",
+        "namespace": "logging",
+        "pod": "loki-0"
+      },
+      "annotations": {},
+      "state": "active",
+      "silencedUntil": null,
+      "occurrenceId": null
+    },
+    {
+      "fingerprint": "f3",
+      "title": "PostgresReplicationLag",
+      "severity": "warning",
+      "summary": "Replica is 45s behind primary.",
+      "startsAt": "2026-11-09T09:40:00.000Z",
+      "labels": {
+        "alertname": "PostgresReplicationLag",
+        "severity": "warning"
+      },
+      "annotations": {
+        "summary": "Replica is 45s behind primary."
+      },
+      "state": "active",
+      "silencedUntil": null,
+      "occurrenceId": 4
+    },
+    {
+      "fingerprint": "f4",
+      "title": "KubeJobFailed",
+      "severity": "unknown",
+      "summary": null,
+      "startsAt": "2026-11-09T09:40:00.000Z",
+      "labels": {
+        "alertname": "KubeJobFailed",
+        "severity": "unknown"
+      },
+      "annotations": {},
+      "state": "silenced",
+      "silencedUntil": "2026-11-09T14:10:00.000Z",
+      "occurrenceId": null
+    },
+    {
+      "fingerprint": "f5",
+      "title": "NodeMemoryPressure",
+      "severity": "warning",
+      "summary": null,
+      "startsAt": "2026-11-09T09:40:00.000Z",
+      "labels": {
+        "alertname": "NodeMemoryPressure",
+        "severity": "warning"
+      },
+      "annotations": {},
+      "state": "silenced",
+      "silencedUntil": null,
+      "occurrenceId": null
+    },
+    {
+      "fingerprint": "f6",
+      "title": "TargetDown",
+      "severity": "info",
+      "summary": null,
+      "startsAt": "2026-11-09T09:40:00.000Z",
+      "labels": {
+        "alertname": "TargetDown",
+        "severity": "info"
+      },
+      "annotations": {},
+      "state": "inhibited",
+      "silencedUntil": null,
+      "occurrenceId": null
+    }
+  ]
+}

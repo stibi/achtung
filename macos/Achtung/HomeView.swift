@@ -11,18 +11,52 @@ import SwiftUI
 struct HomeView: View {
     private static let refreshInterval = Duration.seconds(30)
 
+    private static let padding: CGFloat = 24
+    private static let spacing: CGFloat = 24
+
     let model: InboxModel
     /// Shows an occurrence in its channel.
     let open: (Occurrence) -> Void
 
+    /// The scroll view's size, which is what shows under the toolbar; the window sets it.
+    @State private var viewport: CGSize = .zero
+    /// The tiles' height, above the sections.
+    @State private var tilesHeight: CGFloat = 0
+    /// The Alertmanager whose detail is open in place of the tiles, if any.
+    @State private var shownInstance: String?
+    /// Counts the user's reloads, which collapse expanded sections; the automatic refresh
+    /// every 30 seconds doesn't, so a list being read isn't snapped shut.
+    @State private var collapseRequest = 0
+
+    /// The room for the sections: the page's width, and the height left under the tiles
+    /// so that Home doesn't scroll (a point spare for rounding).
+    private var sectionsSpace: CGSize {
+        CGSize(
+            width: viewport.width - 2 * Self.padding,
+            height: viewport.height - 2 * Self.padding - tilesHeight - Self.spacing - 1)
+    }
+
     var body: some View {
+        if let shownInstance {
+            AlertmanagerDetailView(model: model, instance: shownInstance, open: open) {
+                self.shownInstance = nil
+            }
+        } else {
+            home
+        }
+    }
+
+    private var home: some View {
         content
             .navigationTitle("Home")
             .toolbar(removing: .title)
             .toolbar {
                 ToolbarItem(placement: .navigation) {
-                    HomeHeader(updated: model.homeUpdated, problem: model.homeProblem) {
-                        Task { await model.refreshHome() }
+                    HomeHeader(
+                        updated: model.homeModel.homeUpdated, problem: model.homeModel.homeProblem
+                    ) {
+                        collapseRequest += 1
+                        Task { await model.homeModel.refreshHome() }
                     }
                 }
                 .sharedBackgroundVisibility(.hidden)
@@ -30,7 +64,7 @@ struct HomeView: View {
             .task {
                 while !Task.isCancelled {
                     if NSApp.occlusionState.contains(.visible) {
-                        await model.refreshHome()
+                        await model.homeModel.refreshHome()
                     }
                     do {
                         try await Task.sleep(for: Self.refreshInterval)
@@ -45,39 +79,59 @@ struct HomeView: View {
                     for: NSApplication.didChangeOcclusionStateNotification)
             ) { _ in
                 if NSApp.occlusionState.contains(.visible) {
-                    Task { await model.refreshHome() }
+                    Task { await model.homeModel.refreshHome() }
                 }
             }
     }
 
     @ViewBuilder private var content: some View {
-        if let home = model.home {
+        if let home = model.homeModel.home {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    if home.alertmanagers.isEmpty {
-                        ContentUnavailableView(
-                            "No Alertmanagers", systemImage: "server.rack",
-                            description: Text("The server has none configured."))
-                    }
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 240), spacing: 16, alignment: .top)],
-                        spacing: 16
-                    ) {
-                        ForEach(home.alertmanagers) { overview in
-                            AlertmanagerTile(overview: overview, open: open)
+                VStack(alignment: .leading, spacing: Self.spacing) {
+                    tiles(home)
+                        .onGeometryChange(for: CGFloat.self) {
+                            $0.size.height
+                        } action: {
+                            tilesHeight = $0
                         }
-                    }
-                    HomeSections(home: home, open: open)
+                    HomeSections(
+                        home: home, available: sectionsSpace, collapseRequest: collapseRequest,
+                        open: open)
                 }
-                .padding(24)
+                .padding(Self.padding)
             }
-        } else if let problem = model.homeProblem {
+            .onGeometryChange(for: CGSize.self) {
+                $0.size
+            } action: {
+                viewport = $0
+            }
+        } else if let problem = model.homeModel.homeProblem {
             UnreachableView(problem: problem, baseURL: model.baseURL) {
-                Task { await model.refreshHome() }
+                Task { await model.homeModel.refreshHome() }
             }
         } else {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    @ViewBuilder private func tiles(_ home: Home) -> some View {
+        VStack(alignment: .leading, spacing: Self.spacing) {
+            if home.alertmanagers.isEmpty {
+                ContentUnavailableView(
+                    "No Alertmanagers", systemImage: "server.rack",
+                    description: Text("The server has none configured."))
+            }
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 240), spacing: 16, alignment: .top)],
+                spacing: 16
+            ) {
+                ForEach(home.alertmanagers) { overview in
+                    AlertmanagerTile(overview: overview, open: open) {
+                        shownInstance = overview.instance
+                    }
+                }
+            }
         }
     }
 }

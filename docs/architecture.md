@@ -256,8 +256,9 @@ The identity below is a contract that features build on
   Opening a channel selects its first unread occurrence, if any. If the open channel
   disappears, for example because the operator moved it to another instance, the view
   switches to Live. Both are newest change first and paged by `nextCursor`;
-  `OccurrenceScope` (all channels or one) selects the route. `InboxModel` is the only code
-  that talks to the server; the views only read it. `SampleData` exists for SwiftUI
+  `OccurrenceScope` (all channels or one) selects the route. `InboxModel`, and the
+  `HomeModel` it makes on the same server, are the only code that talks to the server;
+  the views only read them. `SampleData` exists for SwiftUI
   previews.
 - Every alert, in the detail pane and on Live cards, has a silence button
   (`SilenceButton`, `POST /api/occurrences/{id}/silence`, ADR 0008): a split button whose
@@ -335,23 +336,41 @@ The identity below is a contract that features build on
   channel's selection, Live's last clicked card), so with unread only on the list
   empties into "All caught up". There's no confirmation: read state is local, and a
   resend brings an alert back. It's disabled when nothing in the list is unread.
-- Home (`GET /api/home`, `HomeView`) shows each configured Alertmanager as a tile in an
-  adaptive grid (`AlertmanagerTile`), with numbers from the Alertmanager itself, read by
-  the server at most every 30 seconds (ADR 0010): its notifying alerts as a big total
-  coloured by the worst severity present, or a green "All quiet"; a stacked severity bar
-  and breakdown; what's silenced or inhibited; a heart for its Watchdog; a status dot for
-  whether the server can read it (an unreachable one keeps its last numbers, dimmed; one
-  never read says so); and, when delivery between it and Achtung broke, a capsule with
-  the alerts missing in Achtung and those stale in it, in a popover. Below the tiles:
-  silences ending soon, the noisiest alerts of 24 hours and the longest firing. The
-  domain's `AlertmanagerOverview.Status` is either reachable with its read, or
-  unreachable with the error and its last read, if any; the mapping rejects anything
+- Home (`GET /api/home`, `HomeView`, its state in `HomeModel`) shows each configured
+  Alertmanager as a tile in an adaptive grid (`AlertmanagerTile`), with numbers from the
+  Alertmanager itself, read by the server at most every 30 seconds (ADR 0010): its
+  notifying alerts as a big total coloured by the worst severity present, or a green "All
+  quiet"; a stacked severity bar and breakdown; what's silenced or inhibited; a heart for
+  its Watchdog; a status dot for whether the server can read it (an unreachable one keeps
+  its last numbers, dimmed; one never read says so); and, when delivery between it and
+  Achtung broke, a capsule with the alerts missing in Achtung and those stale in it, in a
+  popover. The domain's `AlertmanagerOverview.Status` is either reachable with its read,
+  or unreachable with the error and its last read, if any; the mapping rejects anything
   else (a read there only in part, reachable but never read, unreachable without an
-  error). Rows with an occurrence open it in its
+  error). Below the tiles: silences ending soon, the noisiest alerts of 24 hours and the
+  longest firing, each a `FittedSection`: it shows as many rows as fit the height left
+  under the tiles, measured from its own title and rows (`ListFit` in AchtungDomain does
+  the arithmetic; stacked sections share the height, a short one passing on what it
+  doesn't need), then "Show N more", which expands it and lets the page scroll. Never
+  fewer than three rows, so a small window scrolls. It recomputes as the window resizes,
+  collapses again once everything fits or when the user reloads Home (⌘R; the refresh
+  every 30 seconds leaves an open list alone), and starts collapsed whenever Home appears.
+  A future list on Home uses the same view. Rows with an occurrence open it in its
   channel, selected even when neither the channel's loaded pages nor the feed hold it
   (`InboxModel.shownOccurrences(revealing:)`), and let go when the user opens anything
   else. Home loads on its own, without waiting for the inbox's first refresh. It reloads
   every 30 seconds while the app is on screen, at once when it comes back, and on ⌘R.
+- Clicking an Alertmanager's tile opens its detail in place of the tiles
+  (`AlertmanagerDetailView`, `GET /api/alertmanagers/{instance}/alerts`, from the same
+  read as its counts): the active alerts grouped by severity, most severe first, each with
+  its summary, how long it has fired and a few key labels (`AlertmanagerAlert.keyLabels`,
+  the rest in the help), then the silenced and inhibited ones, folded away; "All quiet"
+  when nothing is active. A row with an occurrence in Achtung opens it in its channel; one
+  without says "Not in Achtung". An instance the server no longer has says so. The mapping
+  rejects impossible lists (reachable but never read, unreachable without an error, never
+  read but listing alerts, a silence end on an alert that isn't silenced). Back or Esc
+  returns to Home; the detail reloads every 30 seconds while on screen, at once when it
+  comes back, and on ⌘R.
 - Live's "All caught up" has a small pixel scene above it (`CoffeeBreak`): the icon's
   krysa at a table, sipping coffee every few seconds, an unused fire extinguisher in the
   corner. `CoffeeBreakScene` places the pixels for a moment in the loop, and the view

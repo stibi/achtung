@@ -178,6 +178,22 @@ public struct AchtungServer: Sendable {
         }
     }
 
+    /// The alerts behind an Alertmanager's tile on Home, from the same read as its counts.
+    public func alertmanagerAlerts(instance: String) async throws(ServerError)
+        -> AlertmanagerAlerts
+    {
+        try await call {
+            switch try await client.listAlertmanagerAlerts(path: .init(instance: instance)) {
+            case .ok(let response):
+                return try response.body.json.domain()
+            case .notFound(let response):
+                throw ServerError.notFound(try response.body.json.error)
+            case .undocumented(let status, _):
+                throw ServerError.invalidResponse("HTTP \(status)")
+            }
+        }
+    }
+
     /// Runs one request and turns whatever it throws into a `ServerError`. The generated
     /// client wraps transport and decoding failures in `ClientError`; a body in an
     /// unexpected content type throws from `body.json`.

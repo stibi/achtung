@@ -20,11 +20,8 @@ final class InboxModel {
     /// The last failed refresh or page load; nil once a refresh succeeds again.
     private(set) var problem: ServerError?
     private(set) var lastUpdated: Date?
-    /// The Home view's data, nil until it first loads; only Home refreshes it.
-    private(set) var home: Home?
-    /// Why the last Home refresh failed; nil once one succeeds again.
-    private(set) var homeProblem: ServerError?
-    private(set) var homeUpdated: Date?
+    /// Home's tiles, lists and Alertmanager details (`HomeModel`), on the same server.
+    let homeModel: HomeModel
 
     /// How many occurrences of the all-channels feed a refresh loads at most, for the unread
     /// counts and the Live timeline. Past the cap, both cover only the newest occurrences.
@@ -40,6 +37,7 @@ final class InboxModel {
     init(baseURL: URL, defaults: UserDefaults = .standard) {
         self.baseURL = baseURL
         self.server = AchtungServer(baseURL: baseURL)
+        self.homeModel = HomeModel(server: server)
         self.defaults = defaults
         // Occurrence ids belong to one server, so each server has its own read state.
         self.readStateKey = "readState \(baseURL.absoluteString)"
@@ -83,18 +81,6 @@ final class InboxModel {
             // A cancelled load is the user moving on, not a server problem.
             guard !Task.isCancelled else { return }
             problem = error
-        }
-    }
-
-    /// Reloads the Home view: the server reads each Alertmanager at most every 30 seconds.
-    func refreshHome() async {
-        do throws(ServerError) {
-            home = try await server.home()
-            homeProblem = nil
-            homeUpdated = .now
-        } catch {
-            guard !Task.isCancelled else { return }
-            homeProblem = error
         }
     }
 

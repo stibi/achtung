@@ -54,10 +54,10 @@ their own instance.
 - **What's new since you last looked**, per occurrence and per channel, kept on your Mac.
   Each channel and Live list only new alerts and resends, until you switch
   "Unread only" off there, and "Mark All as Read" (⇧⌘K) clears a list in one go.
-- **Home:** each Alertmanager as a tile, counted by the Alertmanager itself: open
-  alerts by severity, silenced and inhibited ones, its Watchdog, and alerts that never
-  reached Achtung or never resolved in it. Below, silences ending soon and the noisiest
-  and longest firing alerts.
+- **Home:** each Alertmanager as a tile, counted by the Alertmanager itself: open alerts
+  by severity, silenced and inhibited ones, its Watchdog, and alerts that never reached
+  Achtung or never resolved in it. Click a tile for its alerts by severity. Below,
+  silences ending soon and the noisiest and longest firing alerts.
 - **Live view:** every channel's alerts in one stream, newest change first.
 - **Home view** (server API, `GET /api/home`): each Alertmanager at a glance, what it has
   open by severity, silenced and inhibited, read from the Alertmanager itself, and whether

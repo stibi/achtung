@@ -20,7 +20,7 @@ counts don't show it either.
 ## Decision
 
 - **Achtung reads IRM's alert groups:** `GET {IRM_API_URL}/api/v1/alert_groups/` with the
-  integration's ID, `name=OnCallHeartBeatMissing` and `perpage=10`, newest first, with
+  integration's ID, `search=OnCallHeartBeatMissing` and `perpage=10`, newest first, with
   the header `Authorization: <token>` (the raw token, IRM's convention, no `Bearer`).
   IRM's public integrations API has no heartbeat status, and the heartbeat endpoints the
   IRM plugin uses are internal and undocumented. The alert groups are public, documented
@@ -28,10 +28,11 @@ counts don't show it either.
 - **The title is the contract.** The latest group (by `created_at`, not trusting the
   order IRM lists them in) whose title, trimmed, is exactly `OnCallHeartBeatMissing` (IRM
   sends a trailing space) decides, and only groups of the integration count, should IRM
-  ignore a filter. The name filter may match titles that contain the name, so ten are
-  read rather than one. The filter was checked against the real IRM: it narrows the
-  groups to the missed heartbeats. If IRM ever ignored it, the heartbeat's groups could
-  fall out of the ten behind the integration's other alerts.
+  ignore a filter. `search` matches titles that contain the name, so ten are read rather
+  than one. Checked against the real IRM: `search` narrows the groups to the missed
+  heartbeats, while `name`, which the first version used, is silently ignored, so the
+  last missed heartbeat fell out of the ten behind the integration's other alerts. If
+  IRM ever ignored `search` too, the same would happen.
   - none, or the latest is resolved: **receiving**, with the last missed heartbeat
     (`lastMissedFrom`, `lastMissedTo`: the group's start and resolve), if any;
   - the latest is `new`, `acknowledged` or `silenced`: **missing**, since the group

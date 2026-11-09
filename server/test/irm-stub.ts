@@ -22,7 +22,8 @@ interface StubRequest {
 /**
  * A stand-in for Grafana IRM's alert groups API under /oncall, like the real base URL, so
  * tests never reach the real one. It lists the groups a test puts in `groups`, newest
- * first, filtered like IRM: by integration, and by a name the title contains.
+ * first, filtered like the real IRM: by integration, and by `search`, which the title
+ * contains. IRM ignores `name` (checked against the real one), and so does the stub.
  */
 export interface IrmStub {
   /** The base URL, with the /oncall prefix. */
@@ -53,10 +54,10 @@ export async function startIrmStub(): Promise<IrmStub> {
       response.writeHead(404).end("not found");
       return;
     }
-    const name = url.searchParams.get("name") ?? "";
+    const search = url.searchParams.get("search") ?? "";
     const results = groups
       .filter((group) => group.integration_id === url.searchParams.get("integration_id"))
-      .filter((group) => group.title.includes(name))
+      .filter((group) => group.title.includes(search))
       .slice(0, Number(url.searchParams.get("perpage") ?? "50"));
     response
       .writeHead(200, { "content-type": "application/json" })

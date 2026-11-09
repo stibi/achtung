@@ -21,7 +21,7 @@ export class IrmError extends Error {
 }
 
 const timeoutMs = 5000;
-// More than one: IRM's name filter may match other titles that contain the name.
+// More than one: IRM's search matches every title that contains the name.
 const groupsRead = 10;
 
 const alertGroupsBody = z.object({
@@ -45,7 +45,9 @@ export async function listHeartbeatMissingGroups(
   const url = new URL("api/v1/alert_groups/", base);
   url.search = new URLSearchParams({
     integration_id: integrationId,
-    name: heartbeatMissingTitle,
+    // IRM ignores `name`; `search` is what narrows the groups to the title (checked
+    // against the real IRM).
+    search: heartbeatMissingTitle,
     perpage: String(groupsRead),
   }).toString();
   let response: Response;

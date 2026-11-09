@@ -95,8 +95,36 @@ describe("GET /api/home: the IRM heartbeat", () => {
     expect(request?.authorization).toBe(token);
     expect(Object.fromEntries(request?.query ?? [])).toEqual({
       integration_id: integration,
-      name: "OnCallHeartBeatMissing",
+      search: "OnCallHeartBeatMissing",
       perpage: "10",
+    });
+  });
+
+  it("finds the last missed heartbeat behind more than a page of the integration's other alerts", async () => {
+    const irm = await startIrmStub();
+    for (let hour = 0; hour < 12; hour += 1) {
+      irm.groups.push({
+        ...heartbeatMissing(integration, {
+          state: "resolved",
+          createdAt: `2026-10-13T${String(hour).padStart(2, "0")}:30:00Z`,
+          resolvedAt: "2026-10-13T09:45:00Z",
+        }),
+        title: "CnpgVolumeLowDiskSpace ",
+      });
+    }
+    irm.groups.push(
+      heartbeatMissing(integration, {
+        state: "resolved",
+        createdAt: "2026-10-12T08:00:00Z",
+        resolvedAt: "2026-10-12T08:02:00Z",
+      }),
+    );
+    const { irmOf } = await homeWithIrm(irm.url);
+
+    expect(await irmOf()).toMatchObject({
+      status: "receiving",
+      lastMissedFrom: "2026-10-12T08:00:00.000Z",
+      lastMissedTo: "2026-10-12T08:02:00.000Z",
     });
   });
 

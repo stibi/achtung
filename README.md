@@ -55,9 +55,11 @@ their own instance.
   Each channel and Live list only new alerts and resends, until you switch
   "Unread only" off there, and "Mark All as Read" (⇧⌘K) clears a list in one go.
 - **Home:** each Alertmanager as a tile, counted by the Alertmanager itself: open alerts
-  by severity, silenced and inhibited ones, its Watchdog, and alerts that never reached
-  Achtung or never resolved in it. Click a tile for its alerts by severity. Below,
-  silences ending soon and the noisiest and longest firing alerts.
+  by severity, silenced and inhibited ones, its Watchdog, whether Grafana IRM receives its
+  heartbeat, and alerts that never reached Achtung or never resolved in it. Click a tile
+  for its alerts by severity. Below, silences ending soon and the noisiest and longest
+  firing alerts. Alert names you ignore in Settings (Watchdog, say) stay out of Home's
+  counts and lists, for everyone; channels and Live still show them.
 - **Live view:** every channel's alerts in one stream, newest change first.
 - **Home view** (server API, `GET /api/home`): each Alertmanager at a glance, what it has
   open by severity, silenced and inhibited, read from the Alertmanager itself, and whether

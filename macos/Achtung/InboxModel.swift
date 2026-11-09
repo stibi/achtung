@@ -37,7 +37,7 @@ final class InboxModel {
     init(baseURL: URL, defaults: UserDefaults = .standard) {
         self.baseURL = baseURL
         self.server = AchtungServer(baseURL: baseURL)
-        self.homeModel = HomeModel(server: server)
+        self.homeModel = HomeModel(server: server, baseURL: baseURL)
         self.defaults = defaults
         // Occurrence ids belong to one server, so each server has its own read state.
         self.readStateKey = "readState \(baseURL.absoluteString)"

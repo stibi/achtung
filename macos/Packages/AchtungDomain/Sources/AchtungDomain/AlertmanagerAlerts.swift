@@ -78,6 +78,9 @@ public struct AlertmanagerAlert: Sendable, Hashable, Identifiable {
 
     public var id: String { fingerprint }
 
+    /// Its alertname label, which an ignored alert name matches; nil without one.
+    public var alertname: String? { labels["alertname"] }
+
     public init(
         fingerprint: String, title: String, severity: Severity, summary: String?,
         startsAt: Date, labels: [String: String], annotations: [String: String],

@@ -16,8 +16,8 @@ struct AlertmanagerDetailView: View {
     let open: (Occurrence) -> Void
     let back: () -> Void
 
-    /// Why opening an alert's occurrence failed, shown above the list.
-    @State private var openProblem: ServerError?
+    /// Why opening an alert's occurrence, or ignoring its name, failed: above the list.
+    @State private var actionProblem: String?
 
     private var alerts: AlertmanagerAlerts? { model.homeModel.alertmanagerAlerts[instance] }
     private var problem: ServerError? { model.homeModel.alertmanagerProblems[instance] }
@@ -57,6 +57,14 @@ struct AlertmanagerDetailView: View {
                     Task { await model.homeModel.refreshAlerts(of: instance) }
                 }
             }
+            // An ignored name leaves the list at once, wherever it was added.
+            .onReceive(
+                NotificationCenter.default.publisher(for: .ignoredAlertNamesChanged)
+            ) { notification in
+                if notification.ignoredAlertNamesServer == model.baseURL {
+                    Task { await model.homeModel.refreshAlerts(of: instance) }
+                }
+            }
     }
 
     @ViewBuilder private var content: some View {
@@ -64,14 +72,16 @@ struct AlertmanagerDetailView: View {
             ScrollView {
                 // The "since" times move on every minute between refreshes.
                 TimelineView(.everyMinute) { context in
-                    AlertGroups(alerts: alerts, now: context.date, open: openOccurrence)
+                    AlertGroups(
+                        alerts: alerts, now: context.date,
+                        actions: AlertRowActions(open: openOccurrence(id:), ignore: ignore(name:)))
                 }
                 .padding(24)
             }
             .safeAreaInset(edge: .top) {
-                if let openProblem {
+                if let actionProblem {
                     Label(
-                        "Couldn't open the alert: \(openProblem.detail)",
+                        actionProblem,
                         systemImage: "exclamationmark.triangle.fill"
                     )
                     .foregroundStyle(.orange)
@@ -103,113 +113,24 @@ struct AlertmanagerDetailView: View {
 
     /// The rows know only the occurrence's id: load it, then show it in its channel.
     private func openOccurrence(id: Int) {
-        openProblem = nil
+        actionProblem = nil
         Task {
             do throws(ServerError) {
                 open(try await model.homeModel.occurrence(id: id))
             } catch {
-                openProblem = error
+                actionProblem = "Couldn't open the alert: \(error.detail)"
             }
         }
     }
-}
 
-/// The active alerts by severity, or "All quiet", then the silenced and inhibited ones.
-private struct AlertGroups: View {
-    let alerts: AlertmanagerAlerts
-    let now: Date
-    let open: (Int) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            if case .unreachable(let error, let lastRead) = alerts.status {
-                Label(
-                    lastRead.map { "\(error). Showing the read from \(timeOrDate($0))." }
-                        ?? "\(error). It has never been read.",
-                    systemImage: "bolt.horizontal.circle"
-                )
-                .foregroundStyle(.red)
-            }
-            let groups = alerts.activeBySeverity
-            if groups.isEmpty, alerts.checkedAt != nil {
-                Label("All quiet", systemImage: "checkmark.circle.fill")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.green)
-            }
-            ForEach(groups, id: \.severity) { group in
-                VStack(alignment: .leading, spacing: 6) {
-                    GroupHeader(
-                        title: group.severity.groupTitle, count: group.alerts.count,
-                        color: group.severity.color)
-                    AlertCard(alerts: group.alerts, now: now, open: open)
-                }
-            }
-            FoldedGroup(title: "Silenced", alerts: alerts.silenced, now: now, open: open)
-            FoldedGroup(title: "Inhibited", alerts: alerts.inhibited, now: now, open: open)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct GroupHeader: View {
-    let title: String
-    let count: Int
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(color)
-            Text(count.formatted())
-                .font(.caption.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.white)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 1)
-                .background(color, in: Capsule())
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
-
-/// A group's alerts on one card, divided.
-private struct AlertCard: View {
-    let alerts: [AlertmanagerAlert]
-    let now: Date
-    let open: (Int) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(alerts.enumerated()), id: \.element.id) { index, alert in
-                if index > 0 {
-                    Divider()
-                }
-                AlertmanagerAlertRow(alert: alert, now: now, open: open)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
-        .background(.background.secondary, in: .rect(cornerRadius: 12))
-    }
-}
-
-/// "Silenced (4)", folded until opened; nothing when there are none.
-private struct FoldedGroup: View {
-    let title: String
-    let alerts: [AlertmanagerAlert]
-    let now: Date
-    let open: (Int) -> Void
-
-    var body: some View {
-        if !alerts.isEmpty {
-            // Folded until opened, as a DisclosureGroup starts.
-            DisclosureGroup {
-                AlertCard(alerts: alerts, now: now, open: open)
-                    .padding(.top, 6)
-            } label: {
-                Text("\(title) (\(alerts.count))")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+    /// Adds the name to the ignored alert names; the list reloads without it.
+    private func ignore(name: String) {
+        actionProblem = nil
+        Task {
+            let ignored = model.homeModel.ignoredAlerts
+            if await !ignored.add(name) {
+                actionProblem =
+                    "Couldn't ignore \(name): \(ignored.problem?.detail ?? "unknown problem")"
             }
         }
     }
@@ -271,18 +192,6 @@ private struct AlertmanagerHeader: View {
         case .reachable: "Reachable"
         case .unreachable(let error, _): "Unreachable: \(error)"
         case nil: "Loading"
-        }
-    }
-}
-
-extension Severity {
-    /// A group's title in an Alertmanager's detail.
-    fileprivate var groupTitle: String {
-        switch self {
-        case .critical: "Critical"
-        case .warning: "Warning"
-        case .info: "Info"
-        case .unknown: "Other"
         }
     }
 }

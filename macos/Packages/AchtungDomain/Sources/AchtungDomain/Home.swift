@@ -36,12 +36,13 @@ public struct AlertmanagerOverview: Sendable, Hashable, Identifiable {
     /// A successful read of its alerts.
     public struct Read: Sendable, Hashable {
         public let checkedAt: Date
-        /// Notifying alerts, not silenced or inhibited, without Watchdog and InfoInhibitor.
+        /// Notifying alerts, not silenced or inhibited, without the ignored alert names.
         public let open: OpenAlertCounts
         public let silenced: Int
         /// Inhibited and not silenced.
         public let inhibited: Int
-        /// Whether the Watchdog alert fires, i.e. the alerting pipeline works.
+        /// Whether the Watchdog alert fires, i.e. the alerting pipeline works; also while
+        /// Watchdog is an ignored name.
         public let watchdogFires: Bool
         public let delivery: Delivery
 
@@ -70,12 +71,16 @@ public struct AlertmanagerOverview: Sendable, Hashable, Identifiable {
 
     public let instance: String
     public let status: Status
+    /// Whether Grafana IRM receives its heartbeat; nil when it has no IRM integration, or
+    /// IRM isn't configured. Read apart from its alerts, so it's there either way.
+    public let irm: IrmHeartbeat?
 
     public var id: String { instance }
 
-    public init(instance: String, status: Status) {
+    public init(instance: String, status: Status, irm: IrmHeartbeat? = nil) {
         self.instance = instance
         self.status = status
+        self.irm = irm
     }
 
     /// The latest successful read, nil if it was never read.

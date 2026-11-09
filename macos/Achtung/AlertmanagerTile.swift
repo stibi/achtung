@@ -3,8 +3,9 @@ import SwiftUI
 
 /// One Alertmanager on Home, as it last read: its open alerts as a big number coloured by
 /// the worst severity (a calm "All quiet" at zero), a severity bar and breakdown, what's
-/// silenced or inhibited, whether its Watchdog fires, and any delivery problem between it
-/// and Achtung. An unreachable one keeps its last numbers, dimmed.
+/// silenced or inhibited, whether its Watchdog fires and Grafana IRM gets its heartbeat,
+/// and any delivery problem between it and Achtung. An unreachable one keeps its last
+/// numbers, dimmed.
 struct AlertmanagerTile: View {
     let overview: AlertmanagerOverview
     let open: (Occurrence) -> Void
@@ -29,6 +30,9 @@ struct AlertmanagerTile: View {
                 if let read = overview.lastRead {
                     WatchdogMark(fires: read.watchdogFires)
                 }
+                if let irm = overview.irm {
+                    IrmMark(irm: irm)
+                }
             }
             if let read = overview.lastRead {
                 readDetails(read)
@@ -37,6 +41,13 @@ struct AlertmanagerTile: View {
                 Text("Not read yet")
                     .font(.title3)
                     .foregroundStyle(.secondary)
+            }
+            // A real problem, so it's spelled out rather than left to the heart's help.
+            if let warning = overview.irm?.warning(time: timeOrDate) {
+                Label(warning, systemImage: "heart.slash.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
             }
             if case .unreachable(let error, _) = overview.status {
                 Label(error, systemImage: "bolt.horizontal.circle")
@@ -140,7 +151,8 @@ struct AlertmanagerTile: View {
         }
     }
 
-    /// "cdx, 15 open, 3 critical · 8 warning, 4 silenced, watchdog firing, 2 missing".
+    /// "cdx, 15 open, 3 critical · 8 warning, 4 silenced, 2 missing, watchdog firing, IRM
+    /// receiving".
     private var accessibilityText: String {
         var parts = [overview.instance]
         if isUnreachable {
@@ -150,6 +162,9 @@ struct AlertmanagerTile: View {
             parts.append(read.open.total == 0 ? "all quiet" : "\(read.open.total) open")
             parts += [read.open.breakdown, read.quieted, read.delivery.summary].compactMap(\.self)
             parts.append(read.watchdogFires ? "watchdog firing" : "no watchdog")
+        }
+        if let irm = overview.irm {
+            parts.append(irm.accessibilityText(time: timeOrDate))
         }
         return parts.joined(separator: ", ")
     }
@@ -189,5 +204,38 @@ private struct WatchdogMark: View {
                 fires
                     ? "Watchdog firing: the alerting pipeline works"
                     : "No watchdog: the alerting pipeline may be broken")
+    }
+}
+
+/// Grafana IRM's view of the heartbeat: green while it receives it, red while it misses
+/// it, grey when IRM was never read, and dimmed when the latest read of IRM failed.
+private struct IrmMark: View {
+    let irm: IrmHeartbeat
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Image(systemName: symbol)
+            Text("IRM")
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundStyle(color)
+        .opacity(irm.isStale ? 0.45 : 1)
+        .help(irm.help(time: timeOrDate))
+    }
+
+    private var symbol: String {
+        switch irm.tone {
+        case .good: "heart.fill"
+        case .bad: "heart.slash.fill"
+        case .unknown: "heart"
+        }
+    }
+
+    private var color: Color {
+        switch irm.tone {
+        case .good: .green
+        case .bad: .red
+        case .unknown: .gray
+        }
     }
 }

@@ -65,6 +65,14 @@
             "silencedUntil": "2026-11-07T22:14:19.526Z"
           }
         ]
+      },
+      "irm": {
+        "status": "receiving",
+        "since": null,
+        "lastMissedFrom": "2026-11-08T16:52:00.000Z",
+        "lastMissedTo": "2026-11-08T16:54:00.000Z",
+        "checkedAt": "2026-11-09T11:59:30.000Z",
+        "error": null
       }
     },
     {
@@ -76,7 +84,15 @@
       "silenced": null,
       "inhibited": null,
       "watchdog": null,
-      "delivery": null
+      "delivery": null,
+      "irm": {
+        "status": "unknown",
+        "since": null,
+        "lastMissedFrom": null,
+        "lastMissedTo": null,
+        "checkedAt": null,
+        "error": "Grafana IRM answered HTTP 401"
+      }
     },
     {
       "instance": "onprem",
@@ -96,6 +112,14 @@
       "delivery": {
         "missingInAchtung": [],
         "staleInAchtung": []
+      },
+      "irm": {
+        "status": "missing",
+        "since": "2026-11-09T11:40:00.000Z",
+        "lastMissedFrom": null,
+        "lastMissedTo": null,
+        "checkedAt": "2026-11-09T11:59:30.000Z",
+        "error": null
       }
     },
     {
@@ -116,7 +140,8 @@
       "delivery": {
         "missingInAchtung": [],
         "staleInAchtung": []
-      }
+      },
+      "irm": null
     }
   ],
   "silences": [

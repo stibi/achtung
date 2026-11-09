@@ -19,12 +19,13 @@ extension Components.Schemas.Home {
 extension Components.Schemas.AlertmanagerOverview {
     func domain() throws -> AlertmanagerOverview {
         let read = try lastRead()
+        let irm = try irm?.value1.domain(instance: instance)
         switch (reachable, read, error) {
         case (true, let read?, _):
-            return AlertmanagerOverview(instance: instance, status: .reachable(read))
+            return AlertmanagerOverview(instance: instance, status: .reachable(read), irm: irm)
         case (false, _, let error?):
             return AlertmanagerOverview(
-                instance: instance, status: .unreachable(error: error, lastRead: read))
+                instance: instance, status: .unreachable(error: error, lastRead: read), irm: irm)
         case (true, nil, _):
             throw ServerError.invalidResponse(
                 "Alertmanager \(instance) is reachable but was never read")
@@ -58,6 +59,39 @@ extension Components.Schemas.AlertmanagerOverview {
                 "Alertmanager \(instance) was read only in part (checkedAt, open, silenced, "
                     + "inhibited, watchdog and delivery are null together)")
         }
+    }
+}
+
+extension Components.Schemas.IrmHeartbeat {
+    /// The spec promises: a known status was read (`checkedAt`) and unknown never was,
+    /// missing has `since`, and the last missed heartbeat has both ends or neither.
+    func domain(instance: String) throws -> IrmHeartbeat {
+        let known: IrmHeartbeat.Known
+        switch (status, since, lastMissedFrom, lastMissedTo) {
+        case (.unknown, _, _, _):
+            guard checkedAt == nil else {
+                throw ServerError.invalidResponse(
+                    "IRM's heartbeat of \(instance) is unknown but was read")
+            }
+            return IrmHeartbeat(status: .unknown, error: error)
+        case (.receiving, _, let start?, let end?):
+            known = .receiving(lastMissed: IrmHeartbeat.Missed(start: start, end: end))
+        case (.receiving, _, nil, nil):
+            known = .receiving(lastMissed: nil)
+        case (.missing, let since?, _, _):
+            known = .missing(since: since)
+        case (.missing, nil, _, _):
+            throw ServerError.invalidResponse(
+                "IRM is missing the heartbeat of \(instance) without since")
+        case (.receiving, _, _, _):
+            throw ServerError.invalidResponse(
+                "IRM's last missed heartbeat of \(instance) has only one end")
+        }
+        guard let checkedAt else {
+            throw ServerError.invalidResponse(
+                "IRM's heartbeat of \(instance) is \(status.rawValue) but was never read")
+        }
+        return IrmHeartbeat(status: .known(known, checkedAt: checkedAt), error: error)
     }
 }
 

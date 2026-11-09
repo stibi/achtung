@@ -81,3 +81,51 @@ func anImpossibleAlertmanagerStateIsAnInvalidResponse(fixture: String) async {
         return message.contains("cdx")
     }
 }
+
+@Test func mapsEachAlertmanagersIrmHeartbeat() async throws {
+    let alertmanagers = try await home("home").alertmanagers
+
+    #expect(
+        alertmanagers[0].irm
+            == IrmHeartbeat(
+                status: .known(
+                    .receiving(
+                        lastMissed: .init(
+                            start: try date("2026-11-08T16:52:00.000Z"),
+                            end: try date("2026-11-08T16:54:00.000Z"))),
+                    checkedAt: try date("2026-11-09T11:59:30.000Z")),
+                error: nil))
+    #expect(
+        alertmanagers[1].irm
+            == IrmHeartbeat(status: .unknown, error: "Grafana IRM answered HTTP 401"))
+    #expect(
+        alertmanagers[2].irm?.status
+            == .known(
+                .missing(since: try date("2026-11-09T11:40:00.000Z")),
+                checkedAt: try date("2026-11-09T11:59:30.000Z")))
+    // No IRM integration: nothing to show.
+    #expect(alertmanagers[3].irm == nil)
+}
+
+@Test func anIrmHeartbeatFromAnEarlierReadKeepsItsStatusAndTheError() async throws {
+    let irm = try #require(try await home("home-irm-stale").alertmanagers[0].irm)
+
+    #expect(
+        irm.status
+            == .known(.receiving(lastMissed: nil), checkedAt: try date("2026-11-09T11:55:00.000Z")))
+    #expect(irm.error == "Grafana IRM answered HTTP 502")
+    #expect(irm.isStale)
+}
+
+@Test(arguments: [
+    "home-irm-missing-without-since", "home-irm-one-ended-miss", "home-irm-known-never-read",
+    "home-irm-unknown-but-read",
+])
+func anImpossibleIrmHeartbeatIsAnInvalidResponse(fixture: String) async {
+    await #expect {
+        try await home(fixture)
+    } throws: { error in
+        guard case ServerError.invalidResponse(let message) = error else { return false }
+        return message.contains("cdx")
+    }
+}

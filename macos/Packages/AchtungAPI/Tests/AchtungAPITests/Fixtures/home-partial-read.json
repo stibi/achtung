@@ -9,7 +9,8 @@
       "silenced": 0,
       "inhibited": 0,
       "watchdog": "firing",
-      "delivery": null
+      "delivery": null,
+      "irm": null
     }
   ],
   "silences": [],

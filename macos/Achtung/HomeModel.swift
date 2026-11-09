@@ -17,10 +17,14 @@ final class HomeModel {
     /// Why an Alertmanager's alerts last failed to load, by instance.
     private(set) var alertmanagerProblems: [String: ServerError] = [:]
 
+    /// The alert names Home leaves out, which a detail's alert row can add to.
+    let ignoredAlerts: IgnoredAlertsModel
+
     private let server: AchtungServer
 
-    init(server: AchtungServer) {
+    init(server: AchtungServer, baseURL: URL) {
         self.server = server
+        ignoredAlerts = IgnoredAlertsModel(baseURL: baseURL)
     }
 
     /// Reloads the Home view: the server reads each Alertmanager at most every 30 seconds.

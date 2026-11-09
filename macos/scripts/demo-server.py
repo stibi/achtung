@@ -6,7 +6,8 @@ over the last day, and older occurrences for their history. Times are relative t
 the server starts, and a few events lie ahead of it, so the inbox changes while it's
 recorded: a critical alert fires after 45 seconds and another resolves after 2.5 minutes.
 Silencing works, stops the alert's notifications and lasts until the server stops. No real hosts or data; every link points
-at example.com.
+at example.com. The ignored alert names can be edited, until the server stops; the demo
+has no Home, so they change nothing else.
 
 Usage: python3 demo-server.py [port]   (macos/scripts/demo.sh starts it with the app)
 """
@@ -266,11 +267,27 @@ def detail(occurrence_id, now):
     return {"occurrence": described, "events": history, "otherOccurrences": others[:20]}
 
 
+IGNORED = ["InfoInhibitor", "Watchdog"]  # the ignored alert names (Settings)
+
+
+def set_ignored(body):
+    names = body.get("names")
+    if not isinstance(names, list) or len(names) > 200:
+        return 400, {"error": "names must be a list of at most 200 alert names"}
+    trimmed = [name.strip() if isinstance(name, str) else "" for name in names]
+    if any(not name or len(name) > 200 for name in trimmed):
+        return 400, {"error": "An alert name must have 1 to 200 characters"}
+    IGNORED[:] = sorted(set(trimmed))
+    return 200, {"names": IGNORED}
+
+
 def get(path, query, now):
     cursor = query.get("cursor", [None])[0]
     status = query.get("status", [None])[0]
     if path == "/api/channels":
         return 200, channels(now)
+    if path == "/api/settings/ignored-alerts":
+        return 200, {"names": IGNORED}
     if path == "/api/occurrences":
         return 200, page(occurrences(now, status=status), cursor)
     if match := re.fullmatch(r"/api/instances/([^/]+)/channels/([^/]+)/occurrences", path):
@@ -306,6 +323,13 @@ class DemoAPI(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         now = datetime.datetime.now(datetime.timezone.utc)
         self.reply(*(silence(int(match.group(1)), body, now) if match else (404, {"error": "Not found"})))
+
+    def do_PUT(self):  # noqa: N802
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+        if urlparse(self.path).path == "/api/settings/ignored-alerts":
+            self.reply(*set_ignored(body))
+        else:
+            self.reply(404, {"error": "Not found"})
 
     def reply(self, status, payload):
         data = json.dumps(payload).encode()

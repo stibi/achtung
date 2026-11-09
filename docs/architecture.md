@@ -283,10 +283,10 @@ The identity below is a contract that features build on
   Opening a channel selects its first unread occurrence, if any. If the open channel
   disappears, for example because the operator moved it to another instance, the view
   switches to Live. Both are newest change first and paged by `nextCursor`;
-  `OccurrenceScope` (all channels or one) selects the route. `InboxModel`, and the
-  `HomeModel` it makes on the same server, are the only code that talks to the server;
-  the views only read them. `SampleData` exists for SwiftUI
-  previews.
+  `OccurrenceScope` (all channels or one) selects the route. `InboxModel`, the
+  `HomeModel` it makes on the same server, and `IgnoredAlertsModel` (one in `HomeModel`,
+  one in Settings) are the only code that talks to the server; the views only read them.
+  `SampleData` exists for SwiftUI previews.
 - Every alert, in the detail pane and on Live cards, has a silence button
   (`SilenceButton`, `POST /api/occurrences/{id}/silence`, ADR 0008): a split button whose
   main part silences for the remembered duration and whose menu offers 1h, 4h, 1d and 1w;
@@ -368,22 +368,30 @@ The identity below is a contract that features build on
   Alertmanager itself, read by the server at most every 30 seconds (ADR 0010): its
   notifying alerts as a big total coloured by the worst severity present, or a green "All
   quiet"; a stacked severity bar and breakdown; what's silenced or inhibited; a heart for
-  its Watchdog; a status dot for whether the server can read it (an unreachable one keeps
-  its last numbers, dimmed; one never read says so); and, when delivery between it and
-  Achtung broke, a capsule with the alerts missing in Achtung and those stale in it, in a
-  popover. The domain's `AlertmanagerOverview.Status` is either reachable with its read,
-  or unreachable with the error and its last read, if any; the mapping rejects anything
-  else (a read there only in part, reachable but never read, unreachable without an
-  error). Below the tiles: silences ending soon, the noisiest alerts of 24 hours and the
-  longest firing, each a `FittedSection`: it shows as many rows as fit the height left
-  under the tiles, measured from its own title and rows (`ListFit` in AchtungDomain does
-  the arithmetic; stacked sections share the height, a short one passing on what it
-  doesn't need), then "Show N more", which expands it and lets the page scroll. Never
-  fewer than three rows, so a small window scrolls. It recomputes as the window resizes,
-  collapses again once everything fits or when the user reloads Home (⌘R; the refresh
-  every 30 seconds leaves an open list alone), and starts collapsed whenever Home appears.
-  A future list on Home uses the same view. Rows with an occurrence open it in its
-  channel, selected even when neither the channel's loaded pages nor the feed hold it
+  its Watchdog, and a second one labelled "IRM" for whether Grafana IRM receives its
+  heartbeat (`AlertmanagerOverview.irm`, none without an IRM integration): green while it
+  does, red while it doesn't, with "IRM missing the heartbeat since …" spelled out on the
+  tile, grey when IRM was never read, dimmed when the latest read of IRM failed and the
+  status is older. `IrmHeartbeat` in AchtungDomain has the tone, the texts and their
+  durations; its status is either known, with when IRM was read, or unknown, and the
+  mapping rejects a missing heartbeat without `since`, a last miss with one end, a known
+  status never read and an unknown one that was. The tile also has a status dot for
+  whether the server can read it (an unreachable one keeps its last numbers, dimmed; one
+  never read says so) and, when delivery between it and Achtung broke, a capsule with the
+  alerts missing in Achtung and those stale in it, in a popover. The domain's
+  `AlertmanagerOverview.Status` is either reachable with its read, or unreachable with the
+  error and its last read, if any; the mapping rejects anything else (a read there only in
+  part, reachable but never read, unreachable without an error). Below the tiles: silences
+  ending soon, the noisiest alerts of 24 hours and the longest firing, each a
+  `FittedSection`: it shows as many rows as fit the height left under the tiles, measured
+  from its own title and rows (`ListFit` in AchtungDomain does the arithmetic; stacked
+  sections share the height, a short one passing on what it doesn't need), then "Show N
+  more", which expands it and lets the page scroll. Never fewer than three rows, so a
+  small window scrolls. It recomputes as the window resizes, collapses again once
+  everything fits or when the user reloads Home (⌘R; the refresh every 30 seconds leaves
+  an open list alone), and starts collapsed whenever Home appears. A future list on Home
+  uses the same view. Rows with an occurrence open it in its channel, selected even when
+  neither the channel's loaded pages nor the feed hold it
   (`InboxModel.shownOccurrences(revealing:)`), and let go when the user opens anything
   else. Home loads on its own, without waiting for the inbox's first refresh. It reloads
   every 30 seconds while the app is on screen, at once when it comes back, and on ⌘R.
@@ -397,7 +405,20 @@ The identity below is a contract that features build on
   rejects impossible lists (reachable but never read, unreachable without an error, never
   read but listing alerts, a silence end on an alert that isn't silenced). Back or Esc
   returns to Home; the detail reloads every 30 seconds while on screen, at once when it
-  comes back, and on ⌘R.
+  comes back, and on ⌘R. A row's context menu, "Ignore Alerts Named “…”", adds its
+  alertname to the ignored alert names.
+- Ignored alert names (`GET`/`PUT /api/settings/ignored-alerts`): alert names Home leaves
+  out of each Alertmanager's counts, its detail and its delivery check, matched exactly
+  on alertname. One list on the server, shared by every user (ADR 0002); channels and
+  Live show those alerts as usual, and Watchdog's heart doesn't depend on it. Settings has
+  an Ignored Alerts tab (`IgnoredAlertsSettings`) that edits it: add with the field
+  (Return or Add), remove the selection with − or Delete. Each change saves the whole list
+  at once (`IgnoredAlertsModel`), and shows the server's 400 below the field. A change
+  reads the list first and waits for the change before it, so neither a name removed
+  elsewhere nor one added a moment ago is lost; the server's answer, trimmed,
+  deduplicated and sorted, is the list from then on. A saved change posts
+  `ignoredAlertNamesChanged` with the server's URL, so Home and an open detail reload at
+  once, and Settings shows a change made from a detail.
 - Live's "All caught up" has a small pixel scene above it (`CoffeeBreak`): the icon's
   krysa at a table, sipping coffee every few seconds, an unused fire extinguisher in the
   corner. `CoffeeBreakScene` places the pixels for a moment in the loop, and the view
@@ -409,9 +430,9 @@ The identity below is a contract that features build on
   `TimelineView(.animation)` keeps the window redrawing. A setting ("Animate even when
   Reduce Motion is on", `MotionSetting`, off by default) lets it move despite the
   system's Reduce Motion, for people who want it in Achtung only.
-- The server address is a setting (Settings window). The app allows plain HTTP (ATS
-  exception in the generated Info.plist): servers are self-hosted and protected by the
-  operator's network, not by TLS (ADR 0002).
+- The server address is a setting (Settings window, General tab). The app allows plain
+  HTTP (ATS exception in the generated Info.plist): servers are self-hosted and protected
+  by the operator's network, not by TLS (ADR 0002).
 - Package dependencies enforce the layering. The compiler rejects imports a package
   hasn't declared.
 - The domain and API packages must build on Linux, so they can't import AppKit or

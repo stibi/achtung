@@ -194,6 +194,34 @@ public struct AchtungServer: Sendable {
         }
     }
 
+    /// The alert names Home leaves out (`IgnoredAlertNames`), sorted.
+    public func ignoredAlertNames() async throws(ServerError) -> [String] {
+        try await call {
+            switch try await client.getIgnoredAlertNames() {
+            case .ok(let response):
+                return try response.body.json.names
+            case .undocumented(let status, _):
+                throw ServerError.invalidResponse("HTTP \(status)")
+            }
+        }
+    }
+
+    /// Replaces the alert names Home leaves out, for every user, and returns them as the
+    /// server stores them: trimmed, once each, sorted. `.rejected` says why it refused,
+    /// e.g. an empty name.
+    public func setIgnoredAlertNames(_ names: [String]) async throws(ServerError) -> [String] {
+        try await call {
+            switch try await client.setIgnoredAlertNames(body: .json(.init(names: names))) {
+            case .ok(let response):
+                return try response.body.json.names
+            case .badRequest(let response):
+                throw ServerError.rejected(try response.body.json.error)
+            case .undocumented(let status, _):
+                throw ServerError.invalidResponse("HTTP \(status)")
+            }
+        }
+    }
+
     /// Runs one request and turns whatever it throws into a `ServerError`. The generated
     /// client wraps transport and decoding failures in `ClientError`; a body in an
     /// unexpected content type throws from `body.json`.

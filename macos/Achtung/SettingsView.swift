@@ -22,12 +22,35 @@ enum MotionSetting {
     static let key = "animatesDespiteReduceMotion"
 }
 
+/// The app's settings: General, kept on this Mac, and Ignored Alerts, kept on the server
+/// for every user.
 struct SettingsView: View {
     @AppStorage(ServerSetting.key) private var serverAddress = ServerSetting.defaultAddress
     @AppStorage(MotionSetting.key) private var animatesDespiteReduceMotion = false
     @State private var draft = ""
 
     var body: some View {
+        TabView {
+            Tab("General", systemImage: "gearshape") {
+                general
+            }
+            Tab("Ignored Alerts", systemImage: "eye.slash") {
+                Group {
+                    if let url = ServerSetting.url(from: serverAddress) {
+                        // A new server has its own list.
+                        IgnoredAlertsSettings(baseURL: url).id(url)
+                    } else {
+                        Text("Set a valid server address in General first.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(20)
+                .frame(width: 440)
+            }
+        }
+    }
+
+    private var general: some View {
         Form {
             TextField("Server", text: $draft, prompt: Text(ServerSetting.defaultAddress))
                 .onSubmit(apply)
@@ -52,7 +75,10 @@ struct SettingsView: View {
         }
         .padding(20)
         .frame(width: 440)
-        .onAppear { draft = serverAddress }
+        // Once per window, not on every return to this tab, so an address being typed
+        // survives a look at the other tab; an applied one replaces it.
+        .onAppear { if draft.isEmpty { draft = serverAddress } }
+        .onChange(of: serverAddress) { draft = serverAddress }
     }
 
     private func apply() {

@@ -3,17 +3,28 @@ import SwiftUI
 
 /// One alert in an Alertmanager's detail: its title and how long it has fired, the summary,
 /// a few labels that say where (the rest in the help), how it's silenced, and a hint when
-/// Achtung never got it. With an occurrence in Achtung, clicking it opens that.
+/// Achtung never got it. With an occurrence in Achtung, clicking it opens that. Its context
+/// menu adds its alertname to the ignored alert names, which takes it off Home.
 struct AlertmanagerAlertRow: View {
     let alert: AlertmanagerAlert
     let now: Date
-    /// Opens the alert's occurrence; nil when Achtung has none.
-    let open: ((Int) -> Void)?
+    let actions: AlertRowActions
 
     var body: some View {
-        if let id = alert.occurrenceID, let open {
+        row
+            .contextMenu {
+                if let name = alert.alertname {
+                    Button("Ignore Alerts Named “\(name)”", systemImage: "eye.slash") {
+                        actions.ignore(name)
+                    }
+                }
+            }
+    }
+
+    @ViewBuilder private var row: some View {
+        if let id = alert.occurrenceID {
             Button {
-                open(id)
+                actions.open(id)
             } label: {
                 content
                     .contentShape(.rect)
@@ -23,6 +34,7 @@ struct AlertmanagerAlertRow: View {
             .accessibilityHint("Opens the alert in its channel")
         } else {
             content
+                .contentShape(.rect)
         }
     }
 

@@ -8,6 +8,8 @@ import SwiftUI
 struct AlertRow: View {
     let occurrence: Occurrence
     let isRead: Bool
+    /// Search results span channels, so each row says which.
+    var showsChannel = false
 
     private var alert: IncomingAlert { occurrence.alert }
 
@@ -33,6 +35,11 @@ struct AlertRow: View {
                     Spacer()
                     RelativeTime(date: occurrence.lastEventAt)
                         .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if showsChannel {
+                    Text("\(occurrence.channel.instance) · #\(occurrence.channel.slug)")
+                        .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
                 }
                 if let summary = alert.summary {

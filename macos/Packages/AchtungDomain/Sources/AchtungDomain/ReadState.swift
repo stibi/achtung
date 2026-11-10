@@ -148,6 +148,8 @@ public struct ReadState: Sendable, Codable, Equatable {
         switch scope {
         case .allChannels: !showsReadInLive
         case .channel(let id): !showsReadIn.contains(id)
+        // Search results are everything that matches, read or not.
+        case .search: false
         }
     }
 
@@ -159,6 +161,8 @@ public struct ReadState: Sendable, Codable, Equatable {
             showsReadIn.remove(id)
         case .channel(let id):
             showsReadIn.insert(id)
+        case .search:
+            break
         }
     }
 

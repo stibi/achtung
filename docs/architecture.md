@@ -326,6 +326,21 @@ The identity below is a contract that features build on
   recorded itself, because the alert was gone from its Alertmanager, as "Resolved …" over
   "Gone from Alertmanager", with a question-mark check and a help text saying
   Alertmanager never sent the resolve; Copy for Agent's history says so too.
+- Search (ADR 0017): the window's search field (⌘F, `InboxSearch`) searches every
+  channel 300 ms after typing stops (`GET /api/occurrences` with `q`, `label`, `severity`,
+  `instance`). A finished word that names a filter becomes a token: `name=value` (a
+  Prometheus label name), `severity:critical`, `instance:cdx` (`SearchToken`,
+  `OccurrenceSearch` in AchtungDomain). The results replace the list, newest change first
+  with each row's channel (`SearchResults`), paged and kept up to date by the 30-second
+  refresh like any list: a search is an `OccurrenceScope`, whose list only the server
+  fills, read alerts included. Clicking a result opens it in its channel and ends the
+  search, as does choosing a sidebar row; arrow keys move through the results, and Return
+  opens one. Clearing the field (Esc) returns to the list that was open. The search is
+  fetched apart from the inbox's refresh, with its own error, so one the server refuses
+  (e.g. an invalid instance) doesn't stop the inbox refreshing or notifying. A label row's
+  context menu in an alert's details searches for that label ("Search for name=value").
+  No match says so with the query; the server's 400 shows in place of the results.
+  Tokens are added once each, and a new instance token replaces the old one.
 - "Copy for Agent" (the details' button, ⇧⌘C in the detail pane, a list row's context
   menu) puts the alert on the pasteboard as Markdown for an agent to investigate
   (`AgentReport` in AchtungDomain): the title; its state, severity, instance and channel;

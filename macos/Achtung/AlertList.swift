@@ -17,6 +17,10 @@ struct AlertList: View {
     let copy: (Occurrence) -> Void
     /// Silences, changes or ends a silence from a row's context menu.
     let silence: SilenceActions
+    /// Rows say their channel, as search results span channels.
+    var showsChannel = false
+    /// Opens a row on a click or Return, rather than showing it beside the list.
+    var open: ((Occurrence) -> Void)?
 
     /// What a silence from the context menu came to, when it needs saying: an error, or a
     /// broader silence that still mutes the alert.
@@ -33,17 +37,30 @@ struct AlertList: View {
                     occurrences: occurrences, readState: readState, hasOlder: hasOlder,
                     lastUpdated: lastUpdated, loadOlder: loadOlder
                 ) { occurrence in
-                    AlertRow(occurrence: occurrence, isRead: readState.isRead(occurrence))
-                        .contextMenu {
-                            Button("Copy for Agent", systemImage: "doc.on.doc") {
-                                copy(occurrence)
-                            }
-                            Divider()
-                            silenceItems(for: occurrence)
+                    AlertRow(
+                        occurrence: occurrence, isRead: readState.isRead(occurrence),
+                        showsChannel: showsChannel
+                    )
+                    .contentShape(.rect)
+                    .simultaneousGesture(
+                        TapGesture().onEnded { open?(occurrence) }, isEnabled: open != nil
+                    )
+                    .contextMenu {
+                        Button("Copy for Agent", systemImage: "doc.on.doc") {
+                            copy(occurrence)
                         }
+                        Divider()
+                        silenceItems(for: occurrence)
+                    }
                 }
             }
             .animation(.default, value: occurrences.map(\.id))
+            .onKeyPress(.return) {
+                guard let open, let occurrence = occurrences.first(where: { $0.id == selection })
+                else { return .ignored }
+                open(occurrence)
+                return .handled
+            }
             .alert(
                 "Silence",
                 isPresented: Binding(

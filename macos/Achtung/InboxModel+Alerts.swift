@@ -55,6 +55,38 @@ extension InboxModel {
         }
     }
 
+    /// The searches with a list loaded.
+    var searchScopes: [OccurrenceScope] {
+        lists.keys.filter { if case .search = $0 { true } else { false } }
+    }
+
+    /// What a list shows, nil until its first page arrives: with read alerts hidden, the
+    /// unread ones and `kept`, the occurrence the user has open (`ReadState.shown`).
+    /// `revealing` is one opened from Home, which neither the list's loaded pages nor the
+    /// feed may hold, e.g. an alert firing for days.
+    func shownOccurrences(
+        in scope: OccurrenceScope, keeping kept: Int?, revealing: Occurrence? = nil
+    ) -> [Occurrence]? {
+        guard let own = lists[scope]?.occurrences else { return nil }
+        let feed = (lists[.allChannels]?.occurrences ?? []) + (revealing.map { [$0] } ?? [])
+        return readState.shown(own: own, feed: feed, in: scope, keeping: kept)
+    }
+
+    /// Whether anything in `scope` is unread, as the list shows it with read alerts hidden.
+    func hasUnread(in scope: OccurrenceScope) -> Bool {
+        !readState.unread(
+            own: lists[scope]?.occurrences ?? [], feed: lists[.allChannels]?.occurrences ?? [],
+            in: scope
+        ).isEmpty
+    }
+
+    /// Forgets the lists of searches other than `kept`, once they're no longer shown.
+    func forgetSearches(except kept: OccurrenceSearch? = nil) {
+        for scope in searchScopes where scope != kept.map({ .search($0) }) {
+            forget(scope)
+        }
+    }
+
     /// Those of these occurrences the feed has unread.
     func unread(ids: Set<Int>) -> [Occurrence] {
         feed.filter { ids.contains($0.id) && !readState.isRead($0) }

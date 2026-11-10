@@ -10,23 +10,26 @@ import SwiftUI
 /// without a window), right away when a list opens, and whenever the app becomes active.
 struct InboxView: View {
     let model: InboxModel
-    @State private var page: InboxPage? = .home
-    @State private var selectedID: Int?
+    @State var page: InboxPage? = .home
+    @State var selectedID: Int?
     /// An occurrence opened from Home, selected in its channel even if neither the list's
     /// loaded pages nor the feed hold it; let go once the selection moves on.
-    @State private var revealed: Occurrence?
+    @State var revealed: Occurrence?
     /// Live's card the user last clicked (`LiveView.kept`), here so marking all read can
     /// let it go.
     @State private var liveKept: Int?
     /// A channel just opened whose first unread occurrence is still to be selected, after
     /// its first refresh.
-    @State private var selectFirstUnreadIn: OccurrenceScope?
+    @State var selectFirstUnreadIn: OccurrenceScope?
+    /// The search field's text and tokens, and the search shown, if any (`InboxSearch`).
+    @State var query = SearchQuery()
+    @State var activeSearch: OccurrenceSearch?
 
     private var detailRetry: Date? {
         model.detailProblem == nil ? nil : model.lastUpdated
     }
 
-    private var selectedScope: OccurrenceScope? {
+    var selectedScope: OccurrenceScope? {
         if case .list(let scope) = page { scope } else { nil }
     }
 
@@ -39,10 +42,13 @@ struct InboxView: View {
 
     var body: some View {
         NavigationSplitView {
-            InboxSidebar(model: model, selection: $page)
+            InboxSidebar(model: model, selection: sidebarSelection)
         } detail: {
             content
         }
+        .modifier(
+            InboxSearch(model: model, query: $query, active: $activeSearch)
+        )
         // A channel that moved to another instance (ADR 0006) has a new identity; leave the
         // old one for Live rather than asking the server for it every refresh.
         .onChange(of: model.channels) {
@@ -83,10 +89,12 @@ struct InboxView: View {
         }
         // The list on screen is what `AppModel`'s refresh brings up to date; opening one
         // refreshes it at once.
-        .task(id: selectedScope) {
-            model.activeScope = selectedScope
-            await model.refresh(selectedScope, visiting: NSApp.isActive)
-            if !Task.isCancelled {
+        // The one place that says which list the refresh keeps up to date: the search shown,
+        // else the selected list.
+        .task(id: shownScope) {
+            model.activeScope = shownScope
+            await model.refresh(shownScope, visiting: NSApp.isActive && activeSearch == nil)
+            if !Task.isCancelled, activeSearch == nil {
                 selectFirstUnread()
             }
         }
@@ -114,32 +122,15 @@ struct InboxView: View {
         }
     }
 
-    private func takeOpenRequest() {
-        guard let request = model.openRequest else { return }
-        model.openRequest = nil
-        switch request {
-        case .occurrence(let occurrence):
-            revealed = occurrence
-            page = .list(.channel(occurrence.channel))
-            selectedID = occurrence.id
-        case .list(let scope):
-            page = .list(scope)
-        }
-    }
-
-    private func selectFirstUnread() {
-        guard let scope = selectFirstUnreadIn, scope == selectedScope,
-            let occurrences = model.shownOccurrences(in: scope, keeping: nil)
-        else { return }
-        // Once, on opening the channel: selecting marks it read, and with read alerts
-        // hidden, selecting the next unread one each time would read the whole list.
-        selectedID = model.readState.firstUnread(in: occurrences)?.id
-        selectFirstUnreadIn = nil
-    }
-
     @ViewBuilder private var content: some View {
-        // Home loads on its own (`HomeView`), not after the inbox's first refresh.
-        if page == .home {
+        if let activeSearch {
+            // A result opens in its channel, which ends the search.
+            SearchResults(model: model, search: activeSearch) { occurrence in
+                query = SearchQuery()
+                model.openRequest = .occurrence(occurrence)
+            }
+        } else if page == .home {
+            // Home loads on its own (`HomeView`), not after the inbox's first refresh.
             HomeView(model: model) { occurrence in
                 revealed = occurrence
                 page = .list(.channel(occurrence.channel))
@@ -166,6 +157,9 @@ struct InboxView: View {
                         }
                         .sharedBackgroundVisibility(.hidden)
                     }
+            case .search:
+                // The sidebar never selects a search; `activeSearch` shows one above.
+                EmptyView()
             case .channel(let channel):
                 // HSplitView sizes its panes to their ideal height unless told to fill.
                 HSplitView {

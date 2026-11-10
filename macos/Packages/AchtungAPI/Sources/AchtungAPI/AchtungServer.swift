@@ -60,6 +60,8 @@ public struct AchtungServer: Sendable {
                 case .undocumented(let status, _):
                     throw ServerError.invalidResponse("HTTP \(status)")
                 }
+            case .search(let search):
+                return try await searchPage(search, after: cursor)
             case .channel(let channel):
                 let output = try await client.listInstanceChannelOccurrences(
                     path: .init(instance: channel.instance, slug: channel.slug),

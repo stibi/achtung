@@ -22,7 +22,11 @@ struct StubTransport: ClientTransport {
             let data = try await Data(collecting: body, upTo: 1 << 16)
             await log.append(String(bytes: data, encoding: .utf8) ?? "")
         }
-        guard let route = routes[request.path ?? ""] else {
+        await log?.append(path: request.path ?? "")
+        // A route without a query matches the path with any query, e.g. a search's.
+        let path = request.path ?? ""
+        let withoutQuery = String(path.prefix { $0 != "?" })
+        guard let route = routes[path] ?? routes[withoutQuery] else {
             throw URLError(.cannotConnectToHost)
         }
         guard
@@ -37,11 +41,16 @@ struct StubTransport: ClientTransport {
     }
 }
 
-/// The request bodies a `StubTransport` received, in order.
+/// The request bodies and paths a `StubTransport` received, in order.
 actor RequestLog {
     private(set) var bodies: [String] = []
+    private(set) var paths: [String] = []
 
     func append(_ body: String) {
         bodies.append(body)
+    }
+
+    func append(path: String) {
+        paths.append(path)
     }
 }

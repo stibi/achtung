@@ -19,6 +19,9 @@ final class InboxModel {
     private(set) var readState: ReadState
     /// The last failed refresh or page load; nil once a refresh succeeds again.
     private(set) var problem: ServerError?
+    /// Why a search's list didn't load, e.g. the server's 400; apart from `problem`, which
+    /// is about the inbox.
+    private(set) var listProblems: [OccurrenceScope: ServerError] = [:]
     private(set) var lastUpdated: Date?
     /// Home's tiles, lists and Alertmanager details (`HomeModel`), on the same server.
     let homeModel: HomeModel
@@ -49,6 +52,13 @@ final class InboxModel {
         // Occurrence ids belong to one server, so each server has its own read state.
         self.readStateKey = "readState \(baseURL.absoluteString)"
         self.readState = Self.loadReadState(from: defaults, key: readStateKey)
+    }
+
+    /// Drops a list and its paging, e.g. a search no longer shown.
+    func forget(_ scope: OccurrenceScope) {
+        lists[scope] = nil
+        olderCursors[scope] = nil
+        listProblems[scope] = nil
     }
 
     func hasOlder(in scope: OccurrenceScope) -> Bool {
@@ -90,6 +100,23 @@ final class InboxModel {
             guard !Task.isCancelled else { return }
             problem = error
         }
+        // A search on its own: one the server refuses mustn't stop the inbox's refresh.
+        if case .search = scope, let scope {
+            await refreshSearch(scope)
+        }
+    }
+
+    /// Brings the search on screen up to date, with its own error (`listProblems`); one
+    /// left while the request ran is forgotten rather than kept.
+    private func refreshSearch(_ scope: OccurrenceScope) async {
+        guard scope == activeScope else { return }
+        do throws(ServerError) {
+            try await update(scope)
+            listProblems[scope] = nil
+        } catch {
+            if !Task.isCancelled { listProblems[scope] = error }
+        }
+        if scope != activeScope { forget(scope) }
     }
 
     func loadOlder(in scope: OccurrenceScope) async {
@@ -125,26 +152,6 @@ final class InboxModel {
         where lists[scope]?.occurrences.contains(where: { $0.id == occurrence.id }) == true {
             lists[scope]?.merge([occurrence])
         }
-    }
-
-    /// What a list shows, nil until its first page arrives: with read alerts hidden, the
-    /// unread ones and `kept`, the occurrence the user has open (`ReadState.shown`).
-    /// `revealing` is one opened from Home, which neither the list's loaded pages nor the
-    /// feed may hold, e.g. an alert firing for days.
-    func shownOccurrences(
-        in scope: OccurrenceScope, keeping kept: Int?, revealing: Occurrence? = nil
-    ) -> [Occurrence]? {
-        guard let own = lists[scope]?.occurrences else { return nil }
-        let feed = (lists[.allChannels]?.occurrences ?? []) + (revealing.map { [$0] } ?? [])
-        return readState.shown(own: own, feed: feed, in: scope, keeping: kept)
-    }
-
-    /// Whether anything in `scope` is unread, as the list shows it with read alerts hidden.
-    func hasUnread(in scope: OccurrenceScope) -> Bool {
-        !readState.unread(
-            own: lists[scope]?.occurrences ?? [], feed: lists[.allChannels]?.occurrences ?? [],
-            in: scope
-        ).isEmpty
     }
 
     /// Marks what's unread in `scope` read, as loaded (`ReadState.markAllRead`).
@@ -269,6 +276,9 @@ final class InboxModel {
                     readState.markVisited(channel)
                 }
             }
+        case .search:
+            // Results across channels say nothing about what's new in each.
+            return
         }
         saveReadState()
     }

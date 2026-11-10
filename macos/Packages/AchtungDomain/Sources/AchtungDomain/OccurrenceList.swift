@@ -1,15 +1,19 @@
 import Foundation
 
-/// Which occurrences a list holds: every channel's (the Live view) or one channel's.
+/// Which occurrences a list holds: every channel's (the Live view), one channel's, or a
+/// search's across every channel.
 public enum OccurrenceScope: Hashable, Sendable {
     case allChannels
     case channel(ChannelID)
+    case search(OccurrenceSearch)
 
-    /// Whether `occurrence` belongs in a list of this scope.
+    /// Whether `occurrence` belongs in a list of this scope. For a search only the server
+    /// knows, so its list is what the server returned, never the feed's.
     public func contains(_ occurrence: Occurrence) -> Bool {
         switch self {
         case .allChannels: true
         case .channel(let id): occurrence.channel == id
+        case .search: false
         }
     }
 }

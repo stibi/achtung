@@ -125,7 +125,9 @@ private struct KeyValueRow: View {
     let entry: KeyValueRows.Entry
     let isLabel: Bool
 
+    @Environment(\.searchAlerts) private var searchAlerts
     @State private var isHovered = false
+
     /// Counts copies; the checkmark shows for a moment from the latest one.
     @State private var copies = 0
     @State private var copied = false
@@ -166,6 +168,11 @@ private struct KeyValueRow: View {
         .contextMenu {
             Button("Copy \(entry.name)=…") { copy("\(entry.name)=\(entry.value)") }
             Button("Copy Value") { copy(entry.value) }
+            if isLabel, let searchAlerts {
+                Button("Search for \(entry.name)=\(entry.value)", systemImage: "magnifyingglass") {
+                    searchAlerts(.label(name: entry.name, value: entry.value))
+                }
+            }
             if isLabel {
                 Button("Copy as PromQL Matcher") {
                     copy("\(entry.name)=\"\(promQLEscaped(entry.value))\"")

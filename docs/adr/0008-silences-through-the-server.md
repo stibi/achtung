@@ -48,7 +48,7 @@ address.
 - **While an alert is silenced, Alertmanager does not send its resolve either.** A silenced
   alert that resolves can stay firing in Achtung, because the resolved notification may
   never be sent once the silence ends. Fixing it needs Achtung to reconcile with
-  Alertmanager's alerts (`GET /api/v2/alerts`), which is a separate change.
+  Alertmanager's alerts (`GET /api/v2/alerts`), which is a separate change (ADR 0014).
 - **Reads depend on the Alertmanagers being reachable, but never fail because of them.**
   When an Alertmanager can't be read, its last known silences are used, or none, until
   the next 30-second window; the server logs a warning. `silencedUntil` can then be stale

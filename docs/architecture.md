@@ -95,6 +95,12 @@ The identity below is a contract that features build on
   | firing | firing, last event ≥ 1h ago | `resent` (a reminder; not counted as new) |
   | same status | same status | none: fields are updated, nothing is new |
 
+- One event has no notification behind it: an occurrence still firing in Achtung that
+  its Alertmanager no longer has, for 5 minutes of reads, is resolved by
+  `services/reconcile.ts` with a `resolved` event whose `cause` is `vanished`
+  ([ADR 0014](adr/0014-resolve-vanished-occurrences.md)). A later firing notification
+  reopens it like any resolved occurrence.
+
 ## Ingest and storage
 
 - `POST /ingest/{source}/{instance}/{channel}`, one route per source adapter (also in
@@ -160,7 +166,9 @@ The identity below is a contract that features build on
     receiver a channel of that instance recorded, but not firing in Achtung and not
     changed there since the read (`missingInAchtung`), and occurrences firing in Achtung,
     last notified over 10 minutes before the read, that Alertmanager no longer has
-    (`staleInAchtung`). It only reports; nothing is resolved. The counting and the comparison are pure functions in
+    (`staleInAchtung`). Home only reports; `services/reconcile.ts`, run every minute by
+    `main.ts`, resolves what stays stale for 5 minutes ([ADR 0014](adr/0014-resolve-vanished-occurrences.md)),
+    with a `resolved` event whose `cause` is `vanished`. The counting and the comparison are pure functions in
     `domain/overview.ts`. The counts and both delivery lists leave out the ignored alert
     names (below); `watchdog` doesn't, it still says whether `Watchdog` is there.
     An entry's `irm` ([ADR 0012](adr/0012-irm-heartbeat.md)) says whether Grafana IRM

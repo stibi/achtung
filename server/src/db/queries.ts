@@ -144,7 +144,12 @@ export async function findOccurrence(db: Database, id: number): Promise<Occurren
 
 export function listEvents(db: Database, occurrenceId: number): Promise<OccurrenceEvent[]> {
   return db
-    .select({ id: events.id, kind: events.kind, recordedAt: events.recordedAt })
+    .select({
+      id: events.id,
+      kind: events.kind,
+      cause: events.cause,
+      recordedAt: events.recordedAt,
+    })
     .from(events)
     .where(eq(events.occurrenceId, occurrenceId))
     .orderBy(asc(events.id));

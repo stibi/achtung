@@ -10,6 +10,12 @@ type OccurrenceStatus = AlertState["status"];
  */
 export type EventKind = "fired" | "resolved" | "reopened" | "resent";
 
+/**
+ * Why Achtung recorded an event that no notification caused: `vanished`, the occurrence was
+ * gone from its Alertmanager, so Achtung resolved it (ADR 0014).
+ */
+export type EventCause = "vanished";
+
 /** A repeat within this long of the occurrence's last event is not news. */
 export const resendQuietPeriodMs = 60 * 60 * 1000;
 
@@ -53,5 +59,7 @@ export type Occurrence = IncomingAlert & {
 export interface OccurrenceEvent {
   readonly id: number;
   readonly kind: EventKind;
+  /** Null when a notification caused the event. */
+  readonly cause: EventCause | null;
   readonly recordedAt: Date;
 }

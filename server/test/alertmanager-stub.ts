@@ -50,8 +50,8 @@ export interface AlertmanagerStub {
   readonly alerts: StubAlert[];
   /** Answer every request with this status and body instead. */
   fail(status: number, body: string): void;
-  /** Answer only reads (of silences and alerts) with this status and body. */
-  failReads(status: number, body: string): void;
+  /** Answer only reads (of silences and alerts) with this status and body; null answers again. */
+  failReads(status: number | null, body?: string): void;
   /**
    * The next list of silences is taken when the request arrives but sent only once
    * `release` is called: a read that is slower than a write after it.
@@ -121,8 +121,8 @@ export async function startAlertmanagerStub(): Promise<AlertmanagerStub> {
     fail: (status, text) => {
       failure = { status, body: text };
     },
-    failReads: (status, text) => {
-      readFailure = { status, body: text };
+    failReads: (status, text = "") => {
+      readFailure = status === null ? null : { status, body: text };
     },
     holdNextRead: () => {
       let release = () => {};

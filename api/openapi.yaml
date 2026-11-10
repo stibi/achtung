@@ -169,12 +169,21 @@ components:
             - resolved
             - reopened
             - resent
+        cause:
+          nullable: true
+          description: "Null when a notification caused the event. vanished: a resolve
+            Achtung recorded itself, because the alert was gone from its
+            Alertmanager"
+          type: string
+          enum:
+            - vanished
         recordedAt:
           type: string
           format: date-time
       required:
         - id
         - kind
+        - cause
         - recordedAt
     OccurrenceDetail:
       type: object

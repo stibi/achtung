@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { IncomingAlert } from "../domain/alert.ts";
 import type { ChannelRef } from "../domain/channel.ts";
-import type { EventKind } from "../domain/occurrence.ts";
+import type { EventCause, EventKind } from "../domain/occurrence.ts";
 import type { Transaction } from "./client.ts";
 import { channels, events, occurrences } from "./schema.ts";
 
@@ -130,10 +130,41 @@ export async function recordEvent(
   occurrenceId: number,
   kind: EventKind,
   now: Date,
+  cause: EventCause | null = null,
 ): Promise<void> {
-  await tx.insert(events).values({ occurrenceId, kind, recordedAt: now });
+  await tx.insert(events).values({ occurrenceId, kind, cause, recordedAt: now });
   await tx
     .update(occurrences)
     .set({ lastEventAt: now, lastEventKind: kind })
     .where(eq(occurrences.id, occurrenceId));
+}
+
+/**
+ * Resolves a firing occurrence that is gone from its Alertmanager (ADR 0014), ending it at
+ * `endsAt`. Does nothing if it no longer fires or a notification arrived after
+ * `lastReceivedAt`: the update's condition decides under the row lock, so it can't race an
+ * ingest of the same occurrence. Returns whether it resolved it.
+ */
+export async function resolveVanished(
+  tx: Transaction,
+  id: number,
+  { lastReceivedAt, endsAt }: { readonly lastReceivedAt: Date; readonly endsAt: Date },
+  now: Date,
+): Promise<boolean> {
+  const [row] = await tx
+    .update(occurrences)
+    .set({ status: "resolved", endsAt })
+    .where(
+      and(
+        eq(occurrences.id, id),
+        eq(occurrences.status, "firing"),
+        eq(occurrences.lastReceivedAt, lastReceivedAt),
+      ),
+    )
+    .returning({ id: occurrences.id });
+  if (row === undefined) {
+    return false;
+  }
+  await recordEvent(tx, id, "resolved", now, "vanished");
+  return true;
 }

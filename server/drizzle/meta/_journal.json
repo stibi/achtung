@@ -50,6 +50,13 @@
       "when": 1794235133116,
       "tag": "0006_ignored_alert_names",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794304973421,
+      "tag": "0007_vanished_events",
+      "breakpoints": true
     }
   ]
 }

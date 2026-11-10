@@ -253,7 +253,6 @@ export function deliveryOf<T extends FiringOccurrence>(
 ): Delivery<T> {
   const settled = (at: Date) => readAt.getTime() - at.getTime() > deliveryGraceMs;
   const inAchtung = new Set([...firing, ...changedAfterRead].map(keyOf));
-  const inAlertmanager = new Set(alerts.map(alertKey));
   return {
     missingInAchtung: alerts
       .filter(isNotifying)
@@ -267,12 +266,28 @@ export function deliveryOf<T extends FiringOccurrence>(
         severity: severityOf(alert),
         startsAt: alert.startsAt,
       })),
-    staleInAchtung: firing
+    staleInAchtung: goneFromAlertmanager(alerts, firing, readAt)
       .filter((occurrence) => !isIgnored(occurrence.labels, ignored))
-      .filter((occurrence) => !inAlertmanager.has(keyOf(occurrence)))
-      .filter((occurrence) => settled(occurrence.lastReceivedAt))
       .toSorted(oldestFirst),
   };
+}
+
+/**
+ * The firing occurrences the Alertmanager no longer had at `readAt`, though their last
+ * notification is older than the delivery grace: a resolve that never arrived. Whatever
+ * their name: this is about the data, not what Home shows (ADR 0014).
+ */
+export function goneFromAlertmanager<T extends Firing & { readonly lastReceivedAt: Date }>(
+  alerts: readonly AlertmanagerAlert[],
+  firing: readonly T[],
+  readAt: Date,
+): T[] {
+  const inAlertmanager = new Set(alerts.map(alertKey));
+  return firing.filter(
+    (occurrence) =>
+      !inAlertmanager.has(keyOf(occurrence)) &&
+      readAt.getTime() - occurrence.lastReceivedAt.getTime() > deliveryGraceMs,
+  );
 }
 
 /** The `limit` firing occurrences that started first. */

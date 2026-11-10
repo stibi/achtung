@@ -6,6 +6,7 @@ import { buildApp, type Services } from "../src/http/app.ts";
 import { type AlertmanagerAlertsOptions, alertmanagerAlertsFrom } from "../src/services/home.ts";
 import { servicesFor } from "../src/services/index.ts";
 import { type IrmHeartbeatsOptions, irmHeartbeatsFrom } from "../src/services/irm-heartbeats.ts";
+import { type Reconciler, reconcilerFor } from "../src/services/reconcile.ts";
 import { type SilencesOptions, silencesFrom } from "../src/services/silences.ts";
 import { alertmanagerSource } from "../src/sources/alertmanager/index.ts";
 import { createTestDatabase } from "./database.ts";
@@ -47,15 +48,16 @@ export interface TestAppOptions {
 /** The real app on a fresh test database. */
 export async function appWithDatabase(
   options: TestAppOptions = {},
-): Promise<{ app: FastifyInstance; services: Services }> {
+): Promise<{ app: FastifyInstance; services: Services; reconciler: Reconciler }> {
   const logLines = options.logLines ?? [];
   const { db } = await createTestDatabase();
   const endpoints = new Map(Object.entries(options.alertmanagers ?? {}));
+  const alerts = alertmanagerAlertsFrom(endpoints, options.alerts);
   const services = servicesFor(
     db,
     {
       silences: silencesFrom(endpoints, options.silences),
-      alerts: alertmanagerAlertsFrom(endpoints, options.alerts),
+      alerts,
       heartbeats: irmHeartbeatsFrom(
         options.irm?.endpoint ?? null,
         new Map(Object.entries(options.irm?.integrations ?? {})),
@@ -72,5 +74,5 @@ export async function appWithDatabase(
     checkReady: async () => {},
   });
   onTestFinished(() => app.close());
-  return { app, services };
+  return { app, services, reconciler: reconcilerFor(db, alerts, options.now) };
 }

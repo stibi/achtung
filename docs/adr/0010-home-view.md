@@ -63,7 +63,8 @@ Achtung got, not what is wrong.
     late without anything being wrong. Both sides are measured against the read's time,
     not the request's, so a read kept while Alertmanager is down doesn't make everything
     since look stale or missing.
-- **Nothing is reconciled automatically.** The check only reports. Resolving a stale
+- **Nothing is reconciled automatically** (superseded by ADR 0014, which resolves
+  occurrences that stay gone from their Alertmanager). The check only reports. Resolving a stale
   occurrence would invent an event Alertmanager never sent, with a guessed time, and a
   wrong comparison (a misconfigured receiver, a renamed instance) would silently rewrite
   history. The user decides what to do.
@@ -88,8 +89,7 @@ Achtung got, not what is wrong.
   `group_wait`, or an alert that resolved and fired again between two reads. It is a hint
   to look, not a verdict.
 - Stale occurrences stay firing until Alertmanager sends their resolve or someone deals
-  with them. ADR 0008's "reconcile with Alertmanager's alerts" is still open; this check
-  is the information it would need.
+  with them. Superseded by ADR 0014, which resolves them using this check.
 - Adding the column and the index is a plain migration (`0005_channel_receiver`). Building
   the index briefly blocks writes to `events` during the deploy.
 

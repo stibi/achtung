@@ -36,6 +36,8 @@ export const channels = pgTable(
 export const occurrenceStatus = pgEnum("occurrence_status", ["firing", "resolved"]);
 export const severity = pgEnum("severity", ["critical", "warning", "info", "unknown"]);
 export const eventKind = pgEnum("event_kind", ["fired", "resolved", "reopened", "resent"]);
+// Why Achtung recorded an event itself, rather than because a notification said so.
+export const eventCause = pgEnum("event_cause", ["vanished"]);
 
 /** One occurrence of an alert: its identity plus startsAt (docs/architecture.md). */
 export const occurrences = pgTable(
@@ -105,6 +107,9 @@ export const events = pgTable(
       .notNull()
       .references(() => occurrences.id),
     kind: eventKind().notNull(),
+    // Null: a notification caused it. `vanished`: Achtung resolved the occurrence because
+    // its Alertmanager no longer had it (ADR 0014).
+    cause: eventCause(),
     recordedAt: timestamptz().notNull(),
   },
   (table) => [

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { type AlertmanagerAlert, deliveryGraceMs, deliveryOf } from "../../src/domain/overview.ts";
+import {
+  type AlertmanagerAlert,
+  deliveryGraceMs,
+  deliveryOf,
+  goneFromAlertmanager,
+} from "../../src/domain/overview.ts";
 import {
   alert,
   inhibited,
@@ -206,5 +211,20 @@ describe("deliveryOf: stale in Achtung", () => {
     const occurrences = [firing("b", 20, 15), firing("a", 40, 15), firing("c", 30, 15)];
 
     expect(stale([], occurrences).map((item) => item.sourceKey)).toEqual(["a", "c", "b"]);
+  });
+});
+
+describe("goneFromAlertmanager", () => {
+  it("is the stale occurrences, ignored names included, in the order given", () => {
+    const occurrences = [
+      firing("gone", 60, 30, "grafana-irm-heartbeat"),
+      firing("fp-A", 60, 30),
+      firing("recent", 60, 5),
+      firing("old", 90, 45),
+    ];
+
+    expect(
+      goneFromAlertmanager([alert("A", { startsAt: minutesBefore(60) })], occurrences, readAt),
+    ).toEqual([occurrences[0], occurrences[3]]);
   });
 });

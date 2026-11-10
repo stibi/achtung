@@ -159,8 +159,18 @@ describe("GET /api/occurrences/{id}", () => {
     expect(status).toBe(200);
     expect(body.occurrence).toEqual(first);
     expect(body.events).toEqual([
-      { id: expect.any(Number), kind: "fired", recordedAt: "2026-10-13T08:30:00.000Z" },
-      { id: expect.any(Number), kind: "resolved", recordedAt: "2026-10-13T08:45:00.000Z" },
+      {
+        id: expect.any(Number),
+        kind: "fired",
+        cause: null,
+        recordedAt: "2026-10-13T08:30:00.000Z",
+      },
+      {
+        id: expect.any(Number),
+        kind: "resolved",
+        cause: null,
+        recordedAt: "2026-10-13T08:45:00.000Z",
+      },
     ]);
     expect(body.otherOccurrences).toEqual([
       expect.objectContaining({ startsAt: "2026-10-13T09:00:00.000Z", status: "firing" }),

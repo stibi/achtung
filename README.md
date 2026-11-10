@@ -68,7 +68,8 @@ their own instance.
   open by severity, silenced and inhibited, read from the Alertmanager itself, and whether
   its Watchdog fires. It also flags delivery problems: alerts Alertmanager should have
   sent Achtung but didn't, and alerts still firing in Achtung that Alertmanager has
-  dropped (a missed resolve). It only reports them. Plus the active silences, the
+  dropped (a missed resolve). The server resolves those once they stay gone for 5 minutes,
+  marked `vanished` in their history ([ADR 0014](docs/adr/0014-resolve-vanished-occurrences.md)). Plus the active silences, the
   noisiest alerts of the last day and the longest firing ones
   ([ADR 0010](docs/adr/0010-home-view.md)).
 - **IRM heartbeat on Home** (server API, `irm` on each `/api/home` tile): whether Grafana

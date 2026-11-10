@@ -62,6 +62,13 @@ const eventBody = z
   .object({
     id: z.int().positive(),
     kind: eventKind,
+    cause: z
+      .enum(["vanished"])
+      .nullable()
+      .describe(
+        "Null when a notification caused the event. vanished: a resolve Achtung recorded " +
+          "itself, because the alert was gone from its Alertmanager",
+      ),
     recordedAt: timestamp,
   })
   .meta({ id: "Event" });

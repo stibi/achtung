@@ -280,7 +280,7 @@ def detail(occurrence_id, now):
         == (described["instance"], described["channel"], described["sourceKey"])
     ]
     history = [
-        {"id": event_id, "kind": kind, "recordedAt": iso(time)}
+        {"id": event_id, "kind": kind, "cause": None, "recordedAt": iso(time)}
         for event_id, kind, time in events(occurrence_id, now)
     ]
     others.sort(key=lambda o: o["startsAt"], reverse=True)

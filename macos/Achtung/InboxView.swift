@@ -233,7 +233,7 @@ struct InboxView: View {
                 lastUpdated: model.lastUpdated,
                 loadOlder: { await model.loadOlder(in: scope) },
                 hidesRead: hidesRead(in: scope),
-                selection: $selectedID)
+                selection: $selectedID, copy: copy)
         } else {
             loading(scope)
         }
@@ -250,6 +250,13 @@ struct InboxView: View {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    /// Copies an occurrence for an agent, with its history when it's the open alert's,
+    /// which has loaded it.
+    private func copy(_ occurrence: Occurrence) {
+        let detail = model.detail?.occurrence.id == occurrence.id ? model.detail : nil
+        copyForAgent(occurrence, events: detail?.events)
     }
 
     @ViewBuilder private var occurrenceDetail: some View {

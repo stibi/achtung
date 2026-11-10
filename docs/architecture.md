@@ -287,6 +287,24 @@ The identity below is a contract that features build on
   `HomeModel` it makes on the same server, and `IgnoredAlertsModel` (one in `HomeModel`,
   one in Settings) are the only code that talks to the server; the views only read them.
   `SampleData` exists for SwiftUI previews.
+- An alert's details (`AlertDetails`, in the detail pane and on Live cards) read top
+  down: the header, the summary and the `description` annotation as prose (inline
+  Markdown, bare URLs made links), the links as buttons (the source's own and any
+  annotation whose value is a URL, titled from its name), then every annotation (summary
+  and description first) and every label, one per row on a card: the name in a column on
+  the left, the value wrapping on the right, URLs clickable. Labels that say what and
+  where come first (alertname, severity in its colour, cluster, namespace, job, pod,
+  instance, service, container, deployment), then the rest by name. Hovering a row shows
+  a button that copies `name=value`; its context menu also copies the value, or a label
+  as a PromQL matcher. The order and the link titles are in AchtungDomain
+  (`IncomingAlert.orderedAnnotations`, `orderedLabels`, `linkAnnotations`).
+- "Copy for Agent" (the details' button, ⇧⌘C in the detail pane, a list row's context
+  menu) puts the alert on the pasteboard as Markdown for an agent to investigate
+  (`AgentReport` in AchtungDomain): the title; its state, severity, instance and channel;
+  its times in ISO 8601 UTC; the summary and description; the links; every other
+  annotation; the labels sorted as `key=value` lines in a code block; its fingerprint
+  and occurrence id; and its history when the detail pane has loaded it. Only what the
+  alert carries. The button says "Copied" for a moment.
 - Every alert, in the detail pane and on Live cards, has a silence button
   (`SilenceButton`, `POST /api/occurrences/{id}/silence`, ADR 0008): a split button whose
   main part silences for the remembered duration and whose menu offers 1h, 4h, 1d and 1w;

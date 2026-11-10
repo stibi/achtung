@@ -13,6 +13,8 @@ struct AlertList: View {
     let loadOlder: () async -> Void
     @Binding var hidesRead: Bool
     @Binding var selection: Int?
+    /// Copies an occurrence for an agent, from a row's context menu.
+    let copy: (Occurrence) -> Void
 
     var body: some View {
         if occurrences.isEmpty && hidesRead {
@@ -26,6 +28,11 @@ struct AlertList: View {
                     lastUpdated: lastUpdated, loadOlder: loadOlder
                 ) { occurrence in
                     AlertRow(occurrence: occurrence, isRead: readState.isRead(occurrence))
+                        .contextMenu {
+                            Button("Copy for Agent", systemImage: "doc.on.doc") {
+                                copy(occurrence)
+                            }
+                        }
                 }
             }
             .animation(.default, value: occurrences.map(\.id))
@@ -37,5 +44,5 @@ struct AlertList: View {
     AlertList(
         occurrences: SampleData.occurrences, readState: SampleData.readState, hasOlder: false,
         lastUpdated: nil, loadOlder: {}, hidesRead: .constant(false),
-        selection: .constant(nil))
+        selection: .constant(nil), copy: { _ in })
 }

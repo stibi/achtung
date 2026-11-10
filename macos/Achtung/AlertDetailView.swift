@@ -22,7 +22,7 @@ struct AlertDetailView: View {
             if geometry.size.width >= Self.sideBySideWidth {
                 HStack(spacing: 0) {
                     ScrollView {
-                        AlertDetails(occurrence: occurrence, silence: silence)
+                        details
                             .padding(24)
                     }
                     // The card's contents scroll inside it; the main column's padding is
@@ -37,7 +37,7 @@ struct AlertDetailView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        AlertDetails(occurrence: occurrence, silence: silence)
+                        details
                             .padding(24)
                         panel
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -49,42 +49,56 @@ struct AlertDetailView: View {
         }
     }
 
+    private var details: some View {
+        AlertDetails(
+            occurrence: occurrence, silence: silence, events: detail?.events,
+            hasCopyShortcut: true)
+    }
+
     private var panel: some View {
         AlertMetadataPanel(occurrence: occurrence, detail: detail, detailProblem: detailProblem)
             .padding(20)
     }
 }
 
-/// What the source reported about one occurrence: header, links and the silence button,
-/// annotations and labels. Shared by the channel detail pane and the Live cards.
+/// What the source reported about one occurrence: header, the summary and description to
+/// read, links and the silence and copy buttons, then every annotation and every label,
+/// one per line. Shared by the channel detail pane and the Live cards.
 struct AlertDetails: View {
     let occurrence: Occurrence
     let silence: SilenceAction
+    /// The history, for "Copy for Agent", once it has loaded; Live's cards don't have it.
+    var events: [OccurrenceEvent]?
+    /// ⇧⌘C copies: only in the detail pane, where one alert is shown.
+    var hasCopyShortcut = false
 
     private var alert: IncomingAlert { occurrence.alert }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             SilenceState(occurrence: occurrence) { isSilenced in
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 20) {
                     AlertHeader(
                         alert: alert, silencedUntil: isSilenced ? occurrence.silencedUntil : nil,
                         resentAt: occurrence.isResent ? occurrence.lastEventAt : nil)
-                    HStack(spacing: 8) {
-                        if !alert.links.isEmpty {
-                            LinkButtons(links: alert.links)
-                        }
+                    AlertProse(alert: alert)
+                    FlowLayout(spacing: 8) {
+                        AlertLinkButtons(alert: alert)
                         // A new occurrence gets a fresh button, without the last one's error
                         // or in-flight state.
                         SilenceButton(
                             occurrence: occurrence, isSilenced: isSilenced, silence: silence
                         )
                         .id(occurrence.id)
+                        CopyForAgentButton(
+                            occurrence: occurrence, events: events, hasShortcut: hasCopyShortcut
+                        )
+                        .id(occurrence.id)
                     }
                 }
             }
-            KeyValueSection(title: "Annotations", values: alert.annotations)
-            KeyValueSection(title: "Labels", values: alert.labels)
+            AnnotationsSection(alert: alert)
+            LabelsSection(alert: alert)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -123,11 +137,6 @@ private struct AlertHeader: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
-                if let summary = alert.summary {
-                    Text(summary)
-                        .font(.body)
-                        .textSelection(.enabled)
-                }
             }
         }
     }
@@ -140,53 +149,6 @@ private struct AlertHeader: View {
             return started
         case .resolved(let endsAt):
             return "\(started) · Resolved \(endsAt.formatted(date: .abbreviated, time: .shortened))"
-        }
-    }
-}
-
-private struct LinkButtons: View {
-    let links: [AlertLink]
-
-    @Environment(\.openURL) private var openURL
-
-    var body: some View {
-        HStack {
-            ForEach(links, id: \.url) { link in
-                Button {
-                    openURL(link.url)
-                } label: {
-                    Label(link.kind.rawValue.capitalized, systemImage: link.kind.symbolName)
-                }
-                .buttonStyle(.bordered)
-            }
-        }
-    }
-}
-
-private struct KeyValueSection: View {
-    let title: String
-    let values: [String: String]
-
-    var body: some View {
-        if !values.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title)
-                    .font(.headline)
-                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                    ForEach(values.sorted { $0.key < $1.key }, id: \.key) { entry in
-                        GridRow {
-                            Text(entry.key)
-                                .foregroundStyle(.secondary)
-                            Text(entry.value)
-                                .textSelection(.enabled)
-                        }
-                    }
-                }
-                .font(.callout.monospaced())
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 10))
-            }
         }
     }
 }

@@ -80,6 +80,10 @@ their own instance.
   shows these alerts, and the Watchdog heart still watches `Watchdog`
   ([ADR 0011](docs/adr/0011-ignored-alert-names.md)).
 - **Zero setup per channel:** pointing a receiver at a new URL creates the channel.
+- **Readable alerts:** the summary and description as prose, links as buttons, and every
+  annotation and label on its own row, a hover away from copying. **Copy for Agent**
+  (⇧⌘C) puts the whole alert on the clipboard as Markdown, to hand to an agent
+  investigating it.
 - **Silence an alert** for a while, on the Alertmanager it came from. Every alert shows
   whether it is silenced and until when, including silences made in Alertmanager itself
   ([ADR 0008](docs/adr/0008-silences-through-the-server.md)). A silence mutes the alert

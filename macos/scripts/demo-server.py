@@ -34,9 +34,24 @@ def iso(time):
     return time.isoformat(timespec="milliseconds").replace("+00:00", "Z") if time else None
 
 
+DESCRIPTIONS = {
+    "CardAuthorisationsFailing": (
+        "Card authorisations through the PSP fail since the 07:30 deploy of payments-api.\n"
+        "Most failures are timeouts to the PSP gateway; see "
+        "https://status.psp.example.com for its status."),
+    "KubePodCrashLooping": (
+        "Container api in pod notifications-7f9c4d-x2kq exits with code 137 (OOMKilled).\n"
+        "Its memory limit is 256Mi."),
+}
+
+
 def alert(key, instance, channel, severity, title, summary, service, namespace="prod"):
     cluster = f"{instance}-1"
     slug = title.lower()
+    annotations = {"summary": summary, "runbook_url": f"https://runbooks.example.com/{slug}"}
+    if title in DESCRIPTIONS:
+        annotations["description"] = DESCRIPTIONS[title]
+        annotations["impact"] = "Customers see errors; on-call is paged."
     return {
         "sourceKey": key,
         "instance": instance,
@@ -50,11 +65,12 @@ def alert(key, instance, channel, severity, title, summary, service, namespace="
             "service": service,
             "namespace": namespace,
             "cluster": cluster,
+            "job": service,
+            "pod": f"{service}-7f9c4d-x2kq",
+            "team": channel,
+            "prometheus": "monitoring/k8s",
         },
-        "annotations": {
-            "summary": summary,
-            "runbook_url": f"https://runbooks.example.com/{slug}",
-        },
+        "annotations": annotations,
         "links": [
             {"kind": "source", "url": f"https://prometheus.example.com/graph?alert={title}"},
             {"kind": "runbook", "url": f"https://runbooks.example.com/{slug}"},

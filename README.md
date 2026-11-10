@@ -61,6 +61,9 @@ their own instance.
   firing alerts. Alert names you ignore in Settings (Watchdog, say) stay out of Home's
   counts and lists, for everyone; channels and Live still show them.
 - **Live view:** every channel's alerts in one stream, newest change first.
+- **Notifications** for new and resent critical alerts (warning too, if you like), with
+  Mark as Read and Silence right on them. Achtung keeps watching from the menu bar after
+  you close its window ([ADR 0013](docs/adr/0013-macos-notifications-and-background-polling.md)).
 - **Home view** (server API, `GET /api/home`): each Alertmanager at a glance, what it has
   open by severity, silenced and inhibited, read from the Alertmanager itself, and whether
   its Watchdog fires. It also flags delivery problems: alerts Alertmanager should have

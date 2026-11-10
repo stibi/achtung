@@ -81,6 +81,7 @@ cd macos && xcodegen generate && open Achtung.xcodeproj           # work in Xcod
 macos/scripts/install.sh            # Release build into ~/Applications, version = commit hash
 macos/scripts/run.sh                # Debug build of the working tree, started (quits a running Achtung)
 macos/scripts/demo.sh               # demo mode: run.sh against demo-server.py, a fake server with made-up alerts
+curl -X POST 'http://127.0.0.1:8790/demo/fire?count=1'   # demo mode: fire new critical alerts now (/demo/resend resends one), to try notifications
 make help                           # make run, run-light, demo, install, check, test, xcode: shortcuts for the above
 swift macos/scripts/render-icon.swift   # render macos/Icon/AppIcon.svg into the app icon set
 macos/scripts/render-coffee-break.sh   # render Live's coffee-break krysa as GIFs into macos/Icon/coffee-break/

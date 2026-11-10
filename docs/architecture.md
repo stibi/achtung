@@ -320,17 +320,18 @@ The identity below is a contract that features build on
   channel picks up such changes within about a minute (the server reads Alertmanager at
   most every 30 seconds). Older loaded occurrences show them when they next change, or
   after a relaunch.
-- No push yet: the app refreshes every 30 seconds and whenever it becomes active. A
-  refresh reloads the channels and the all-channels feed, plus the selected channel's
-  list, asking each for everything changed since a minute before its newest known
-  `lastEventAt`. The unread counts are made from the feed: `GET /api/channels` has no
-  unread information (read state is the client's), so every refresh also pages the feed
-  back to the read baseline, and to 24 hours ago for the Live timeline, whichever is
-  further, at most 2000 occurrences; past that, counts and timeline cover only the newest
-  ones. It also loads every firing occurrence (`GET /api/occurrences?status=firing`), so
-  the timeline shows an alert that started before the 24 hours and still fires. The server stamps `lastEventAt`
-  before its transaction commits, so a change can appear after a later-stamped one; the
-  overlap catches it, and merging by id makes it harmless.
+- No push yet: the app refreshes every 30 seconds, with or without a window (`AppModel`,
+  ADR 0013), when a list opens, and whenever it becomes active. A refresh reloads the
+  channels and the all-channels feed, plus the selected channel's list, asking each for
+  everything changed since a minute before its newest known `lastEventAt`. The unread
+  counts are made from the feed: `GET /api/channels` has no unread information (read state
+  is the client's), so every refresh also pages the feed back to the read baseline, and to
+  24 hours ago for the Live timeline, whichever is further, at most 2000 occurrences; past
+  that, counts and timeline cover only the newest ones. It also loads every firing
+  occurrence (`GET /api/occurrences?status=firing`), so the timeline shows an alert that
+  started before the 24 hours and still fires. The server stamps `lastEventAt` before its
+  transaction commits, so a change can appear after a later-stamped one; the overlap
+  catches it, and merging by id makes it harmless.
 - Read state (ADR 0002) is per server and stored in `UserDefaults`. It holds server
   times only, so the Mac's clock doesn't matter. Channel visits are keyed by
   `ChannelID`; visits stored before instances existed, keyed by name alone, are dropped
@@ -450,6 +451,19 @@ The identity below is a contract that features build on
   system's Reduce Motion, for people who want it in Achtung only. Its colours are in
   `CoffeeBreakPalette`, Foundation only, which `macos/scripts/render-coffee-break.sh`
   shares to export the scene as GIFs (`macos/Icon/coffee-break/`), so they match the app.
+- Notifications (ADR 0013): `AppModel` owns the server connection (`InboxModel`) and its
+  30-second refresh for the app's lifetime; closing the last window leaves Achtung in the
+  menu bar (`MenuBarMenu`: a bell with the unread, unsilenced critical count, the newest
+  five, mark them read, pause notifications, Settings, Quit). After each refresh it asks
+  `AlertNotificationState` in AchtungDomain which occurrences to announce: new, reopened
+  or resent firings after the connection's baseline (the first refresh's newest event),
+  of the severities picked in Settings' Notifications tab, not silenced, read or ignored
+  (ADR 0011), each event once (an in-memory ledger).
+  `AlertNotifier` posts them, one each or one summary for more than three
+  (`AlertNotificationPlan`), with Mark as Read and Silence 1h … 1w under Options (Mark
+  All as Read on a summary). Its actions and clicks come back to `AppModel`, which uses
+  `InboxModel`'s own read and silence paths and opens the window on the alert through
+  `InboxModel.openRequest`. Reading an alert removes its delivered notification.
 - The server address is a setting (Settings window, General tab). The app allows plain
   HTTP (ATS exception in the generated Info.plist): servers are self-hosted and protected
   by the operator's network, not by TLS (ADR 0002).

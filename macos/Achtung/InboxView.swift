@@ -6,12 +6,10 @@ import SwiftUI
 /// at a glance (`HomeView`); Live is one stream of every channel's occurrences, each with
 /// all its details; a channel is a list with a detail pane. The app opens on Home.
 ///
-/// There is no server push yet, so the inbox refreshes every 30 seconds and right away
-/// whenever the app becomes active.
+/// There is no server push yet, so the inbox refreshes every 30 seconds (`AppModel`, with or
+/// without a window), right away when a list opens, and whenever the app becomes active.
 struct InboxView: View {
-    private static let refreshInterval = Duration.seconds(30)
-
-    @State private var model: InboxModel
+    let model: InboxModel
     @State private var page: InboxPage? = .home
     @State private var selectedID: Int?
     /// An occurrence opened from Home, selected in its channel even if neither the list's
@@ -23,10 +21,6 @@ struct InboxView: View {
     /// A channel just opened whose first unread occurrence is still to be selected, after
     /// its first refresh.
     @State private var selectFirstUnreadIn: OccurrenceScope?
-
-    init(baseURL: URL) {
-        _model = State(initialValue: InboxModel(baseURL: baseURL))
-    }
 
     private var detailRetry: Date? {
         model.detailProblem == nil ? nil : model.lastUpdated
@@ -87,19 +81,18 @@ struct InboxView: View {
                 model.markRead(selectedOccurrence)
             }
         }
+        // The list on screen is what `AppModel`'s refresh brings up to date; opening one
+        // refreshes it at once.
         .task(id: selectedScope) {
-            while !Task.isCancelled {
-                await model.refresh(selectedScope, visiting: NSApp.isActive)
-                if !Task.isCancelled {
-                    selectFirstUnread()
-                }
-                do {
-                    try await Task.sleep(for: Self.refreshInterval)
-                } catch {
-                    return  // Cancelled: another list was selected or the window closed.
-                }
+            model.activeScope = selectedScope
+            await model.refresh(selectedScope, visiting: NSApp.isActive)
+            if !Task.isCancelled {
+                selectFirstUnread()
             }
         }
+        .onDisappear { model.activeScope = nil }
+        // From a notification or the menu bar, also when it opened this window.
+        .onChange(of: model.openRequest, initial: true) { takeOpenRequest() }
         // Reloads when the occurrence changes, and after a failed load once a refresh
         // succeeds again.
         .task(id: [selectedOccurrence, detailRetry] as [AnyHashable?]) {
@@ -118,6 +111,19 @@ struct InboxView: View {
             NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)
         ) { _ in
             model.markSeen()
+        }
+    }
+
+    private func takeOpenRequest() {
+        guard let request = model.openRequest else { return }
+        model.openRequest = nil
+        switch request {
+        case .occurrence(let occurrence):
+            revealed = occurrence
+            page = .list(.channel(occurrence.channel))
+            selectedID = occurrence.id
+        case .list(let scope):
+            page = .list(scope)
         }
     }
 

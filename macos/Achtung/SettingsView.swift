@@ -22,9 +22,11 @@ enum MotionSetting {
     static let key = "animatesDespiteReduceMotion"
 }
 
-/// The app's settings: General, kept on this Mac, and Ignored Alerts, kept on the server
-/// for every user.
+/// The app's settings: General and Notifications, kept on this Mac, and Ignored Alerts,
+/// kept on the server for every user.
 struct SettingsView: View {
+    let app: AppModel
+
     @AppStorage(ServerSetting.key) private var serverAddress = ServerSetting.defaultAddress
     @AppStorage(MotionSetting.key) private var animatesDespiteReduceMotion = false
     @State private var draft = ""
@@ -33,6 +35,9 @@ struct SettingsView: View {
         TabView {
             Tab("General", systemImage: "gearshape") {
                 general
+            }
+            Tab("Notifications", systemImage: "bell.badge") {
+                NotificationSettings(app: app)
             }
             Tab("Ignored Alerts", systemImage: "eye.slash") {
                 Group {

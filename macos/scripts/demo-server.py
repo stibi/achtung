@@ -9,6 +9,10 @@ Silencing works, stops the alert's notifications and lasts until the server stop
 at example.com. The ignored alert names can be edited, until the server stops; the demo
 has no Home, so they change nothing else.
 
+For trying notifications, two endpoints outside the API make things happen now:
+  curl -X POST 'http://127.0.0.1:8790/demo/fire?count=1'   # new critical alerts
+  curl -X POST http://127.0.0.1:8790/demo/resend           # resend the newest firing one
+
 Usage: python3 demo-server.py [port]   (macos/scripts/demo.sh starts it with the app)
 """
 
@@ -318,6 +322,44 @@ def get(path, query, now):
     return 404, {"error": "Not found"}
 
 
+FIRED_ON_DEMAND = [
+    ("eu-prod", "payments", "PaymentsApiDown", "payments-api answers 503 on every request.",
+     "payments-api"),
+    ("us-prod", "checkout", "CheckoutErrorBudgetBurn", "Checkout burns its error budget 14x.",
+     "checkout-api"),
+    ("eu-prod", "databases", "PostgresPrimaryDown", "orders-db primary is unreachable.",
+     "orders-db"),
+    ("us-prod", "platform", "NodeNotReady", "Node worker-21 has been NotReady for 5 minutes.",
+     "kubelet"),
+    ("eu-prod", "platform", "IngressCertificateExpired", "TLS certificate for shop.example.com "
+     "expired.", "ingress"),
+]
+
+
+def fire(count, now):
+    """Adds `count` new critical occurrences firing now; returns their ids."""
+    minutes = (now - START).total_seconds() / 60
+    ids = []
+    for n in range(count):
+        instance, channel, title, summary, service = FIRED_ON_DEMAND[
+            (len(SCENARIO) + n) % len(FIRED_ON_DEMAND)]
+        key = f"d{len(SCENARIO) + 1}"
+        SCENARIO.append((alert(key, instance, channel, "critical", title, summary, service),
+                         [("fired", minutes)]))
+        ids.append(len(SCENARIO))
+    return 200, {"fired": ids}
+
+
+def resend(now):
+    """Records a resend now on the newest firing occurrence, as an hour's quiet would."""
+    firing = occurrences(now, status="firing")
+    if not firing:
+        return 404, {"error": "Nothing is firing"}
+    occurrence_id = firing[0]["id"]
+    SCENARIO[occurrence_id - 1][1].append(("resent", (now - START).total_seconds() / 60))
+    return 200, {"resent": occurrence_id}
+
+
 def silence(occurrence_id, body, now):
     described = occurrence(occurrence_id, now) if 1 <= occurrence_id <= len(SCENARIO) else None
     if described is None:
@@ -335,10 +377,17 @@ class DemoAPI(BaseHTTPRequestHandler):
         self.reply(*get(url.path, parse_qs(url.query), datetime.datetime.now(datetime.timezone.utc)))
 
     def do_POST(self):  # noqa: N802
-        match = re.fullmatch(r"/api/occurrences/(\d+)/silence", urlparse(self.path).path)
+        url = urlparse(self.path)
+        match = re.fullmatch(r"/api/occurrences/(\d+)/silence", url.path)
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         now = datetime.datetime.now(datetime.timezone.utc)
-        self.reply(*(silence(int(match.group(1)), body, now) if match else (404, {"error": "Not found"})))
+        if url.path == "/demo/fire":
+            count = int(parse_qs(url.query).get("count", ["1"])[0])
+            self.reply(*fire(max(1, min(count, 20)), now))
+        elif url.path == "/demo/resend":
+            self.reply(*resend(now))
+        else:
+            self.reply(*(silence(int(match.group(1)), body, now) if match else (404, {"error": "Not found"})))
 
     def do_PUT(self):  # noqa: N802
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")

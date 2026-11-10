@@ -22,6 +22,12 @@ final class InboxModel {
     private(set) var lastUpdated: Date?
     /// Home's tiles, lists and Alertmanager details (`HomeModel`), on the same server.
     let homeModel: HomeModel
+    /// The list a window shows, which each refresh brings up to date; nil with none open.
+    var activeScope: OccurrenceScope?
+    /// An alert or list to show, from a notification or the menu bar; the window takes it.
+    var openRequest: OpenRequest?
+    /// Called after each successful refresh, e.g. to post notifications (`AppModel`).
+    var onRefreshed: () -> Void = {}
 
     /// How many occurrences of the all-channels feed a refresh loads at most, for the unread
     /// counts and the Live timeline. Past the cap, both cover only the newest occurrences.
@@ -77,6 +83,7 @@ final class InboxModel {
             firing = try await server.firingOccurrences()
             problem = nil
             lastUpdated = .now
+            onRefreshed()
         } catch {
             // A cancelled load is the user moving on, not a server problem.
             guard !Task.isCancelled else { return }
@@ -148,6 +155,11 @@ final class InboxModel {
 
     /// Marks what's unread in `scope` read, as loaded (`ReadState.markAllRead`).
     func markAllRead(in scope: OccurrenceScope) {
+        AlertNotifier.removeDelivered(
+            readState.unread(
+                own: lists[scope]?.occurrences ?? [],
+                feed: lists[.allChannels]?.occurrences ?? [], in: scope
+            ).map(\.id), server: baseURL)
         readState.markAllRead(
             own: lists[scope]?.occurrences ?? [], feed: lists[.allChannels]?.occurrences ?? [],
             in: scope)
@@ -166,6 +178,17 @@ final class InboxModel {
     func markRead(_ occurrence: Occurrence) {
         readState.markRead(occurrence)
         saveReadState()
+        AlertNotifier.removeDelivered([occurrence.id], server: baseURL)
+    }
+
+    /// The occurrence as loaded, else as the server has it now.
+    func occurrence(withID id: Int) async throws(ServerError) -> Occurrence {
+        for list in lists.values {
+            if let found = list.occurrences.first(where: { $0.id == id }) {
+                return found
+            }
+        }
+        return try await server.occurrence(id: id).occurrence
     }
 
     /// The user left the app. Whatever happened after the newest event the client had

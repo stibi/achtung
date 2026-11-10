@@ -110,7 +110,7 @@ describe("GET /api/home: Alertmanagers", () => {
       },
     ]);
     const error = body.alertmanagers[0].error as string;
-    expect(error).not.toContain(new URL(url).port);
+    expect(error).not.toContain(new URL(url).hostname);
     expect(error).not.toContain("secret");
   });
 

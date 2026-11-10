@@ -62,7 +62,10 @@ async function homeWithIrm(
   };
 }
 
-const groupReads = (irm: IrmStub) => irm.requests.length;
+/** Reads of IRM's alert groups, the requests the stub should get. */
+const groupReadsOf = (irm: IrmStub) =>
+  irm.requests.filter((request) => request.path === "/oncall/api/v1/alert_groups/");
+const groupReads = (irm: IrmStub) => groupReadsOf(irm).length;
 
 describe("GET /api/home: the IRM heartbeat", () => {
   it("is receiving, with the last missed heartbeat, and asks IRM with the raw token", async () => {
@@ -89,8 +92,8 @@ describe("GET /api/home: the IRM heartbeat", () => {
       checkedAt: "2026-10-13T10:00:00.000Z",
       error: null,
     });
-    expect(irm.requests).toHaveLength(1);
-    const [request] = irm.requests;
+    expect(groupReads(irm)).toBe(1);
+    const [request] = groupReadsOf(irm);
     expect(request?.path).toBe("/oncall/api/v1/alert_groups/");
     expect(request?.authorization).toBe(token);
     expect(Object.fromEntries(request?.query ?? [])).toEqual({
@@ -191,7 +194,7 @@ describe("GET /api/home: the IRM heartbeat", () => {
       error: "Grafana IRM answered 401",
     });
     // A failed read is kept for its minute too: IRM was asked once more, not twice.
-    expect(irm.requests).toHaveLength(2);
+    expect(groupReads(irm)).toBe(2);
     expect(failures).toEqual([expect.stringContaining(`${integration}: IrmError`)]);
     expect(failures.join()).not.toContain(token);
     expect(failures.join()).not.toContain("irm.internal");
@@ -214,7 +217,7 @@ describe("GET /api/home: the IRM heartbeat", () => {
     });
     const logged = failures.join();
     expect(logged).toContain("ECONNREFUSED");
-    expect(logged).not.toContain(new URL(url).port);
+    expect(logged).not.toContain(new URL(url).hostname);
     expect(logged).not.toContain(token);
   });
 

@@ -222,13 +222,14 @@ async function readBody(request: IncomingMessage): Promise<unknown> {
   return text === "" ? undefined : (JSON.parse(text) as unknown);
 }
 
-/** An address nothing listens on: the stub's port after it has closed. */
+/**
+ * An address nothing listens on, so connecting is refused. Port 2: privileged, so never
+ * handed out to a stub, and not one fetch refuses to use (1 is). Not a port a stub closed:
+ * the system hands those out again, to a stub of a test file running in parallel, which
+ * then counts this test's requests as its own.
+ */
 export async function unreachableUrl(): Promise<string> {
-  const server = createServer();
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const { port } = server.address() as AddressInfo;
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-  return `http://127.0.0.1:${port}`;
+  return "http://127.0.0.1:2";
 }
 
 /** An alert for the stub's `alerts`: active, routed to `receivers`, started an hour before 10:00. */

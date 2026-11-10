@@ -3,7 +3,9 @@
 # server with made-up alerts (demo-server.py), for showing the app or recording it. Real
 # alerts and the stored server address stay untouched: the address is a launch argument,
 # and the demo's read state lives under its own key, written fresh here so the demo starts
-# with something unread, and removed when the app quits.
+# with something unread, and removed when the app quits. So does its saved notification
+# state (ADR 0018): the demo server's clock starts afresh each time, so a saved one would
+# announce the made-up history as new.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -11,6 +13,7 @@ port=8790
 address="http://127.0.0.1:$port"
 bundle=io.github.stibi.achtung
 read_state_key="readState $address"
+notifications_key="notificationState $address"
 
 # Something else on the port (an orphaned demo server, with its clock long past) would
 # answer in its place.
@@ -28,6 +31,7 @@ quit_achtung() {
 # A running Achtung first: one left from an earlier demo would save its read state over
 # the fresh one below as it quits.
 quit_achtung
+defaults delete "$bundle" "$notifications_key" 2>/dev/null || true
 
 python3 -I demo-server.py "$port" &
 server=$!
@@ -37,6 +41,7 @@ cleanup() {
   quit_achtung
   kill "$server" 2>/dev/null || true
   defaults delete "$bundle" "$read_state_key" 2>/dev/null || true
+  defaults delete "$bundle" "$notifications_key" 2>/dev/null || true
 }
 trap cleanup EXIT
 for _ in {1..50}; do curl -fsS "$address/api/channels" >/dev/null 2>&1 && break; sleep 0.1; done
@@ -70,3 +75,4 @@ while pgrep -xq Achtung; do sleep 1; done
 trap - EXIT
 kill "$server" 2>/dev/null || true
 defaults delete "$bundle" "$read_state_key" 2>/dev/null || true
+defaults delete "$bundle" "$notifications_key" 2>/dev/null || true

@@ -25,7 +25,8 @@ struct AchtungApp: App {
             Group {
                 if let inbox = app.inbox {
                     // A new address starts a fresh inbox for that server.
-                    InboxView(model: inbox).id(inbox.baseURL)
+                    InboxView(model: inbox) { app.viewing($0, on: inbox.baseURL) }
+                        .id(inbox.baseURL)
                 } else {
                     ContentUnavailableView {
                         Label("Invalid server address", systemImage: "link.badge.plus")

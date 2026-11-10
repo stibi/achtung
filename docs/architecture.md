@@ -517,7 +517,10 @@ The identity below is a contract that features build on
   `AlertNotificationState` in AchtungDomain which occurrences to announce: new, reopened
   or resent firings after the connection's baseline (the first refresh's newest event),
   of the severities picked in Settings' Notifications tab, not silenced, read or ignored
-  (ADR 0011), each event once (an in-memory ledger).
+  (ADR 0011), each event once (a ledger). The baseline and the ledger are saved per
+  server and restored on the next launch within a day, so what fired while Achtung was
+  closed notifies then (ADR 0018). The alert whose detail is on screen in the active app
+  gets no banner: the window tells `AppModel` which one it shows.
   `AlertNotifier` posts them, one each or one summary for more than three
   (`AlertNotificationPlan`), with Mark as Read and Silence 1h … 1w under Options (Mark
   All as Read on a summary). Its actions and clicks come back to `AppModel`, which uses

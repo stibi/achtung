@@ -10,6 +10,13 @@ extension InboxView {
         activeSearch.map { .search($0) } ?? selectedScope
     }
 
+    /// The alert whose detail is on screen: a channel's selected one, unless a search
+    /// covers it. Live and the lists themselves don't count: a row may be out of sight.
+    var viewedOccurrenceID: Int? {
+        guard activeSearch == nil, case .channel = selectedScope else { return nil }
+        return selectedOccurrence?.id
+    }
+
     /// The sidebar's selection; choosing a row, even the one selected, ends a search.
     var sidebarSelection: Binding<InboxPage?> {
         Binding {

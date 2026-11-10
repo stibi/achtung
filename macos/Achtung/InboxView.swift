@@ -10,6 +10,8 @@ import SwiftUI
 /// without a window), right away when a list opens, and whenever the app becomes active.
 struct InboxView: View {
     let model: InboxModel
+    /// Told the alert whose detail is on screen, or nil, so it gets no banner (ADR 0018).
+    var viewing: (Int?) -> Void = { _ in }
     @State var page: InboxPage? = .home
     @State var selectedID: Int?
     /// An occurrence opened from Home, selected in its channel even if neither the list's
@@ -33,7 +35,7 @@ struct InboxView: View {
         if case .list(let scope) = page { scope } else { nil }
     }
 
-    private var selectedOccurrence: Occurrence? {
+    var selectedOccurrence: Occurrence? {
         selectedScope.flatMap {
             model.shownOccurrences(in: $0, keeping: selectedID, revealing: revealed)
         }?
@@ -98,7 +100,11 @@ struct InboxView: View {
                 selectFirstUnread()
             }
         }
-        .onDisappear { model.activeScope = nil }
+        .onDisappear {
+            model.activeScope = nil
+            viewing(nil)
+        }
+        .onChange(of: viewedOccurrenceID, initial: true) { viewing(viewedOccurrenceID) }
         // From a notification or the menu bar, also when it opened this window.
         .onChange(of: model.openRequest, initial: true) { takeOpenRequest() }
         // Reloads when the occurrence changes, and after a failed load once a refresh

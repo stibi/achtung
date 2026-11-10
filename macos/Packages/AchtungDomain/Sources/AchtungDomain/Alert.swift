@@ -2,7 +2,7 @@ import Foundation
 
 /// Mirrors `server/src/domain/alert.ts`. AchtungAPI maps the server's responses to these
 /// types, so the compiler flags any drift from `api/openapi.yaml` in that mapping.
-public enum Severity: String, Sendable, Hashable {
+public enum Severity: String, Sendable, Hashable, Codable {
     case critical
     case warning
     case info

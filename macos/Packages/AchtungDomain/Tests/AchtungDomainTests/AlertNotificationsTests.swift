@@ -160,3 +160,77 @@ private func refresh(
     #expect(
         refresh(&state, [occurrence(2, at: 9, severity: .warning), warning], rules: both) == [2])
 }
+
+@Test func theAlertOnScreenCountsAsAnnouncedWithoutABanner() {
+    var state = AlertNotificationState()
+    _ = refresh(&state, [])
+    let viewed = occurrence(1, at: 5, kind: .resent)
+    let elsewhere = occurrence(2, at: 6)
+
+    let announced = state.refreshed(
+        feed: [elsewhere, viewed], isOn: true, rules: critical, readState: ReadState(),
+        now: Fixture.minutes(30), viewing: 1)
+
+    #expect(announced.map(\.id) == [2])
+    #expect(state.ledger.hasNotified(viewed))
+    // Once the user looks elsewhere, the same event still doesn't notify.
+    #expect(refresh(&state, [elsewhere, viewed]).isEmpty)
+}
+
+@Test func aRestoredStateAnnouncesWhatCameWhileTheAppWasClosedOnce() {
+    var before = AlertNotificationState()
+    let announced = occurrence(1, at: 5)
+    _ = refresh(&before, [])
+    #expect(refresh(&before, [announced]) == [1])
+    let saved = before.saved(at: Fixture.minutes(30))
+
+    // A relaunch an hour later, with the saved state round-tripped through JSON.
+    let decoded = try? JSONDecoder().decode(
+        AlertNotificationState.Saved.self, from: JSONEncoder().encode(saved))
+    #expect(decoded == saved)
+    var after = AlertNotificationState(restoring: decoded, now: Fixture.minutes(90))
+    let whileClosed = occurrence(2, at: 60)
+
+    #expect(after.baseline == before.baseline)
+    #expect(refresh(&after, [whileClosed, announced]) == [2])
+    #expect(refresh(&after, [whileClosed, announced]).isEmpty)
+}
+
+@Test func aSavedStateOlderThanADayIsLetGo() {
+    var before = AlertNotificationState()
+    _ = refresh(&before, [occurrence(1, at: 5)])
+    let saved = before.saved(at: Fixture.minutes(30))
+
+    var stale = AlertNotificationState(
+        restoring: saved, now: Fixture.minutes(30 + 24 * 60 + 1))
+    let fresh = AlertNotificationState(restoring: saved, now: Fixture.minutes(30 + 24 * 60))
+
+    #expect(stale.baseline == nil)
+    #expect(fresh.baseline == Fixture.minutes(5))
+    // Back from a long break: the first refresh only sets the baseline, as on a first launch.
+    #expect(refresh(&stale, [occurrence(2, at: 24 * 60)]).isEmpty)
+}
+
+@Test func aRestoredStateKeepsTheSeveritiesPickedBefore() {
+    var before = AlertNotificationState()
+    _ = refresh(&before, [])
+    let saved = before.saved(at: Fixture.minutes(30))
+    var after = AlertNotificationState(restoring: saved, now: Fixture.minutes(60))
+    let both = NotificationRules(severities: [.critical, .warning], ignoredNames: [])
+
+    // Warnings picked while the app was closed start from now, as they would have running.
+    let warning = occurrence(1, at: 40, severity: .warning)
+    let critical = occurrence(2, at: 41)
+    #expect(refresh(&after, [critical, warning], rules: both) == [2])
+}
+
+@Test func anEventOlderThanTheLedgerRemembersNeverNotifies() {
+    // A restored baseline can be weeks old on a quiet server; the ledger forgets after a
+    // week, so an event from before then must not be announced again every refresh.
+    var state = AlertNotificationState()
+    _ = refresh(&state, [])
+    let old = occurrence(1, at: 30 - 8 * 24 * 60)
+
+    #expect(refresh(&state, [old]).isEmpty)
+    #expect(refresh(&state, [old]).isEmpty)
+}

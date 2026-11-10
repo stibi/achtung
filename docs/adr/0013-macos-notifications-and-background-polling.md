@@ -38,7 +38,8 @@ There is no server push yet (ADR 0001), so whatever notifies has to poll.
   switching servers, only sets a baseline: the newest event it sees, in server time. Later
   events notify once each: a ledger in memory keeps, per occurrence, the event it
   announced, forgetting events older than a week. Nothing is saved: after a restart the
-  new baseline keeps everything announced before quiet. While notifications are off or
+  new baseline keeps everything announced before quiet (superseded by ADR 0018, which
+  saves the baseline and the ledger per server). While notifications are off or
   paused, the baseline moves to the newest event; a severity picked since the last refresh
   has what it would announce recorded quietly instead, so turning something on announces
   nothing old. Both live in `AlertNotificationState` in AchtungDomain, with tests.

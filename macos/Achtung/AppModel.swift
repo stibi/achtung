@@ -49,8 +49,11 @@ final class AppModel {
     private let notifier = AlertNotifier()
     private let defaults: UserDefaults
     private var poller: Task<Void, Never>?
-    /// The connection's baseline and what it announced (`AlertNotificationState`).
+    /// The connection's baseline and what it announced (`AlertNotificationState`), saved
+    /// per server after each refresh (ADR 0018).
     private var notifications = AlertNotificationState()
+    /// The alert whose detail the window shows, and on which server: no banner for it.
+    @ObservationIgnored private var viewed: (server: URL, id: Int)?
     private var ignoredNamesRead: Date?
 
     init(defaults: UserDefaults = .standard) {
@@ -86,6 +89,7 @@ final class AppModel {
             inbox = nil
             return
         }
+        notifications = AlertNotificationState(restoring: savedNotifications(for: url), now: .now)
         let inbox = InboxModel(baseURL: url, defaults: defaults)
         // Bound to this inbox: a refresh of a server left behind mustn't touch the new one's
         // baseline.
@@ -97,6 +101,16 @@ final class AppModel {
         self.inbox = inbox
         poller = Task { [weak self] in await self?.poll() }
         Task { await requestAuthorizationIfOn() }
+    }
+
+    /// The window says which alert's detail it shows. A window of a server left behind
+    /// letting go (nil) doesn't clear the new one's.
+    func viewing(_ id: Int?, on server: URL) {
+        if let id {
+            viewed = (server, id)
+        } else if viewed?.server == server {
+            viewed = nil
+        }
     }
 
     /// Asks macOS for permission when notifications are on and it never asked.
@@ -163,11 +177,39 @@ final class AppModel {
         let now = Date.now
         let rules = NotificationRules(
             severities: NotificationSetting.severities(in: defaults), ignoredNames: ignoredNames)
+        // Only while the user can see it: Achtung active, its main window the key one.
+        let onScreen =
+            NSApp.isActive && NSApp.keyWindow?.isMainAchtungWindow == true
+            && viewed?.server == refreshed.baseURL
         let notifying = notifications.refreshed(
             feed: refreshed.feed, isOn: NotificationSetting.isOn(in: defaults, at: now),
-            rules: rules, readState: refreshed.readState, now: now)
+            rules: rules, readState: refreshed.readState, now: now,
+            viewing: onScreen ? viewed?.id : nil)
+        saveNotifications(for: refreshed.baseURL, at: now)
         guard !notifying.isEmpty else { return }
         notifier.post(AlertNotificationPlan.delivery(of: notifying), server: refreshed.baseURL)
+    }
+
+    /// Per server, as occurrence ids belong to one (ADR 0018).
+    private static func notificationsKey(for server: URL) -> String {
+        "notificationState \(server.absoluteString)"
+    }
+
+    /// Nil when there is none, or it's in an older format: then Achtung starts afresh.
+    private func savedNotifications(for server: URL) -> AlertNotificationState.Saved? {
+        defaults.data(forKey: Self.notificationsKey(for: server)).flatMap {
+            try? JSONDecoder().decode(AlertNotificationState.Saved.self, from: $0)
+        }
+    }
+
+    private func saveNotifications(for server: URL, at now: Date) {
+        guard let saved = notifications.saved(at: now) else { return }
+        do {
+            defaults.set(
+                try JSONEncoder().encode(saved), forKey: Self.notificationsKey(for: server))
+        } catch {
+            preconditionFailure("The notification state is plain data and encodes: \(error)")
+        }
     }
 
     private func handle(_ action: NotificationAction, ids: [Int], server: String?) {

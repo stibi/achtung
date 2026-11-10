@@ -93,7 +93,9 @@ their own instance.
   ([ADR 0008](docs/adr/0008-silences-through-the-server.md)). A silence mutes the alert
   for every receiver of that Alertmanager, not only in Achtung. The alert's own silence
   can be changed or ended from Achtung; broader ones stay Alertmanager's
-  ([ADR 0015](docs/adr/0015-change-and-end-silences.md)).
+  ([ADR 0015](docs/adr/0015-change-and-end-silences.md)). From a Home tile's list,
+  several alerts can be silenced at once, each with its own silence
+  ([ADR 0016](docs/adr/0016-silence-alertmanager-alerts-in-bulk.md)).
 
 ## Core use case
 

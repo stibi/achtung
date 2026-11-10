@@ -612,6 +612,32 @@ components:
         its alert list and its delivery check. Matched exactly and
         case-sensitively against the alertname label. The inbox shows these
         alerts as usual
+    AlertsSilenced:
+      type: object
+      properties:
+        alerts:
+          type: array
+          items:
+            type: object
+            properties:
+              fingerprint:
+                type: string
+              silencedUntil:
+                nullable: true
+                description: When its silence ends; null when it wasn't silenced
+                type: string
+                format: date-time
+              error:
+                nullable: true
+                description: Why it wasn't silenced; null when it was
+                type: string
+            required:
+              - fingerprint
+              - silencedUntil
+              - error
+      required:
+        - alerts
+      description: One entry per fingerprint asked for, in that order
     IngestSummary:
       type: object
       properties:
@@ -1018,6 +1044,75 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "409":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/alertmanagers/{instance}/silences:
+    post:
+      operationId: silenceAlertmanagerAlerts
+      summary: Silence several of an Alertmanager's alerts, each exactly
+      tags:
+        - client
+      description: "Silences each alert, found by fingerprint in a fresh read of the
+        instance's Alertmanager, with its own silence matching exactly its
+        labels, as POST /api/occurrences/{id}/silence does: an exact silence it
+        already has is changed to the new end (ADR 0015, ADR 0016). Alerts not
+        in Achtung can be silenced too. An alert no longer in Alertmanager gets
+        an error and no silence. It mutes the alerts for every receiver of that
+        Alertmanager, not only Achtung. 404: the instance has no Alertmanager
+        configured. 502: Alertmanager was unreachable or refused; some silences
+        may be made, and a retry changes them rather than adding more."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fingerprints:
+                  minItems: 1
+                  maxItems: 500
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                  description: The alerts to silence, each by its fingerprint in this Alertmanager
+                durationSeconds:
+                  type: integer
+                  minimum: 60
+                  maximum: 2592000
+                  description: How long the silence lasts, from now
+              required:
+                - fingerprints
+                - durationSeconds
+      parameters:
+        - schema:
+            type: string
+          in: path
+          name: instance
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertsSilenced"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
           description: Default Response
           content:
             application/json:

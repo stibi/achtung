@@ -36,6 +36,8 @@ export interface AlertmanagerAlerts {
   readAll(): Promise<{ instance: string; reading: Reading<readonly AlertmanagerAlert[]> }[]>;
   /** The instance's reading, from the same cache; null when it has no Alertmanager. */
   read(instance: string): Promise<Reading<readonly AlertmanagerAlert[]> | null>;
+  /** Achtung just changed the instance's alerts, e.g. silenced some: read them anew. */
+  invalidate(instance: string): void;
 }
 
 export interface AlertmanagerAlertsOptions {
@@ -68,6 +70,7 @@ export function alertmanagerAlertsFrom(
         [...caches].map(async ([instance, cache]) => ({ instance, reading: await cache.read() })),
       ),
     read: async (instance) => (await caches.get(instance)?.read()) ?? null,
+    invalidate: (instance) => caches.get(instance)?.invalidate(),
   };
 }
 

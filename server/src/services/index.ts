@@ -1,4 +1,5 @@
 import type { Database } from "../db/client.ts";
+import { silenceAlertmanagerAlerts } from "./alertmanager-silences.ts";
 import { type AlertmanagerAlerts, getHome, listAlertmanagerAlerts } from "./home.ts";
 import {
   getOccurrence,
@@ -38,6 +39,11 @@ export function servicesFor(
     silenceOccurrence: (id: number, durationSeconds: number) =>
       silenceOccurrence(db, silences, id, durationSeconds),
     unsilenceOccurrence: (id: number) => unsilenceOccurrence(db, silences, id),
+    silenceAlertmanagerAlerts: (
+      instance: string,
+      fingerprints: readonly string[],
+      durationSeconds: number,
+    ) => silenceAlertmanagerAlerts(silences, alerts, instance, fingerprints, durationSeconds),
     getHome: () => getHome(db, silences, alerts, heartbeats, now()),
     listAlertmanagerAlerts: (instance: string) =>
       listAlertmanagerAlerts(db, silences, alerts, instance),

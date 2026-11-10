@@ -17,7 +17,7 @@ Alertmanager ──POST /ingest/alertmanager/{instance}/{channel}──▶ http 
                                                         │
 macOS client ◀──── REST API + Server-Sent Events ───── http
 
-services ──▶ clients ──GET silences, GET alerts (each ≤ 1 per 30 s per instance)──▶ Alertmanager API
+services ──▶ clients ──GET silences, GET alerts (each ≤ 1 per 30 s per instance, fresh for a change)──▶ Alertmanager API
                      ──POST/DELETE silence (the silence button)───────────────────▶
                      ──GET alert_groups (≤ 1 per minute per integration)──────────▶ Grafana IRM API
 ```
@@ -157,13 +157,19 @@ The identity below is a contract that features build on
   - `DELETE /api/occurrences/{id}/silence`: ends the alert's own (exact) silences now and
     returns the occurrence; a broader silence is left alone and still shows in
     `silencedUntil`, and 409 when only such a one mutes it (ADR 0015).
+  - `POST /api/alertmanagers/{instance}/silences` with `{ "fingerprints": [...],
+    "durationSeconds": ... }`: silences each of the Alertmanager's alerts, found by
+    fingerprint in a fresh read, with its own exact silence, also alerts that aren't in
+    Achtung; one result per fingerprint
+    ([ADR 0016](adr/0016-silence-alertmanager-alerts-in-bulk.md)).
   - `GET /api/home` ([ADR 0010](adr/0010-home-view.md)): one entry per configured
     Alertmanager, by instance name, plus the silences active on all of them (soonest to
     end first, from the silences cache below), the 10 noisiest alerts (most `fired`,
     `reopened` and `resent` events in the last 24 hours, at least 2, each as its newest
     occurrence) and the 10 longest firing occurrences. An entry's counts come from the
     Alertmanager itself (`GET /api/v2/alerts`), read at most every 30 seconds per
-    instance by `services/home.ts` through the same cached reader as the silences
+    instance (except that silencing alerts from a tile reads them fresh and invalidates
+    the cache afterwards, ADR 0016) by `services/home.ts` through the same cached reader as the silences
     (`services/alertmanager-reads.ts`: one read at a time, the last good one kept when a
     read fails, with `reachable: false` and the error, without the response body). Its
     `delivery` compares that read with what fires in Achtung, firing by firing

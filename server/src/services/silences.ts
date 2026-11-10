@@ -32,6 +32,15 @@ export interface Silences {
    */
   create(occurrence: Occurrence, durationSeconds: number): Promise<Date>;
   /**
+   * The same for several alerts of one instance at once, each with its own exact silence,
+   * reading the instance's silences once; returns the end (ADR 0016).
+   */
+  createEach(
+    instance: string,
+    targets: readonly SilenceTarget[],
+    durationSeconds: number,
+  ): Promise<Date>;
+  /**
    * Ends the alert's exact silences now. Broader ones, which mute other alerts too, are
    * left alone (ADR 0015); `silencedUntil` is when the latest of those that mutes the
    * alert ends, from the same fresh read.
@@ -44,6 +53,12 @@ export interface Silences {
 }
 
 export type InstanceSilence = Silence & { readonly instance: string };
+
+/** An alert to silence exactly: its labels, and what the silence's comment says. */
+interface SilenceTarget {
+  readonly labels: Readonly<Record<string, string>>;
+  readonly comment: string;
+}
 
 export interface SilencesOptions {
   readonly now?: () => Date;
@@ -75,49 +90,43 @@ export function silencesFrom(
     return silences.filter((silence) => isActive(silence, at));
   };
 
-  const endpointOf = (occurrence: Occurrence): AlertmanagerEndpoint => {
-    const endpoint = endpoints.get(occurrence.instance);
+  const endpointOf = (instance: string): AlertmanagerEndpoint => {
+    const endpoint = endpoints.get(instance);
     if (endpoint === undefined) {
-      throw new Error(`no Alertmanager for instance ${occurrence.instance}`);
+      throw new Error(`no Alertmanager for instance ${instance}`);
     }
     return endpoint;
   };
+  // A change reads and writes the instance's Alertmanager directly, then forgets the cache.
+  const changing = async <T>(
+    instance: string,
+    change: (endpoint: AlertmanagerEndpoint) => Promise<T>,
+  ): Promise<T> => {
+    try {
+      return await change(endpointOf(instance));
+    } finally {
+      caches.get(instance)?.invalidate();
+    }
+  };
+  const createEach = (
+    instance: string,
+    targets: readonly SilenceTarget[],
+    durationSeconds: number,
+  ): Promise<Date> =>
+    changing(instance, (endpoint) => setExactSilences(endpoint, targets, durationSeconds, now()));
+
   return {
     canSilence: (instance) => endpoints.has(instance),
 
-    async annotate(occurrences) {
-      const instances = [...new Set(occurrences.map((occurrence) => occurrence.instance))];
-      const byInstance = new Map(
-        await Promise.all(
-          instances.map(async (instance) => [instance, await silencesOf(instance)] as const),
-        ),
-      );
-      const at = now();
-      return occurrences.map((occurrence) => ({
-        ...occurrence,
-        silencedUntil: silencedUntil(
-          occurrence.labels,
-          byInstance.get(occurrence.instance) ?? [],
-          at,
-        ),
-      }));
-    },
+    annotate: (occurrences) => annotate(occurrences, silencesOf, now),
 
-    async create(occurrence, durationSeconds) {
-      try {
-        return await setExactSilence(endpointOf(occurrence), occurrence, durationSeconds, now());
-      } finally {
-        caches.get(occurrence.instance)?.invalidate();
-      }
-    },
+    create: (occurrence, durationSeconds) =>
+      createEach(occurrence.instance, [targetOf(occurrence)], durationSeconds),
 
-    async end(occurrence) {
-      try {
-        return await endExactSilences(endpointOf(occurrence), occurrence, now());
-      } finally {
-        caches.get(occurrence.instance)?.invalidate();
-      }
-    },
+    createEach,
+
+    end: (occurrence) =>
+      changing(occurrence.instance, (endpoint) => endExactSilences(endpoint, occurrence, now())),
 
     async listActive() {
       const perInstance = await Promise.all(
@@ -132,43 +141,73 @@ export function silencesFrom(
   };
 }
 
-// Read fresh, not from the cache: a change must see every silence there is now.
-async function exactAndOtherSilences(
-  endpoint: AlertmanagerEndpoint,
-  occurrence: Occurrence,
-  now: Date,
-): Promise<{ exact: Silence[]; others: Silence[] }> {
-  const current = (await listSilences(endpoint)).filter((silence) => silence.endsAt > now);
-  const exact = current.filter((silence) => isExactlyFor(silence, occurrence.labels));
-  return { exact, others: current.filter((silence) => !exact.includes(silence)) };
+async function annotate(
+  occurrences: readonly Occurrence[],
+  silencesOf: (instance: string) => Promise<readonly Silence[]>,
+  now: () => Date,
+): Promise<SilencedOccurrence[]> {
+  const instances = [...new Set(occurrences.map((occurrence) => occurrence.instance))];
+  const byInstance = new Map(
+    await Promise.all(
+      instances.map(async (instance) => [instance, await silencesOf(instance)] as const),
+    ),
+  );
+  const at = now();
+  return occurrences.map((occurrence) => ({
+    ...occurrence,
+    silencedUntil: silencedUntil(occurrence.labels, byInstance.get(occurrence.instance) ?? [], at),
+  }));
 }
 
-async function setExactSilence(
+const targetOf = (occurrence: Occurrence): SilenceTarget => ({
+  labels: occurrence.labels,
+  comment: `Silenced from Achtung: ${occurrence.instance} #${occurrence.channel}, ${occurrence.title}`,
+});
+
+async function setExactSilences(
   endpoint: AlertmanagerEndpoint,
-  occurrence: Occurrence,
+  targets: readonly SilenceTarget[],
   durationSeconds: number,
   startsAt: Date,
 ): Promise<Date> {
   const endsAt = new Date(startsAt.getTime() + durationSeconds * 1000);
+  // Read fresh, not from the cache: a change must see every silence there is now.
+  const current = await currentSilences(endpoint, startsAt);
+  for (const target of targets) {
+    await setExactSilence(endpoint, current, target, { startsAt, endsAt });
+  }
+  return endsAt;
+}
+
+async function currentSilences(endpoint: AlertmanagerEndpoint, now: Date): Promise<Silence[]> {
+  return (await listSilences(endpoint)).filter((silence) => silence.endsAt > now);
+}
+
+async function setExactSilence(
+  endpoint: AlertmanagerEndpoint,
+  current: readonly Silence[],
+  { labels, comment }: SilenceTarget,
+  { startsAt, endsAt }: { readonly startsAt: Date; readonly endsAt: Date },
+): Promise<void> {
   // The latest-ending exact silence is changed; any others would outlast a shorter end.
-  const { exact } = await exactAndOtherSilences(endpoint, occurrence, startsAt);
-  const [kept, ...extra] = exact.toSorted((a, b) => b.endsAt.getTime() - a.endsAt.getTime());
+  const [kept, ...extra] = current
+    .filter((silence) => isExactlyFor(silence, labels))
+    .toSorted((a, b) => b.endsAt.getTime() - a.endsAt.getTime());
   // Alertmanager changes a silence in place only with the same matchers and, once it has
   // started, the same start; otherwise it ends it and makes a new one (ADR 0015).
   const started = kept !== undefined && kept.startsAt <= startsAt;
   await createSilence(endpoint, {
     ...(kept === undefined ? {} : { id: kept.id }),
-    matchers: started ? kept.matchers : matchersFor(occurrence.labels),
+    matchers: started ? kept.matchers : matchersFor(labels),
     startsAt: started ? kept.startsAt : startsAt,
     endsAt,
     // There are no users to name (ADR 0002).
     createdBy: "Achtung",
-    comment: `Silenced from Achtung: ${occurrence.instance} #${occurrence.channel}, ${occurrence.title}`,
+    comment,
   });
   for (const silence of extra) {
     await expireSilence(endpoint, silence.id);
   }
-  return endsAt;
 }
 
 async function endExactSilences(
@@ -176,10 +215,12 @@ async function endExactSilences(
   occurrence: Occurrence,
   now: Date,
 ): Promise<{ ended: number; silencedUntil: Date | null }> {
-  const { exact, others } = await exactAndOtherSilences(endpoint, occurrence, now);
+  const current = await currentSilences(endpoint, now);
+  const exact = current.filter((silence) => isExactlyFor(silence, occurrence.labels));
   for (const silence of exact) {
     await expireSilence(endpoint, silence.id);
   }
+  const others = current.filter((silence) => !exact.includes(silence));
   return { ended: exact.length, silencedUntil: silencedUntil(occurrence.labels, others, now) };
 }
 

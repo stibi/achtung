@@ -7,6 +7,7 @@ import type {
 } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import type { ChannelAddress } from "../domain/channel.ts";
+import type { AlertmanagerSilenceResult } from "../services/alertmanager-silences.ts";
 import type { AlertmanagerAlertList, Home } from "../services/home.ts";
 import type {
   ChannelOccurrencePage,
@@ -28,6 +29,11 @@ export interface Inbox {
   getOccurrence(id: number): Promise<OccurrenceDetail | null>;
   silenceOccurrence(id: number, durationSeconds: number): Promise<SilenceResult>;
   unsilenceOccurrence(id: number): Promise<SilenceResult>;
+  silenceAlertmanagerAlerts(
+    instance: string,
+    fingerprints: readonly string[],
+    durationSeconds: number,
+  ): Promise<AlertmanagerSilenceResult>;
   getHome(): Promise<Home>;
   /** The alerts behind an Alertmanager's tile; null when the instance has none. */
   listAlertmanagerAlerts(instance: string): Promise<AlertmanagerAlertList | null>;

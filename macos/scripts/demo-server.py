@@ -321,6 +321,25 @@ def set_ignored(body):
     return 200, {"names": IGNORED}
 
 
+def matching(items, query):
+    """The search parameters (q, label, severity, instance), like the server (ADR 0017)."""
+    text = (query.get("q", [""])[0] or "").strip().lower()
+    labels = [entry.split("=", 1) for entry in query.get("label", []) if "=" in entry]
+    severities = query.get("severity", [])
+    instance = query.get("instance", [None])[0]
+
+    def matches(item):
+        haystack = [item["title"], item.get("summary") or "", *item["labels"], *item["labels"].values()]
+        return (
+            (not text or any(text in part.lower() for part in haystack))
+            and all(item["labels"].get(name) == value for name, value in labels)
+            and (not severities or item["severity"] in severities)
+            and (instance is None or item["instance"] == instance)
+        )
+
+    return [item for item in items if matches(item)]
+
+
 def get(path, query, now):
     cursor = query.get("cursor", [None])[0]
     status = query.get("status", [None])[0]
@@ -328,14 +347,16 @@ def get(path, query, now):
         return 200, channels(now)
     if path == "/api/settings/ignored-alerts":
         return 200, {"names": IGNORED}
+    if any("=" not in entry or entry.startswith("=") for entry in query.get("label", [])):
+        return 400, {"error": "A label filter is name=value"}
     if path == "/api/occurrences":
-        return 200, page(occurrences(now, status=status), cursor)
+        return 200, page(matching(occurrences(now, status=status), query), cursor)
     if match := re.fullmatch(r"/api/instances/([^/]+)/channels/([^/]+)/occurrences", path):
         instance, channel = match.groups()
         if not any((c["instance"], c["slug"]) == (instance, channel)
                    for c in channels(now)["channels"]):
             return 404, {"error": f"Channel {instance}/{channel} not found"}
-        return 200, page(occurrences(now, instance, channel, status), cursor)
+        return 200, page(matching(occurrences(now, instance, channel, status), query), cursor)
     if match := re.fullmatch(r"/api/occurrences/(\d+)", path):
         found = detail(int(match.group(1)), now)
         return (200, found) if found else (404, {"error": "Occurrence not found"})

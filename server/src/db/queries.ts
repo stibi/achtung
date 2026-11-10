@@ -18,14 +18,17 @@ import { z } from "zod";
 import type { AlertState } from "../domain/alert.ts";
 import type { ChannelRef, ChannelSlug, InstanceName } from "../domain/channel.ts";
 import type { Occurrence, OccurrenceEvent } from "../domain/occurrence.ts";
+import type { OccurrenceSearch } from "../domain/search.ts";
 import type { Database, Transaction } from "./client.ts";
 import { channels, events, occurrences } from "./schema.ts";
+import { searchCondition } from "./search.ts";
 
 // Mirrors services/inbox.ts OccurrenceFilter structurally; db/ can't import services.
 interface OccurrenceFilter {
   readonly status: AlertState["status"] | null;
   readonly after: { readonly lastEventAt: Date; readonly id: number } | null;
   readonly limit: number;
+  readonly search: OccurrenceSearch;
 }
 
 // JSON columns are parsed on the way out (golden principle 3); everything else is typed
@@ -120,13 +123,14 @@ export async function findInstancesWithChannel(
 export async function listOccurrences(
   db: Database,
   channelId: number | null,
-  { status, after, limit }: OccurrenceFilter,
+  { status, after, limit, search }: OccurrenceFilter,
 ): Promise<Occurrence[]> {
   const rows = await selectOccurrences(
     db,
     and(
       channelId === null ? undefined : eq(occurrences.channelId, channelId),
       status === null ? undefined : eq(occurrences.status, status),
+      searchCondition(search),
       after === null
         ? undefined
         : sql`(${occurrences.lastEventAt}, ${occurrences.id}) < (${after.lastEventAt}, ${after.id})`,

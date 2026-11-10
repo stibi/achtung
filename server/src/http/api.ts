@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { type InstanceName, parseChannelSlug, parseInstanceName } from "../domain/channel.ts";
+import { parseLabelFilter } from "../domain/search.ts";
 import type { ListPosition, OccurrenceFilter, OccurrencePage } from "../services/inbox.ts";
 import type { Api, Inbox } from "./api-contract.ts";
 import {
@@ -9,6 +10,7 @@ import {
   errorBody,
   occurrenceDetailBody,
   occurrencePageBody,
+  severity,
   toChannelBody,
   toOccurrenceBody,
   toOccurrenceDetailBody,
@@ -43,23 +45,60 @@ function decodeCursor(cursor: string): ListPosition | null {
 }
 
 // Shared by both occurrence lists, so they page and filter the same way.
+// A parameter given once arrives as a string, given more often as an array.
+const repeated = <T extends z.ZodType>(item: T) =>
+  z.preprocess((value) => (typeof value === "string" ? [value] : value), z.array(item)).optional();
+
+// Postgres text can't hold a NUL; refused here, at the boundary, as invalid input.
+const searchText = z.string().regex(/^[^\0]*$/, "must not contain NUL");
+
 const listQuery = z.object({
   status: z.enum(["firing", "resolved"]).optional(),
   cursor: z.string().optional().describe("nextCursor from the previous page"),
   limit: z.coerce.number().int().min(1).max(200).default(50),
+  q: searchText
+    .max(200)
+    .optional()
+    .describe(
+      "Text found, ignoring case and taken literally, in the title, the summary or a label's name or value (ADR 0017)",
+    ),
+  label: repeated(searchText).describe(
+    "name=value: the label with exactly this value; repeat for several, all must match",
+  ),
+  severity: repeated(severity).describe("Any of these severities; repeat for several"),
+  instance: z.string().optional().describe("Only this instance's occurrences"),
 });
 
-/** The filter a list query asks for; null when its cursor is not one this server issued. */
-function filterFrom({
-  status,
-  cursor,
-  limit,
-}: z.output<typeof listQuery>): OccurrenceFilter | null {
+/**
+ * The filter a list query asks for; a 400 body when its cursor is not one this server
+ * issued or a label filter isn't `name=value`.
+ */
+function filterFrom(query: z.output<typeof listQuery>): OccurrenceFilter | { error: string } {
+  const { status, cursor, limit, q, instance } = query;
   const after = cursor === undefined ? null : decodeCursor(cursor);
   if (after === null && cursor !== undefined) {
-    return null;
+    return invalidCursor;
   }
-  return { status: status ?? null, after, limit };
+  const labels = (query.label ?? []).map(parseLabelFilter);
+  if (labels.includes(null)) {
+    return { error: "A label filter is name=value" };
+  }
+  const instanceName = instance === undefined ? null : parseInstanceName(instance);
+  if (instance !== undefined && instanceName === null) {
+    return { error: "Invalid instance" };
+  }
+  const text = q?.trim() ?? "";
+  return {
+    status: status ?? null,
+    after,
+    limit,
+    search: {
+      text: text === "" ? null : text,
+      labels: labels.filter((label) => label !== null),
+      severities: query.severity ?? [],
+      instance: instanceName,
+    },
+  };
 }
 
 const invalidCursor = { error: "Invalid cursor" };
@@ -97,8 +136,8 @@ async function channelPage(
   query: z.output<typeof listQuery>,
 ): Promise<ReturnType<typeof toPageBody> | Failure> {
   const filter = filterFrom(query);
-  if (filter === null) {
-    return { code: 400, body: invalidCursor };
+  if ("error" in filter) {
+    return { code: 400, body: filter };
   }
   const slug = parseChannelSlug(name);
   const page =
@@ -185,8 +224,8 @@ function registerOccurrenceRoutes(api: Api, inbox: Inbox): void {
     },
     async (request, reply) => {
       const filter = filterFrom(request.query);
-      if (filter === null) {
-        return reply.code(400).send(invalidCursor);
+      if ("error" in filter) {
+        return reply.code(400).send(filter);
       }
       return toPageBody(await inbox.listOccurrences(filter));
     },

@@ -88,6 +88,9 @@ their own instance.
   annotation and label on its own row, a hover away from copying. **Copy for Agent**
   (⇧⌘C) puts the whole alert on the clipboard as Markdown, to hand to an agent
   investigating it.
+- **Search** every alert across channels and instances by text in its name, summary or
+  labels, by exact labels such as `namespace=payments`, by severity and by instance
+  (server API, [ADR 0017](docs/adr/0017-search-occurrences.md)).
 - **Silence an alert** for a while, on the Alertmanager it came from. Every alert shows
   whether it is silenced and until when, including silences made in Alertmanager itself
   ([ADR 0008](docs/adr/0008-silences-through-the-server.md)). A silence mutes the alert

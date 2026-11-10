@@ -777,6 +777,44 @@ paths:
           required: false
         - schema:
             type: string
+            maxLength: 200
+            pattern: ^[^\0]*$
+          in: query
+          name: q
+          required: false
+          description: Text found, ignoring case and taken literally, in the title, the
+            summary or a label's name or value (ADR 0017)
+        - schema:
+            type: array
+            items:
+              type: string
+              pattern: ^[^\0]*$
+          in: query
+          name: label
+          required: false
+          description: "name=value: the label with exactly this value; repeat for several,
+            all must match"
+        - schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - critical
+                - warning
+                - info
+                - unknown
+          in: query
+          name: severity
+          required: false
+          description: Any of these severities; repeat for several
+        - schema:
+            type: string
+          in: query
+          name: instance
+          required: false
+          description: Only this instance's occurrences
+        - schema:
+            type: string
           in: path
           name: instance
           required: true
@@ -838,6 +876,44 @@ paths:
           required: false
         - schema:
             type: string
+            maxLength: 200
+            pattern: ^[^\0]*$
+          in: query
+          name: q
+          required: false
+          description: Text found, ignoring case and taken literally, in the title, the
+            summary or a label's name or value (ADR 0017)
+        - schema:
+            type: array
+            items:
+              type: string
+              pattern: ^[^\0]*$
+          in: query
+          name: label
+          required: false
+          description: "name=value: the label with exactly this value; repeat for several,
+            all must match"
+        - schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - critical
+                - warning
+                - info
+                - unknown
+          in: query
+          name: severity
+          required: false
+          description: Any of these severities; repeat for several
+        - schema:
+            type: string
+          in: query
+          name: instance
+          required: false
+          description: Only this instance's occurrences
+        - schema:
+            type: string
           in: path
           name: slug
           required: true
@@ -889,6 +965,44 @@ paths:
           in: query
           name: limit
           required: false
+        - schema:
+            type: string
+            maxLength: 200
+            pattern: ^[^\0]*$
+          in: query
+          name: q
+          required: false
+          description: Text found, ignoring case and taken literally, in the title, the
+            summary or a label's name or value (ADR 0017)
+        - schema:
+            type: array
+            items:
+              type: string
+              pattern: ^[^\0]*$
+          in: query
+          name: label
+          required: false
+          description: "name=value: the label with exactly this value; repeat for several,
+            all must match"
+        - schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - critical
+                - warning
+                - info
+                - unknown
+          in: query
+          name: severity
+          required: false
+          description: Any of these severities; repeat for several
+        - schema:
+            type: string
+          in: query
+          name: instance
+          required: false
+          description: Only this instance's occurrences
       responses:
         "200":
           description: Default Response

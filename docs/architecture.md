@@ -145,6 +145,10 @@ The identity below is a contract that features build on
   - `GET /api/occurrences?status=&cursor=&limit=`: the same list across every channel,
     in the same order and with the same paging; each occurrence's `channel` says where
     it belongs. This feeds the client's Live view.
+  - Both lists also take search parameters ([ADR 0017](adr/0017-search-occurrences.md)):
+    `q` (text in the title, summary or labels, ignoring case, literal), `label=name=value`
+    (repeatable, exact, all must match), `severity` (repeatable, any) and `instance`.
+    `db/search.ts` turns them into one condition; paging and order stay the same.
   - `GET /api/occurrences/{id}`: the occurrence, its events (oldest first) and the
     alert's other occurrences (newest first, up to 20).
   - `POST /api/occurrences/{id}/silence` with `{ "durationSeconds": 60..2592000 }`:

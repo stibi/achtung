@@ -11,6 +11,7 @@ import {
 import type { AlertState } from "../domain/alert.ts";
 import { type ChannelAddress, resolveChannel } from "../domain/channel.ts";
 import type { OccurrenceEvent } from "../domain/occurrence.ts";
+import type { OccurrenceSearch } from "../domain/search.ts";
 import type { SilencedOccurrence } from "../domain/silence.ts";
 import type { Silences } from "./silences.ts";
 
@@ -24,6 +25,8 @@ export interface OccurrenceFilter {
   readonly status: AlertState["status"] | null;
   readonly after: ListPosition | null;
   readonly limit: number;
+  /** What the list is narrowed to (ADR 0017); empty parts match everything. */
+  readonly search: OccurrenceSearch;
 }
 
 export interface ChannelOverview {

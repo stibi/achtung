@@ -335,15 +335,21 @@ The identity below is a contract that features build on
   the one picked silences and becomes the default (`SilenceDuration`, kept in
   `UserDefaults`). The server returns the occurrence with `silencedUntil`, which replaces
   it in every list. A silenced alert shows "Silenced until …" in its header, a muted bell
-  in list rows, and a "Silenced" state instead of the button, until the silence ends;
-  expiring a silence is done in Alertmanager. Its help text says that a silence mutes the
-  alert for every receiver of that Alertmanager, not only in Achtung. A failure (409, 502)
-  shows the server's reason next to the button. `silencedUntil` can change without
-  `lastEventAt` moving (a silence made or expired in Alertmanager), so a refresh merges
-  every fetched page whole, not only what changed: the newest page of Live and of the open
-  channel picks up such changes within about a minute (the server reads Alertmanager at
-  most every 30 seconds). Older loaded occurrences show them when they next change, or
-  after a relaunch.
+  in list rows, and a "Silenced" menu instead of the button, until the silence ends: it
+  changes the alert's own silence to end 1h, 4h, 1d or 1w from now (the same `POST`, which
+  changes an exact silence rather than adding one) or ends it (`DELETE
+  /api/occurrences/{id}/silence`, ADR 0015); a broader silence that still mutes the alert
+  is reported next to it ("Still silenced until … by another silence"), and one that alone
+  mutes it gets the server's 409 message (end it in Alertmanager). A channel row's context
+  menu offers the same: Silence, or Change Silence and End Silence, with any error or
+  remaining silence in an alert (`SilenceActions` carries both). Its help text says that a
+  silence mutes the alert for every receiver of that Alertmanager, not only in Achtung. A
+  failure (409, 502) shows the server's reason next to the button. `silencedUntil` can
+  change without `lastEventAt` moving (a silence made or expired in Alertmanager), so a
+  refresh merges every fetched page whole, not only what changed: the newest page of Live
+  and of the open channel picks up such changes within about a minute (the server reads
+  Alertmanager at most every 30 seconds). Older loaded occurrences show them when they
+  next change, or after a relaunch.
 - No push yet: the app refreshes every 30 seconds, with or without a window (`AppModel`,
   ADR 0013), when a list opens, and whenever it becomes active. A refresh reloads the
   channels and the all-channels feed, plus the selected channel's list, asking each for
@@ -449,7 +455,17 @@ The identity below is a contract that features build on
   read but listing alerts, a silence end on an alert that isn't silenced). Back or Esc
   returns to Home; the detail reloads every 30 seconds while on screen, at once when it
   comes back, and on ⌘R. A row's context menu, "Ignore Alerts Named “…”", adds its
-  alertname to the ignored alert names.
+  alertname to the ignored alert names. The header marks the listed alerts read, like a
+  channel's (⇧⌘K; those with an occurrence the feed has unread), and silences alerts
+  (`POST /api/alertmanagers/{instance}/silences`, ADR 0016), each with its own exact
+  silence: active and inhibited rows have a checkbox, and each severity group a select-all
+  box; the button reads "Silence N Selected…", or "Silence All…" for every active alert
+  (inhibited ones notify nothing now, so only a selection includes them; silenced ones are
+  changed or ended from their occurrence). It asks first ("Silence N alerts on … for 4h?
+  They are muted for every receiver of this Alertmanager…"), then reloads, clears the
+  selection, refreshes the inbox so the new silences show everywhere at once, and shows
+  above the list what was silenced and, per alert, what wasn't and why. The mapping
+  rejects a result with both or neither of an end and an error.
 - Ignored alert names (`GET`/`PUT /api/settings/ignored-alerts`): alert names Home leaves
   out of each Alertmanager's counts, its detail and its delivery check, matched exactly
   on alertname. One list on the server, shared by every user (ADR 0002); channels and

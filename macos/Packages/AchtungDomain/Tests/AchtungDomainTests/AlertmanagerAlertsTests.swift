@@ -77,3 +77,34 @@ private func list(_ alerts: [AlertmanagerAlert]) -> AlertmanagerAlerts {
     #expect(neverRead.checkedAt == nil)
     #expect(list([]).checkedAt == Fixture.start)
 }
+
+@Test func silenceAllCoversTheActiveAlertsAndAnyUnsilencedOneCanBePicked() {
+    let alerts = list([
+        alert("a", .critical), alert("s", .warning, .silenced(until: Fixture.minutes(60))),
+        alert("i", .info, .inhibited), alert("u", .unknown),
+    ])
+
+    #expect(alerts.silenceableByDefault.map(\.fingerprint) == ["a", "u"])
+    #expect(alerts.selectable.map(\.fingerprint) == ["a", "i", "u"])
+}
+
+@Test func theSilenceSummarySaysWhatWasSilencedAndWhyTheRestWasnt() {
+    let silenced = AlertSilenceResult(fingerprint: "a", outcome: .silenced(until: Fixture.start))
+    let gone = AlertSilenceResult(fingerprint: "b", outcome: .failed("No longer in Alertmanager"))
+    let unnamed = AlertSilenceResult(fingerprint: "c", outcome: .failed("Refused"))
+
+    let all = AlertSilenceResult.summary(of: [silenced], titles: ["a": "HighErrorRate"])
+    let some = AlertSilenceResult.summary(
+        of: [silenced, gone, unnamed], titles: ["a": "HighErrorRate", "b": "KubeJobFailed"])
+
+    #expect(all.text == "Silenced 1 alert.")
+    #expect(!all.failed)
+    #expect(
+        some.text
+            == "Silenced 1 of 3. Not silenced: KubeJobFailed: No longer in Alertmanager; "
+            + "c: Refused.")
+    #expect(some.failed)
+    #expect(
+        AlertSilenceResult.summary(of: [silenced, silenced], titles: [:]).text
+            == "Silenced 2 alerts.")
+}

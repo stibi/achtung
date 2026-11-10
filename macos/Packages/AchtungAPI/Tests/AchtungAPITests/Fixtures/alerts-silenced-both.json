@@ -1,0 +1,9 @@
+{
+  "alerts": [
+    {
+      "fingerprint": "c1",
+      "silencedUntil": "2026-11-08T23:00:00.000Z",
+      "error": "Refused"
+    }
+  ]
+}

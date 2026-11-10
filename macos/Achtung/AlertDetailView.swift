@@ -15,7 +15,7 @@ struct AlertDetailView: View {
     /// Nil while the history is loading, or when it failed to load.
     let detail: OccurrenceDetail?
     let detailProblem: ServerError?
-    let silence: SilenceAction
+    let silence: SilenceActions
 
     var body: some View {
         GeometryReader { geometry in
@@ -66,7 +66,7 @@ struct AlertDetailView: View {
 /// one per line. Shared by the channel detail pane and the Live cards.
 struct AlertDetails: View {
     let occurrence: Occurrence
-    let silence: SilenceAction
+    let silence: SilenceActions
     /// The history, for "Copy for Agent", once it has loaded; Live's cards don't have it.
     var events: [OccurrenceEvent]?
     /// ⇧⌘C copies: only in the detail pane, where one alert is shown.
@@ -87,7 +87,7 @@ struct AlertDetails: View {
                         // A new occurrence gets a fresh button, without the last one's error
                         // or in-flight state.
                         SilenceButton(
-                            occurrence: occurrence, isSilenced: isSilenced, silence: silence
+                            occurrence: occurrence, isSilenced: isSilenced, actions: silence
                         )
                         .id(occurrence.id)
                         CopyForAgentButton(

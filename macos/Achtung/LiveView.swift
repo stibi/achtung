@@ -25,7 +25,7 @@ struct LiveView: View {
     /// once read, until another one takes its place or the user marks all read.
     @Binding var kept: Int?
     let markRead: (Occurrence) -> Void
-    let silence: SilenceAction
+    let silence: SilenceActions
 
     /// The card a timeline marker was clicked for, highlighted for a moment.
     @State private var highlighted: Int?
@@ -130,7 +130,7 @@ private struct LiveCard: View {
     let isRead: Bool
     /// Shown briefly after a timeline marker was clicked.
     let isHighlighted: Bool
-    let silence: SilenceAction
+    let silence: SilenceActions
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -168,5 +168,5 @@ private struct LiveCard: View {
         occurrences: SampleData.occurrences, firing: [], readState: SampleData.readState,
         hasOlder: false, lastUpdated: nil, loadOlder: {}, hidesRead: .constant(false),
         kept: .constant(nil), markRead: { _ in },
-        silence: { _, _ in nil })
+        silence: .none)
 }

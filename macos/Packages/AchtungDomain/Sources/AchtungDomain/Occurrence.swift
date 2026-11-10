@@ -74,6 +74,12 @@ public struct Occurrence: Sendable, Hashable, Identifiable {
     /// it's new.
     public var isResent: Bool { lastEventKind == .resent }
 
+    /// When the silence still muting it at `now` ends, e.g. a broader one after its own was
+    /// ended (ADR 0015); nil when none does.
+    public func silenceEnd(at now: Date) -> Date? {
+        isSilenced(at: now) ? silencedUntil : nil
+    }
+
     /// Muted by an Alertmanager silence at `now`. A silence that ended since the last
     /// refresh no longer counts.
     public func isSilenced(at now: Date) -> Bool {

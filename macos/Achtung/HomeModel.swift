@@ -50,6 +50,22 @@ final class HomeModel {
         }
     }
 
+    /// Silences these alerts of `instance`'s Alertmanager, each with its own exact silence
+    /// (ADR 0016), then reloads its alerts, also after a failure, since some silences may
+    /// have been made.
+    func silenceAlerts(
+        _ fingerprints: [String], of instance: String, for duration: SilenceDuration
+    ) async throws(ServerError) -> [AlertSilenceResult] {
+        do {
+            let results = try await server.silenceAlerts(fingerprints, of: instance, for: duration)
+            await refreshAlerts(of: instance)
+            return results
+        } catch {
+            await refreshAlerts(of: instance)
+            throw error
+        }
+    }
+
     /// An occurrence by id, to open it from a list that knows only its id.
     func occurrence(id: Int) async throws(ServerError) -> Occurrence {
         try await server.occurrence(id: id).occurrence

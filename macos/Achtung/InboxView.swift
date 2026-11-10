@@ -203,7 +203,7 @@ struct InboxView: View {
                 loadOlder: { await model.loadOlder(in: .allChannels) },
                 hidesRead: hidesRead(in: .allChannels), kept: $liveKept,
                 markRead: { model.markRead($0) },
-                silence: { await model.silence($0, for: $1) })
+                silence: SilenceActions(model))
         } else {
             loading(.allChannels)
         }
@@ -239,7 +239,7 @@ struct InboxView: View {
                 lastUpdated: model.lastUpdated,
                 loadOlder: { await model.loadOlder(in: scope) },
                 hidesRead: hidesRead(in: scope),
-                selection: $selectedID, copy: copy)
+                selection: $selectedID, copy: copy, silence: SilenceActions(model))
         } else {
             loading(scope)
         }
@@ -271,7 +271,7 @@ struct InboxView: View {
                 occurrence: occurrence,
                 detail: model.detail?.occurrence.id == occurrence.id ? model.detail : nil,
                 detailProblem: model.detailProblem,
-                silence: { await model.silence($0, for: $1) })
+                silence: SilenceActions(model))
         } else {
             ContentUnavailableView("Select an alert", systemImage: "bell")
         }

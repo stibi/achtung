@@ -10,7 +10,8 @@ import OpenAPIURLSession
 /// The Achtung server's client API. Everything it returns is an AchtungDomain type; the
 /// generated OpenAPI types stay inside this package.
 public struct AchtungServer: Sendable {
-    private let client: Client
+    /// Internal for the extensions in this package (`AchtungServer+Silences.swift`).
+    let client: Client
 
     public init(baseURL: URL) {
         // An inbox must never show a cached answer: every request goes to the server.
@@ -122,10 +123,11 @@ public struct AchtungServer: Sendable {
         return changed
     }
 
-    /// Silences the occurrence's alert on its instance's Alertmanager for `duration`,
-    /// matching every label of the alert (ADR 0008), and returns the occurrence with its
-    /// new `silencedUntil`. The silence mutes the alert for every receiver of that
-    /// Alertmanager, not only Achtung.
+    /// Silences the occurrence's alert on its instance's Alertmanager for `duration` from
+    /// now, matching every label of the alert (ADR 0008), and returns the occurrence with its
+    /// new `silencedUntil`. An alert with its own silence already has it changed to end then,
+    /// sooner or later, rather than getting a second one (ADR 0015). The silence mutes the
+    /// alert for every receiver of that Alertmanager, not only Achtung.
     public func silence(occurrenceID id: Int, for duration: SilenceDuration)
         async throws(ServerError) -> Occurrence
     {
@@ -225,7 +227,7 @@ public struct AchtungServer: Sendable {
     /// Runs one request and turns whatever it throws into a `ServerError`. The generated
     /// client wraps transport and decoding failures in `ClientError`; a body in an
     /// unexpected content type throws from `body.json`.
-    private func call<Output>(_ request: () async throws -> Output) async throws(ServerError)
+    func call<Output>(_ request: () async throws -> Output) async throws(ServerError)
         -> Output
     {
         do {

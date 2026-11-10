@@ -1,0 +1,9 @@
+{
+  "alerts": [
+    {
+      "fingerprint": "c1",
+      "silencedUntil": null,
+      "error": null
+    }
+  ]
+}

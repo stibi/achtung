@@ -29,3 +29,16 @@ import Testing
 @Test func anEmptyListHasNothingToRefreshFrom() {
     #expect(OccurrenceList().refreshSince == nil)
 }
+
+@Test func aSilenceEndIsKnownOnlyWhileTheSilenceLasts() {
+    let base = Fixture.occurrence(id: 1, lastEventAt: Fixture.start)
+    let silenced = Occurrence(
+        id: 1, channel: base.channel, source: base.source, alert: base.alert,
+        firstReceivedAt: base.firstReceivedAt, lastReceivedAt: base.lastReceivedAt,
+        lastEventAt: base.lastEventAt, lastEventKind: base.lastEventKind,
+        notificationCount: 1, silencedUntil: Fixture.minutes(60))
+
+    #expect(silenced.silenceEnd(at: Fixture.start) == Fixture.minutes(60))
+    #expect(silenced.silenceEnd(at: Fixture.minutes(61)) == nil)
+    #expect(base.silenceEnd(at: Fixture.start) == nil)
+}

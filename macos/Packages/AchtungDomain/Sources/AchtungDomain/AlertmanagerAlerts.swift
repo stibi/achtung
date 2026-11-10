@@ -109,3 +109,65 @@ public struct AlertmanagerAlert: Sendable, Hashable, Identifiable {
             .sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
     }
 }
+
+extension AlertmanagerAlerts {
+    /// The alerts "Silence All" covers: the active ones, which notify. Silenced ones are
+    /// silenced already, and inhibited ones notify nothing now; either can still be picked
+    /// one by one.
+    public var silenceableByDefault: [AlertmanagerAlert] {
+        alerts.filter { $0.state == .active }
+    }
+
+    /// The alerts that can be picked for silencing: active and inhibited ones. A silenced one
+    /// is changed or ended from its own occurrence instead (ADR 0015).
+    public var selectable: [AlertmanagerAlert] {
+        alerts.filter { !$0.isSilenced }
+    }
+}
+
+extension AlertmanagerAlert {
+    public var isSilenced: Bool {
+        if case .silenced = state { true } else { false }
+    }
+}
+
+/// What silencing one alert of an Alertmanager came to (ADR 0016).
+public struct AlertSilenceResult: Sendable, Hashable {
+    public enum Outcome: Sendable, Hashable {
+        /// Its own silence ends then.
+        case silenced(until: Date)
+        /// Why it wasn't silenced, e.g. it's no longer in Alertmanager.
+        case failed(String)
+    }
+
+    public let fingerprint: String
+    public let outcome: Outcome
+
+    public init(fingerprint: String, outcome: Outcome) {
+        self.fingerprint = fingerprint
+        self.outcome = outcome
+    }
+}
+
+extension AlertSilenceResult {
+    /// What silencing several alerts came to, to show above the list: "Silenced 5 alerts."
+    /// or "Silenced 3 of 5. Not silenced: KubeJobFailed: No longer in Alertmanager.", with
+    /// whether something failed. `titles` names alerts by fingerprint; one without a title
+    /// is named by its fingerprint.
+    public static func summary(of results: [AlertSilenceResult], titles: [String: String])
+        -> (text: String, failed: Bool)
+    {
+        let failures = results.compactMap { result -> String? in
+            guard case .failed(let error) = result.outcome else { return nil }
+            return "\(titles[result.fingerprint] ?? result.fingerprint): \(error)"
+        }
+        let silenced = results.count - failures.count
+        guard !failures.isEmpty else {
+            return ("Silenced \(silenced) \(silenced == 1 ? "alert" : "alerts").", false)
+        }
+        return (
+            "Silenced \(silenced) of \(results.count). Not silenced: "
+                + failures.joined(separator: "; ") + ".", true
+        )
+    }
+}

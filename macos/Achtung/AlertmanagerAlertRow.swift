@@ -11,14 +11,41 @@ struct AlertmanagerAlertRow: View {
     let actions: AlertRowActions
 
     var body: some View {
-        row
-            .contextMenu {
-                if let name = alert.alertname {
-                    Button("Ignore Alerts Named “\(name)”", systemImage: "eye.slash") {
-                        actions.ignore(name)
-                    }
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            // A silenced alert's silence is changed or ended from its occurrence (ADR 0015).
+            if alert.isSilenced {
+                Color.clear.frame(width: 14, height: 1)
+            } else {
+                Toggle(isOn: isSelected) {
+                    Text("Select \(alert.title) for silencing")
+                }
+                .toggleStyle(.checkbox)
+                .labelsHidden()
+                // labelsHidden hides the label from VoiceOver too.
+                .accessibilityLabel("Select \(alert.title) for silencing")
+                .help("Select for silencing")
+            }
+            row
+        }
+        .contextMenu {
+            if let name = alert.alertname {
+                Button("Ignore Alerts Named “\(name)”", systemImage: "eye.slash") {
+                    actions.ignore(name)
                 }
             }
+        }
+    }
+
+    private var isSelected: Binding<Bool> {
+        Binding {
+            actions.selection.wrappedValue.contains(alert.fingerprint)
+        } set: { selected in
+            if selected {
+                actions.selection.wrappedValue.insert(alert.fingerprint)
+            } else {
+                actions.selection.wrappedValue.remove(alert.fingerprint)
+            }
+        }
     }
 
     @ViewBuilder private var row: some View {

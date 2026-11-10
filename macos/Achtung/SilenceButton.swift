@@ -2,13 +2,36 @@ import AchtungAPI
 import AchtungDomain
 import SwiftUI
 
-/// Silences an occurrence's alert for a duration (ADR 0008). Returns why it failed, if it
-/// did; on success the model shows the silenced occurrence everywhere.
-typealias SilenceAction = @MainActor (Occurrence, SilenceDuration) async -> ServerError?
+/// What can be done about an occurrence's silence (ADR 0008, ADR 0015): silence it for a
+/// duration from now, which changes its own silence when it has one, or end that silence.
+/// Each returns why it failed; on success the model shows the occurrence everywhere.
+struct SilenceActions {
+    let silence: @MainActor (Occurrence, SilenceDuration) async -> ServerError?
+    let unsilence: @MainActor (Occurrence) async -> UnsilenceOutcome
+
+    @MainActor
+    init(_ model: InboxModel) {
+        silence = { await model.silence($0, for: $1) }
+        unsilence = { await model.unsilence($0) }
+    }
+
+    init(
+        silence: @escaping @MainActor (Occurrence, SilenceDuration) async -> ServerError?,
+        unsilence: @escaping @MainActor (Occurrence) async -> UnsilenceOutcome
+    ) {
+        self.silence = silence
+        self.unsilence = unsilence
+    }
+
+    /// For previews: nothing happens.
+    static let none = SilenceActions(silence: { _, _ in nil }, unsilence: { _ in .ended })
+}
 
 /// A split button: "Silence 4h" silences for the remembered duration; its arrow offers
 /// every duration, and the one picked silences the alert and becomes the new default.
-/// A silenced alert shows "Silenced" instead: expiring a silence is Alertmanager's job.
+/// A silenced alert shows "Silenced", a menu that changes the silence to end a duration from
+/// now, or ends it (ADR 0015). A broader silence is Alertmanager's to end; when one still
+/// mutes the alert afterwards, the button says until when.
 struct SilenceButton: View {
     static let warning =
         "Creates an Alertmanager silence for exactly this alert. It mutes the alert for every "
@@ -16,24 +39,32 @@ struct SilenceButton: View {
 
     let occurrence: Occurrence
     let isSilenced: Bool
-    let silence: SilenceAction
+    let actions: SilenceActions
 
     @AppStorage("silenceDuration") private var duration: SilenceDuration = .oneHour
-    @State private var isSilencing = false
+    @State private var isBusy = false
     @State private var problem: ServerError?
+    /// "Still silenced until 15:30 by another silence", after ending its own.
+    @State private var note: String?
 
     var body: some View {
-        if isSilenced, let until = occurrence.silencedUntil {
-            Label("Silenced", systemImage: "bell.slash.fill")
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .foregroundStyle(.secondary)
-                .background(.quaternary, in: .rect(cornerRadius: 6))
+        HStack(spacing: 8) {
+            if isSilenced, let until = occurrence.silencedUntil {
+                Menu {
+                    ForEach(SilenceDuration.allCases) { option in
+                        Button("Silence for \(option.title) from Now") { start(option) }
+                    }
+                    Divider()
+                    Button("End Silence", action: end)
+                } label: {
+                    Label(isBusy ? "Changing…" : "Silenced", systemImage: "bell.slash.fill")
+                }
+                .fixedSize()
+                .disabled(isBusy)
                 .help(
-                    "Silenced in Alertmanager until \(timeOrDate(until)). "
-                        + "Expire it in Alertmanager.")
-        } else {
-            HStack(spacing: 8) {
+                    "Silenced in Alertmanager until \(timeOrDate(until)). Change when its own "
+                        + "silence ends, or end it; a broader silence is ended in Alertmanager.")
+            } else {
                 Menu {
                     ForEach(SilenceDuration.allCases) { option in
                         Button("Silence for \(option.title)") {
@@ -43,33 +74,54 @@ struct SilenceButton: View {
                     }
                 } label: {
                     Label(
-                        isSilencing ? "Silencing…" : "Silence \(duration.title)",
+                        isBusy ? "Silencing…" : "Silence \(duration.title)",
                         systemImage: "bell.slash")
                 } primaryAction: {
                     start(duration)
                 }
                 .fixedSize()
-                .disabled(isSilencing)
+                .disabled(isBusy)
                 .help(Self.warning)
-                if let problem {
-                    Label(problem.detail, systemImage: "exclamationmark.triangle")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .help(problem.title)
-                }
+            }
+            if let problem {
+                Label(problem.detail, systemImage: "exclamationmark.triangle")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .help(problem.title)
+            } else if let note {
+                Label(note, systemImage: "bell.slash")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
         }
     }
 
-    /// One silence at a time: the button counts as busy from the click, not from when the
+    /// One change at a time: the button counts as busy from the click, not from when the
     /// task gets to run, so a quick second click doesn't create a second silence.
     private func start(_ duration: SilenceDuration) {
-        guard !isSilencing else { return }
-        isSilencing = true
+        guard !isBusy else { return }
+        isBusy = true
         problem = nil
+        note = nil
         Task {
-            problem = await silence(occurrence, duration)
-            isSilencing = false
+            problem = await actions.silence(occurrence, duration)
+            isBusy = false
+        }
+    }
+
+    private func end() {
+        guard !isBusy else { return }
+        isBusy = true
+        problem = nil
+        note = nil
+        Task {
+            switch await actions.unsilence(occurrence) {
+            case .ended: break
+            case .stillSilenced(let until):
+                note = "Still silenced until \(timeOrDate(until)) by another silence"
+            case .failed(let error): problem = error
+            }
+            isBusy = false
         }
     }
 }

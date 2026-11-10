@@ -7,6 +7,8 @@ struct AlertRowActions {
     let open: (Int) -> Void
     /// Adds an alertname to the ignored alert names.
     let ignore: (String) -> Void
+    /// The alerts picked for silencing, by fingerprint.
+    let selection: Binding<Set<String>>
 }
 
 /// The active alerts by severity, or "All quiet", then the silenced and inhibited ones.
@@ -35,7 +37,8 @@ struct AlertGroups: View {
                 VStack(alignment: .leading, spacing: 6) {
                     GroupHeader(
                         title: group.severity.groupTitle, count: group.alerts.count,
-                        color: group.severity.color)
+                        color: group.severity.color, fingerprints: group.alerts.map(\.fingerprint),
+                        selection: actions.selection)
                     AlertCard(alerts: group.alerts, now: now, actions: actions)
                 }
             }
@@ -50,20 +53,61 @@ private struct GroupHeader: View {
     let title: String
     let count: Int
     let color: Color
+    /// The group's alerts, which its checkbox selects all of, or none.
+    let fingerprints: [String]
+    @Binding var selection: Set<String>
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(color)
-            Text(count.formatted())
-                .font(.caption.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.white)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 1)
-                .background(color, in: Capsule())
+            SelectAllBox(fingerprints: fingerprints, selection: $selection, title: title)
+            // The title and its count read as one.
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(color)
+                Text(count.formatted())
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 1)
+                    .background(color, in: Capsule())
+            }
+            .accessibilityElement(children: .combine)
         }
-        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A checkbox for a group: checked when all of it is selected, a dash when some are.
+private struct SelectAllBox: View {
+    let fingerprints: [String]
+    @Binding var selection: Set<String>
+    let title: String
+
+    private var selected: Int { fingerprints.filter(selection.contains).count }
+
+    var body: some View {
+        Button {
+            if selected == fingerprints.count {
+                selection.subtract(fingerprints)
+            } else {
+                selection.formUnion(fingerprints)
+            }
+        } label: {
+            Image(
+                systemName: selected == 0
+                    ? "square"
+                    : selected == fingerprints.count
+                        ? "checkmark.square.fill" : "minus.square.fill"
+            )
+            .foregroundStyle(selected == 0 ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
+        }
+        .buttonStyle(.borderless)
+        .help("Select every \(title.lowercased()) alert for silencing")
+        .accessibilityLabel("Select all \(title)")
+        .accessibilityValue(
+            selected == 0
+                ? "none selected"
+                : selected == fingerprints.count ? "all selected" : "some selected")
     }
 }
 

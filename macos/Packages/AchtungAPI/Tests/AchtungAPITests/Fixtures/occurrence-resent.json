@@ -36,11 +36,13 @@
     {
       "id": 9,
       "kind": "fired",
+      "cause": null,
       "recordedAt": "2026-11-07T21:14:19.643Z"
     },
     {
       "id": 21,
       "kind": "resent",
+      "cause": null,
       "recordedAt": "2026-11-07T22:14:30.000Z"
     }
   ],

@@ -156,3 +156,20 @@ private let expectedReport = """
 
     #expect(report.contains("## Labels\n\n````\nquery=x```y\n````"))
 }
+
+@Test func theHistorySaysWhenAchtungResolvedAnAlertItself() {
+    let resolved = alert(state: .resolved(endsAt: start.addingTimeInterval(600)))
+    let events = [
+        OccurrenceEvent(id: 1, kind: .fired, recordedAt: start),
+        OccurrenceEvent(
+            id: 2, kind: .resolved, cause: .vanished, recordedAt: start.addingTimeInterval(600)),
+    ]
+
+    let report = AgentReport.markdown(for: occurrence(resolved), events: events, now: start)
+
+    #expect(
+        report.contains(
+            "- 2026-10-26T07:33:20Z fired\n- 2026-10-26T07:43:20Z resolved (gone from "
+                + "Alertmanager: Achtung resolved it itself, Alertmanager never sent the "
+                + "resolve)\n"))
+}

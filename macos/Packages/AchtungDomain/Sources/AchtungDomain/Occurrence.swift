@@ -93,13 +93,23 @@ public struct OccurrenceEvent: Sendable, Hashable, Identifiable {
         case resent
     }
 
+    /// Why Achtung recorded an event without a notification for it (ADR 0014).
+    public enum Cause: String, Sendable, Hashable {
+        /// A resolve Achtung recorded itself: the alert was gone from its Alertmanager,
+        /// which never sent the resolve (typically a silenced alert that ended).
+        case vanished
+    }
+
     public let id: Int
     public let kind: Kind
+    /// Nil when a notification caused the event.
+    public let cause: Cause?
     public let recordedAt: Date
 
-    public init(id: Int, kind: Kind, recordedAt: Date) {
+    public init(id: Int, kind: Kind, cause: Cause? = nil, recordedAt: Date) {
         self.id = id
         self.kind = kind
+        self.cause = cause
         self.recordedAt = recordedAt
     }
 }

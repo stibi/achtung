@@ -82,7 +82,15 @@ extension Components.Schemas.Occurrence.LinksPayloadPayload.KindPayload {
 
 extension Components.Schemas.Event {
     var domain: OccurrenceEvent {
-        OccurrenceEvent(id: id, kind: kind.domain, recordedAt: recordedAt)
+        OccurrenceEvent(id: id, kind: kind.domain, cause: cause?.domain, recordedAt: recordedAt)
+    }
+}
+
+extension Components.Schemas.Event.CausePayload {
+    var domain: OccurrenceEvent.Cause {
+        switch self {
+        case .vanished: .vanished
+        }
     }
 }
 

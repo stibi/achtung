@@ -125,6 +125,8 @@ private func date(_ text: String) throws -> Date {
         .occurrence(id: 12)
 
     #expect(detail.events.map(\.kind) == [.fired, .resolved, .reopened])
+    // Notifications caused them all.
+    #expect(detail.events.allSatisfy { $0.cause == nil })
     #expect(detail.occurrence.lastEventKind == .reopened)
     #expect(detail.occurrence.alert.links.map(\.kind) == [.runbook, .dashboard])
     #expect(detail.occurrence.alert.severity == .unknown)

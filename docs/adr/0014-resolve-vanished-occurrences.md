@@ -31,11 +31,10 @@ never sent, at a guessed time, and a wrong comparison would rewrite history quie
   isn't the right one), starts the count over for that instance. Absences live in memory,
   per instance; a restart of the server starts them over too. There is one replica.
 - **It says so.** The occurrence gets `status: resolved`, `endsAt` the first read that
-  didn't have it (the closest Achtung knows), and a `resolved` event whose new `cause` is
-  `vanished`; events caused by a notification have `cause: null`. The API's `Event`
-  gains `cause`, for a client to show as "gone from Alertmanager" (the macOS client
-  doesn't yet). `lastEventKind` stays `resolved`, so clients that don't know `cause`
-  treat it as any resolve.
+  didn't have it (the closest Achtung knows), and a `resolved` event whose new `cause`
+  is `vanished`; events caused by a notification have `cause: null`. The API's `Event`
+  gains `cause`, for a client to show as "gone from Alertmanager". `lastEventKind` stays
+  `resolved`, so clients that don't know `cause` treat it as any resolve.
 - **A notification wins.** The resolve is a conditional update of the row (still
   firing, `lastReceivedAt` unchanged since the read), so an ingest of the same occurrence
   in between keeps it firing. If Alertmanager later sends the alert as firing with the

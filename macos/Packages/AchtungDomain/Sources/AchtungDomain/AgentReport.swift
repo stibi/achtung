@@ -43,7 +43,12 @@ public enum AgentReport {
                 "## Labels\n\n\(fence)\n" + lines.joined(separator: "\n") + "\n\(fence)")
         }
         if let events, !events.isEmpty {
-            let lines = events.map { "- \(iso($0.recordedAt)) \($0.kind.rawValue)" }
+            let lines = events.map { event in
+                "- \(iso(event.recordedAt)) \(event.kind.rawValue)"
+                    + (event.cause == .vanished
+                        ? " (gone from Alertmanager: Achtung resolved it itself, Alertmanager "
+                            + "never sent the resolve)" : "")
+            }
             sections.append("## History\n\n" + lines.joined(separator: "\n"))
         }
         return sections.joined(separator: "\n\n") + "\n"

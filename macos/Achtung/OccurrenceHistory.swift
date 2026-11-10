@@ -54,13 +54,7 @@ struct OccurrenceHistory: View {
                 Text("History")
                     .font(.headline)
                 ForEach(detail.events) { event in
-                    Label {
-                        Text("\(event.kind.title) \(exact(event.recordedAt))")
-                    } icon: {
-                        Image(systemName: event.kind.symbolName)
-                            .foregroundStyle(event.kind.color)
-                    }
-                    .font(.callout)
+                    EventRow(event: event)
                 }
             }
             if !detail.otherOccurrences.isEmpty {
@@ -78,6 +72,51 @@ struct OccurrenceHistory: View {
                     }
                 }
             }
+        }
+    }
+}
+
+/// One event: what happened and when. A resolve Achtung recorded itself (ADR 0014) says so,
+/// and why.
+private struct EventRow: View {
+    let event: OccurrenceEvent
+
+    private var vanished: Bool { event.cause == .vanished }
+
+    var body: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(event.kind.title) \(exact(event.recordedAt))")
+                if vanished {
+                    Text("Gone from Alertmanager")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } icon: {
+            Image(
+                systemName: vanished
+                    ? "checkmark.circle.badge.questionmark.fill" : event.kind.symbolName
+            )
+            .foregroundStyle(event.kind.color)
+        }
+        .font(.callout)
+        .accessibilityElement(children: .combine)
+        .modifier(VanishedHelp(isVanished: vanished))
+    }
+}
+
+/// Why a vanished resolve has no notification behind it; nothing on other events.
+private struct VanishedHelp: ViewModifier {
+    let isVanished: Bool
+
+    func body(content: Content) -> some View {
+        if isVanished {
+            content.help(
+                "Alertmanager never sent this resolve. The alert was gone from it, so Achtung "
+                    + "resolved it itself after 5 minutes without it. Typically an alert that "
+                    + "ended while silenced or inhibited.")
+        } else {
+            content
         }
     }
 }

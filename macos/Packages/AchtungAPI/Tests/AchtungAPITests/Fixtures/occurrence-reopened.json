@@ -25,9 +25,9 @@
     "silencedUntil": null
   },
   "events": [
-    { "id": 30, "kind": "fired", "recordedAt": "2026-11-07T09:00:05.120Z" },
-    { "id": 31, "kind": "resolved", "recordedAt": "2026-11-07T09:30:05.000Z" },
-    { "id": 32, "kind": "reopened", "recordedAt": "2026-11-07T10:00:05.000Z" }
+    { "id": 30, "kind": "fired", "cause": null, "recordedAt": "2026-11-07T09:00:05.120Z" },
+    { "id": 31, "kind": "resolved", "cause": null, "recordedAt": "2026-11-07T09:30:05.000Z" },
+    { "id": 32, "kind": "reopened", "cause": null, "recordedAt": "2026-11-07T10:00:05.000Z" }
   ],
   "otherOccurrences": []
 }

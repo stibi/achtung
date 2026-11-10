@@ -160,7 +160,9 @@ SCENARIO = [
     (ERRORS, [("fired", -1000), ("resolved", -980)]),
     (CART, [("fired", -260), ("resolved", -245)]),
     (TARGET, [("fired", -55)]),
-    (KAFKA, [("fired", -440), ("resolved", -400)]),
+    # Ended while silenced (that silence has expired since): Alertmanager never sent the
+    # resolve, so Achtung resolved it itself once it was gone (ADR 0014).
+    (KAFKA, [("fired", -440), ("vanished", -400)]),
     (REPLICAS, [("fired", -900), ("resolved", -860)]),
     (FLAKY, [("fired", -120), ("resolved", -100)]),
     (RUNNER, [("fired", -30)]),
@@ -173,11 +175,17 @@ SILENCED = {12: (at(-300), at(3 * 60))}
 RESEND_AFTER = datetime.timedelta(hours=1)
 
 
+def kind_of(kind):
+    """The API's event kind: a "vanished" event is a resolve Achtung recorded itself because
+    the alert was gone from its Alertmanager (ADR 0014); its cause says so."""
+    return "resolved" if kind == "vanished" else kind
+
+
 def events(occurrence_id, now):
     """(id, kind, time) of everything recorded up to `now`, oldest first."""
     scenario = sorted(SCENARIO[occurrence_id - 1][1], key=lambda event: event[1])
     recorded = [(kind, at(minutes)) for kind, minutes in scenario if at(minutes) <= now]
-    if recorded and recorded[-1][0] != "resolved":
+    if recorded and recorded[-1][0] not in ("resolved", "vanished"):
         # Notifications arrive until the alert is silenced; each one an hour or more after
         # the last event records a resend.
         since, until = SILENCED.get(occurrence_id, (None, None))
@@ -196,10 +204,16 @@ def occurrence(occurrence_id, now):
     if not recorded:
         return None
     first, last = recorded[0][2], recorded[-1]
-    resolved_at = last[2] if last[1] == "resolved" else None
+    resolved_at = last[2] if last[1] in ("resolved", "vanished") else None
+    vanished = last[1] == "vanished"
     since, until = SILENCED.get(occurrence_id, (None, None))
     silenced = until is not None and until > now
     notified_until = resolved_at or (min(since, now) if silenced else now)
+    if vanished:
+        # As ADR 0014 has it: notifications stopped (the alert was silenced), it was gone
+        # from Alertmanager 5 minutes before Achtung resolved it, and Achtung waited 10
+        # minutes after the last notification before even looking.
+        notified_until = resolved_at - datetime.timedelta(minutes=16)
     repeats = max(int((notified_until - first).total_seconds() // (REPEAT_MINUTES * 60)), 0)
     last_received = first + datetime.timedelta(minutes=repeats * REPEAT_MINUTES)
     return {
@@ -217,12 +231,13 @@ def occurrence(occurrence_id, now):
         "links": alert_fields["links"],
         # Alertmanager reports the start a little before the first notification.
         "startsAt": iso(first - datetime.timedelta(seconds=30)),
-        "endsAt": iso(resolved_at),
+        "endsAt": iso(resolved_at - datetime.timedelta(minutes=5) if vanished else resolved_at),
         "firstReceivedAt": iso(first),
-        "lastReceivedAt": iso(max(last_received, last[2])),
+        "lastReceivedAt": iso(last_received if vanished else max(last_received, last[2])),
         "lastEventAt": iso(last[2]),
-        "lastEventKind": last[1],
-        "notificationCount": repeats + 1 + (1 if resolved_at else 0),
+        "lastEventKind": kind_of(last[1]),
+        # A vanished resolve came with no notification.
+        "notificationCount": repeats + 1 + (1 if resolved_at and not vanished else 0),
         "silencedUntil": iso(until) if silenced else None,
     }
 
@@ -280,7 +295,12 @@ def detail(occurrence_id, now):
         == (described["instance"], described["channel"], described["sourceKey"])
     ]
     history = [
-        {"id": event_id, "kind": kind, "cause": None, "recordedAt": iso(time)}
+        {
+            "id": event_id,
+            "kind": kind_of(kind),
+            "cause": "vanished" if kind == "vanished" else None,
+            "recordedAt": iso(time),
+        }
         for event_id, kind, time in events(occurrence_id, now)
     ]
     others.sort(key=lambda o: o["startsAt"], reverse=True)

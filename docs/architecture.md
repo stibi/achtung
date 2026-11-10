@@ -306,6 +306,11 @@ The identity below is a contract that features build on
   a button that copies `name=value`; its context menu also copies the value, or a label
   as a PromQL matcher. The order and the link titles are in AchtungDomain
   (`IncomingAlert.orderedAnnotations`, `orderedLabels`, `linkAnnotations`).
+- An event's `cause` (ADR 0014) is mapped as `OccurrenceEvent.Cause`, and an unknown one
+  is rejected like any value the spec doesn't list. The history shows a resolve Achtung
+  recorded itself, because the alert was gone from its Alertmanager, as "Resolved …" over
+  "Gone from Alertmanager", with a question-mark check and a help text saying
+  Alertmanager never sent the resolve; Copy for Agent's history says so too.
 - "Copy for Agent" (the details' button, ⇧⌘C in the detail pane, a list row's context
   menu) puts the alert on the pasteboard as Markdown for an agent to investigate
   (`AgentReport` in AchtungDomain): the title; its state, severity, instance and channel;

@@ -2,7 +2,7 @@
 
 A self-hosted alert inbox with a native macOS client.
 
-![The macOS client in demo mode: Live with its 24-hour timeline, the Unread only switch, a resent alert's history, silencing, and a new critical alert arriving](docs/media/achtung-demo.gif)
+![The macOS client in demo mode: Home with each Alertmanager's health, silencing two alerts from a tile, searching across channels by label, an alert's details and Copy for Agent, the Unread only switch and Mark All as Read, then a new critical alert arriving in Live with its notification](docs/media/achtung-demo.gif)
 
 A 30-second tour of the client in demo mode, with made-up alerts (`make demo`).
 [Full-quality video (MP4)](docs/media/achtung-demo.mp4).

@@ -391,6 +391,13 @@ def silence(occurrence_id, body, now):
     return 200, occurrence(occurrence_id, now)
 
 
+def unsilence(occurrence_id, now):
+    if not 1 <= occurrence_id <= len(SCENARIO) or occurrence(occurrence_id, now) is None:
+        return 404, {"error": "Occurrence not found"}
+    SILENCED.pop(occurrence_id, None)
+    return 200, occurrence(occurrence_id, now)
+
+
 class DemoAPI(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802 (http.server's naming)
         url = urlparse(self.path)
@@ -408,6 +415,11 @@ class DemoAPI(BaseHTTPRequestHandler):
             self.reply(*resend(now))
         else:
             self.reply(*(silence(int(match.group(1)), body, now) if match else (404, {"error": "Not found"})))
+
+    def do_DELETE(self):  # noqa: N802
+        match = re.fullmatch(r"/api/occurrences/(\d+)/silence", urlparse(self.path).path)
+        now = datetime.datetime.now(datetime.timezone.utc)
+        self.reply(*(unsilence(int(match.group(1)), now) if match else (404, {"error": "Not found"})))
 
     def do_PUT(self):  # noqa: N802
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")

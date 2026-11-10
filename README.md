@@ -91,7 +91,9 @@ their own instance.
 - **Silence an alert** for a while, on the Alertmanager it came from. Every alert shows
   whether it is silenced and until when, including silences made in Alertmanager itself
   ([ADR 0008](docs/adr/0008-silences-through-the-server.md)). A silence mutes the alert
-  for every receiver of that Alertmanager, not only in Achtung.
+  for every receiver of that Alertmanager, not only in Achtung. The alert's own silence
+  can be changed or ended from Achtung; broader ones stay Alertmanager's
+  ([ADR 0015](docs/adr/0015-change-and-end-silences.md)).
 
 ## Core use case
 
@@ -178,9 +180,10 @@ array of `alerts`. Each alert has `status`, `labels`, `annotations`, `startsAt`,
 ## Non-goals (for now)
 
 - Replacing Alertmanager's routing, grouping, inhibition or silencing. Alertmanager stays
-  the brain, and Achtung is the inbox. Achtung can create a silence on it for one alert
-  ([ADR 0008](docs/adr/0008-silences-through-the-server.md)), but managing silences stays
-  in Alertmanager.
+  the brain, and Achtung is the inbox. Achtung can create, change and end a silence on it
+  for one alert ([ADR 0008](docs/adr/0008-silences-through-the-server.md),
+  [ADR 0015](docs/adr/0015-change-and-end-silences.md)), but managing other silences
+  stays in Alertmanager.
 - On-call scheduling, escalation and paging (PagerDuty/Grafana OnCall territory).
 - iOS, web or Windows clients. The API should not prevent them, but they are not planned.
 - Multi-tenant SaaS, user accounts and login.

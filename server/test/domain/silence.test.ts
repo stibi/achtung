@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isActive,
+  isExactlyFor,
   type LabelMatcher,
   matchersFor,
   type Silence,
@@ -30,6 +31,30 @@ const equal = (name: string, value: string): LabelMatcher => ({
   value,
   isRegex: false,
   isEqual: true,
+});
+
+describe("isExactlyFor", () => {
+  it("is a silence of one equality matcher per label, as matchersFor makes it", () => {
+    expect(isExactlyFor(silence(matchersFor(labels)), labels)).toBe(true);
+    expect(isExactlyFor(silence(matchersFor(labels).toReversed()), labels)).toBe(true);
+  });
+
+  it("isn't a broader or different one", () => {
+    const [first, ...rest] = matchersFor(labels);
+    const others = [
+      rest,
+      [...rest, { ...first!, isRegex: true }],
+      [...rest, { ...first!, isEqual: false }],
+      [...rest, { ...first!, value: "Other" }],
+      [...rest, rest[0]!],
+      [...matchersFor(labels), equal("pod", "a")],
+      [...rest, equal("pod", "a")],
+    ];
+
+    for (const matchers of others) {
+      expect(isExactlyFor(silence(matchers), labels)).toBe(false);
+    }
+  });
 });
 
 describe("matchersFor", () => {

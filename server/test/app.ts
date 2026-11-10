@@ -21,6 +21,7 @@ export const unusedServices: Services = {
   listOccurrences: unused,
   getOccurrence: unused,
   silenceOccurrence: unused,
+  unsilenceOccurrence: unused,
   getHome: unused,
   listAlertmanagerAlerts: unused,
   getIgnoredAlertNames: unused,

@@ -916,11 +916,13 @@ paths:
       summary: Silence the occurrence's alert on its instance's Alertmanager
       tags:
         - client
-      description: "Creates an Alertmanager silence that matches every label of the
-        alert exactly, so it also covers a re-fire. It mutes the alert for every
-        receiver of that Alertmanager, not only Achtung (ADR 0008). 409: the
-        instance has no Alertmanager configured. 502: Alertmanager was
-        unreachable or refused the silence."
+      description: "Silences the alert until durationSeconds from now, with an
+        Alertmanager silence that matches every label of the alert exactly, so
+        it also covers a re-fire. If the alert already has such a silence, it is
+        changed to end then, sooner or later, instead of another being added
+        (ADR 0015). It mutes the alert for every receiver of that Alertmanager,
+        not only Achtung (ADR 0008). 409: the instance has no Alertmanager
+        configured. 502: Alertmanager was unreachable or refused the silence."
       requestBody:
         required: true
         content:
@@ -935,6 +937,58 @@ paths:
                   description: How long the silence lasts, from now
               required:
                 - durationSeconds
+      parameters:
+        - schema:
+            type: integer
+            minimum: 0
+            exclusiveMinimum: true
+            maximum: 9007199254740991
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Occurrence"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: unsilenceOccurrence
+      summary: End the occurrence's alert's own silences on its instance's Alertmanager
+      tags:
+        - client
+      description: "Ends now every silence that matches exactly this alert's labels,
+        as POST creates them, so the alert notifies again. A broader silence,
+        which mutes other alerts too, is left alone: the answer's silencedUntil
+        then still shows it, and when only such a silence mutes the alert,
+        nothing is ended and the answer is 409 (ADR 0015). Ending an alert that
+        has no silence is not an error. 409: also when the instance has no
+        Alertmanager configured. 502: Alertmanager was unreachable or refused."
       parameters:
         - schema:
             type: integer

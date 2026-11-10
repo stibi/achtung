@@ -40,8 +40,8 @@ interface StubRequest {
 
 /**
  * A stand-in for Alertmanager's silences and alerts API, so tests never reach a real one.
- * It keeps the silences it creates and lists them back, and lists the alerts a test puts
- * in `alerts`.
+ * It keeps the silences it creates, changes and expires, and lists them back, and lists
+ * the alerts a test puts in `alerts`.
  */
 export interface AlertmanagerStub {
   readonly url: string;
@@ -83,18 +83,14 @@ export async function startAlertmanagerStub(): Promise<AlertmanagerStub> {
       case "GET /api/v2/alerts":
         sendJson(response, alerts);
         break;
-      case "POST /api/v2/silences": {
-        const id = `silence-${silences.length + 1}`;
-        silences.push({
-          ...(body as Omit<StubSilence, "id" | "status">),
-          id,
-          status: { state: "active" },
-        });
-        sendJson(response, { silenceID: id });
+      case "POST /api/v2/silences":
+        sendJson(response, { silenceID: setSilence(silences, body) });
         break;
+      default: {
+        const expired = /^DELETE \/api\/v2\/silence\/(.+)$/.exec(route);
+        const [status, text] = expireSilence(silences, expired?.[1]);
+        response.writeHead(status).end(text);
       }
-      default:
-        response.writeHead(404).end("not found");
     }
   }
 
@@ -140,6 +136,45 @@ export async function startAlertmanagerStub(): Promise<AlertmanagerStub> {
       broken = true;
     },
   };
+}
+
+/**
+ * With the id of one that hasn't expired, Alertmanager changes it in place if the matchers
+ * (in order) and the start are the same; otherwise it expires that one and creates a new
+ * one (its canUpdate). Returns the silence's id.
+ */
+function setSilence(silences: StubSilence[], body: unknown): string {
+  const { id: given, ...fields } = body as Omit<StubSilence, "status"> & { id?: string };
+  const existing = silences.find(
+    (silence) => silence.id === given && silence.status.state !== "expired",
+  );
+  if (
+    existing !== undefined &&
+    JSON.stringify(existing.matchers) === JSON.stringify(fields.matchers) &&
+    new Date(existing.startsAt).getTime() === new Date(fields.startsAt).getTime()
+  ) {
+    existing.endsAt = fields.endsAt;
+    return existing.id;
+  }
+  if (existing !== undefined) {
+    existing.status = { state: "expired" };
+  }
+  const id = `silence-${silences.length + 1}`;
+  silences.push({ ...fields, id, status: { state: "active" } });
+  return id;
+}
+
+/** Like Alertmanager: 404 for an unknown silence, 500 for one already expired. */
+function expireSilence(silences: StubSilence[], id: string | undefined): [number, string] {
+  const silence = silences.find((candidate) => candidate.id === id);
+  if (silence === undefined) {
+    return [404, "not found"];
+  }
+  if (silence.status.state === "expired") {
+    return [500, `silence ${silence.id} already expired`];
+  }
+  silence.status = { state: "expired" };
+  return [200, ""];
 }
 
 type Response = Parameters<Parameters<typeof createServer>[1] & {}>[1];

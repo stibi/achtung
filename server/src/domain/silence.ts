@@ -34,6 +34,26 @@ export function matchersFor(labels: Readonly<Record<string, string>>): LabelMatc
     .map((name) => ({ name, value: labels[name] ?? "", isRegex: false, isEqual: true }));
 }
 
+/**
+ * Whether the silence is exactly one alert's, as `matchersFor` makes it (and Alertmanager's
+ * own "silence this alert"): one equality matcher per label, nothing else. Only those are
+ * Achtung's to change or end; a broader one mutes other alerts too (ADR 0015).
+ */
+export function isExactlyFor(silence: Silence, labels: Readonly<Record<string, string>>): boolean {
+  const names = Object.keys(labels);
+  return (
+    silence.matchers.length === names.length &&
+    silence.matchers.every(
+      (matcher) =>
+        !matcher.isRegex &&
+        matcher.isEqual &&
+        Object.hasOwn(labels, matcher.name) &&
+        labels[matcher.name] === matcher.value,
+    ) &&
+    new Set(silence.matchers.map((matcher) => matcher.name)).size === names.length
+  );
+}
+
 /** When the latest silence muting `labels` at `now` ends; null when none does. */
 export function silencedUntil(
   labels: Readonly<Record<string, string>>,

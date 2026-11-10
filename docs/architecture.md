@@ -18,7 +18,7 @@ Alertmanager ──POST /ingest/alertmanager/{instance}/{channel}──▶ http 
 macOS client ◀──── REST API + Server-Sent Events ───── http
 
 services ──▶ clients ──GET silences, GET alerts (each ≤ 1 per 30 s per instance)──▶ Alertmanager API
-                     ──POST silence (the silence button)──────────────────────────▶
+                     ──POST/DELETE silence (the silence button)───────────────────▶
                      ──GET alert_groups (≤ 1 per minute per integration)──────────▶ Grafana IRM API
 ```
 
@@ -150,8 +150,13 @@ The identity below is a contract that features build on
   - `POST /api/occurrences/{id}/silence` with `{ "durationSeconds": 60..2592000 }`:
     silences exactly this alert (an equality matcher per label) on its instance's
     Alertmanager, from now, and returns the occurrence
-    ([ADR 0008](adr/0008-silences-through-the-server.md)). 409 when the instance has no
-    Alertmanager configured, 502 when Alertmanager is unreachable or refuses it.
+    ([ADR 0008](adr/0008-silences-through-the-server.md)). An exact silence the alert
+    already has is changed to end then instead ([ADR 0015](adr/0015-change-and-end-silences.md)).
+    409 when the instance has no Alertmanager configured, 502 when Alertmanager is
+    unreachable or refuses it.
+  - `DELETE /api/occurrences/{id}/silence`: ends the alert's own (exact) silences now and
+    returns the occurrence; a broader silence is left alone and still shows in
+    `silencedUntil`, and 409 when only such a one mutes it (ADR 0015).
   - `GET /api/home` ([ADR 0010](adr/0010-home-view.md)): one entry per configured
     Alertmanager, by instance name, plus the silences active on all of them (soonest to
     end first, from the silences cache below), the 10 noisiest alerts (most `fired`,

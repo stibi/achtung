@@ -9,7 +9,7 @@ import {
 import { ingestNotification } from "./ingest.ts";
 import type { IrmHeartbeats } from "./irm-heartbeats.ts";
 import { getIgnoredAlertNames, setIgnoredAlertNames } from "./settings.ts";
-import { type Silences, silenceOccurrence } from "./silences.ts";
+import { type Silences, silenceOccurrence, unsilenceOccurrence } from "./silences.ts";
 
 /**
  * Every use case bound to one database, the instances' Alertmanagers and Grafana IRM:
@@ -37,6 +37,7 @@ export function servicesFor(
     getOccurrence: (id: number) => getOccurrence(db, silences, id),
     silenceOccurrence: (id: number, durationSeconds: number) =>
       silenceOccurrence(db, silences, id, durationSeconds),
+    unsilenceOccurrence: (id: number) => unsilenceOccurrence(db, silences, id),
     getHome: () => getHome(db, silences, alerts, heartbeats, now()),
     listAlertmanagerAlerts: (instance: string) =>
       listAlertmanagerAlerts(db, silences, alerts, instance),

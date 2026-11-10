@@ -13,6 +13,8 @@ export interface AlertmanagerEndpoint {
 }
 
 export interface NewSilence {
+  /** An existing silence's id to change it; Alertmanager may end it and answer a new id. */
+  readonly id?: string;
   readonly matchers: readonly LabelMatcher[];
   readonly startsAt: Date;
   readonly endsAt: Date;
@@ -123,9 +125,14 @@ export async function createSilence(
   return parsed.data.silenceID;
 }
 
+/** Ends the silence now (Alertmanager calls it expiring). */
+export async function expireSilence(endpoint: AlertmanagerEndpoint, id: string): Promise<void> {
+  await call(endpoint, "DELETE", `api/v2/silence/${encodeURIComponent(id)}`);
+}
+
 async function call(
   endpoint: AlertmanagerEndpoint,
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "DELETE",
   path: string,
   body?: unknown,
 ): Promise<unknown> {
@@ -158,6 +165,9 @@ async function call(
       `Alertmanager answered ${response.status}: ${text.trim().slice(0, 500)}`,
       `Alertmanager answered ${response.status}`,
     );
+  }
+  if (method === "DELETE") {
+    return undefined;
   }
   try {
     return JSON.parse(text) as unknown;

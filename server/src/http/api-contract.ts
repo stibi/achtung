@@ -27,6 +27,7 @@ export interface Inbox {
   listOccurrences(filter: OccurrenceFilter): Promise<OccurrencePage>;
   getOccurrence(id: number): Promise<OccurrenceDetail | null>;
   silenceOccurrence(id: number, durationSeconds: number): Promise<SilenceResult>;
+  unsilenceOccurrence(id: number): Promise<SilenceResult>;
   getHome(): Promise<Home>;
   /** The alerts behind an Alertmanager's tile; null when the instance has none. */
   listAlertmanagerAlerts(instance: string): Promise<AlertmanagerAlertList | null>;

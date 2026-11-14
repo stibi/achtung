@@ -1,7 +1,7 @@
 ---
 import "../styles/global.css";
 import Wordmark from "../components/Wordmark.astro";
-import { site } from "../site.ts";
+import { repositoryFile, site } from "../site.ts";
 import coffeeBreakDark from "../../../macos/Icon/coffee-break/coffee-break-dark-small.gif?url";
 import coffeeBreakLight from "../../../macos/Icon/coffee-break/coffee-break-light-small.gif?url";
 
@@ -25,6 +25,7 @@ const structuredData = {
   url: site.url,
   applicationCategory: "DeveloperApplication",
   operatingSystem: "macOS",
+  license: "https://opensource.org/license/mit",
   sameAs: [site.repository],
 };
 ---
@@ -98,7 +99,7 @@ const structuredData = {
         </figure>
         <div class="footer-links">
           <a class="brand" href="/" aria-label={`${site.name} home`}><Wordmark height={14} /></a>
-          <p>A self-hosted alert inbox, built in the open.</p>
+          <p>A self-hosted alert inbox. Open source under the <a href={repositoryFile("LICENSE")}>MIT license</a>.</p>
           <ul>
             <li><a href={site.repository}>Source on GitHub</a></li>
             <li><a href={`${site.repository}/issues`}>Issues</a></li>

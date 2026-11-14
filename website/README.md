@@ -91,8 +91,18 @@ Nothing is deployed yet. Steps, once:
    This creates the Worker `achtunk8s-website` with only static assets, and the custom
    domain `achtunk8s.io` from `routes` in `wrangler.jsonc` (Cloudflare adds the DNS
    record and the certificate). Unknown paths get `404.html` with status 404.
-3. **Optional: `www`.** Add `www.achtunk8s.io` as a proxied DNS record and a Redirect Rule
-   to `https://achtunk8s.io` (Rules → Redirect Rules), or leave it out.
+3. **Redirect `www`.** `www.achtunk8s.io` answers with a 301 to `https://achtunk8s.io`,
+   keeping the path and the query string. A Cloudflare Redirect Rule does this at the edge,
+   before the Worker; nothing in this repository is involved.
+   - DNS → Records → add `AAAA`, name `www`, IPv6 address `100::`, **Proxied**. A Redirect
+     Rule only acts on proxied traffic; `100::` is a placeholder origin that is never reached.
+   - Rules → Overview → Create rule → Redirect Rule, named "www to apex":
+     - When incoming requests match: wildcard pattern, request URL `https://www.achtunk8s.io/*`
+     - Then: target URL `https://achtunk8s.io/${1}`, status code **301**, **Preserve query
+       string** on.
+   - Check: `curl -sI 'https://www.achtunk8s.io/a/b?c=d'` gives `301` and
+     `location: https://achtunk8s.io/a/b?c=d`. `http://www…` is upgraded to HTTPS by the
+     zone first if "Always Use HTTPS" is on (SSL/TLS → Edge Certificates); turn it on.
 4. **Deploy on push, pick one:**
    - **Workers Builds** (no secret in GitHub): Workers & Pages → the Worker → Settings →
      Builds → connect the GitHub repository. Root directory `website`, build command

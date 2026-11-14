@@ -1,0 +1,74 @@
+---
+// A screenshot or clip of the app in a window frame, or a placeholder until it exists.
+import { getImage, Image } from "astro:assets";
+import sharp from "sharp";
+import { type Poster, shot } from "../lib/media.ts";
+
+interface Props {
+  /** The base name in docs/media/, e.g. "home" for home.png and home.mp4. */
+  name: string;
+  /** What the shot shows, for people who can't see it. */
+  alt: string;
+  /** Near the top of the page: load it right away. */
+  eager?: boolean;
+}
+
+const { name, alt, eager = false } = Astro.props;
+const media = shot(name);
+const poster = media.kind === "clip" ? await posterOf(media.poster) : undefined;
+
+async function posterOf(poster: Poster | undefined) {
+  if (poster === undefined) {
+    return undefined;
+  }
+  if (poster.kind === "frame") {
+    const { width, height } = await sharp(poster.gif, { pages: 1 }).metadata();
+    return { src: poster.src, width, height };
+  }
+  const { image } = poster;
+  const { src } = await getImage({ src: image, width: Math.min(image.width, 1440), format: "webp" });
+  return { src, width: image.width, height: image.height };
+}
+---
+
+<figure class="shot">
+  <div class="shot-frame">
+    <div class="shot-titlebar" aria-hidden="true"><span></span><span></span><span></span></div>
+    {
+      media.kind === "clip" ? (
+        <video
+          src={media.src}
+          poster={poster?.src}
+          width={poster?.width}
+          height={poster?.height}
+          data-autoplay
+          controls
+          muted
+          loop
+          playsinline
+          preload={eager ? "metadata" : "none"}
+          aria-label={alt}
+        />
+      ) : media.kind === "still" ? (
+        <Image
+          src={media.image}
+          alt={alt}
+          widths={[720, 1440, media.image.width]}
+          sizes="(min-width: 1100px) 640px, 100vw"
+          loading={eager ? "eager" : "lazy"}
+        />
+      ) : (
+        <div class="shot-placeholder" role="img" aria-label={alt} data-shot={`docs/media/${name}.png`}>
+          <div class="placeholder-sidebar" />
+          <div class="placeholder-list">
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+          <p>Screenshot coming soon</p>
+        </div>
+      )
+    }
+  </div>
+</figure>

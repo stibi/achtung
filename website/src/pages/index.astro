@@ -1,0 +1,447 @@
+---
+import Shot from "../components/Shot.astro";
+import Base from "../layouts/Base.astro";
+import { repositoryFile, site } from "../site.ts";
+
+const adr = (number: string, slug: string) => repositoryFile(`docs/adr/${number}-${slug}.md`);
+
+const features = [
+  {
+    id: "home",
+    title: "Home: every Alertmanager at a glance",
+    shot: "home",
+    alt: "Home in the macOS app: a tile per Alertmanager with open alerts by severity, silenced and inhibited counts, its Watchdog and IRM heartbeat, and lists of silences ending soon and the noisiest alerts.",
+    body: [
+      "Each Alertmanager is a tile, counted by the Alertmanager itself: open alerts by severity, silenced and inhibited ones, whether its Watchdog still fires and whether Grafana IRM receives its heartbeat.",
+      "Home also flags broken delivery: alerts Alertmanager should have sent but didn't, and alerts still firing here that Alertmanager has dropped. Below the tiles: silences ending soon, the noisiest alerts of the day and the longest firing ones.",
+    ],
+  },
+  {
+    id: "live",
+    title: "Live, and what's new since you last looked",
+    shot: "live",
+    alt: "Live in the macOS app: alerts from every channel in one stream, unread ones marked, critical ones in red.",
+    body: [
+      "Live shows every channel in one stream, newest change first. Each channel and Live list only what is new until you switch Unread only off, and Mark All as Read (⇧⌘K) clears a list in one go.",
+      "Channels sit under the Alertmanager they come from, one instance per cluster. Pointing a receiver at a new URL creates the channel: nothing to set up per channel.",
+    ],
+  },
+  {
+    id: "history",
+    title: "One alert, with its history",
+    shot: "resent",
+    alt: "An alert that kept firing, resurfaced as resent, with a marker that sets it apart from a new alert.",
+    body: [
+      "achtunk8s recognizes an alert every time it fires. A repeat notification updates it in place instead of adding another message. An alert that keeps firing resurfaces as resent, at most once an hour, marked differently from a new one.",
+      "A new firing becomes a new occurrence of the same alert, and every occurrence lists the alert's earlier ones with their status and start time.",
+    ],
+  },
+  {
+    id: "readable",
+    title: "Readable alerts, ready for an agent",
+    shot: "alert-detail",
+    alt: "An alert's details: summary and description as prose, links as buttons, every label and annotation on its own row, and its history.",
+    body: [
+      "The summary and description read as prose, links to the runbook, dashboard or Prometheus expression are buttons, and every label and annotation sits on its own row, a hover away from copying.",
+      "Copy for Agent (⇧⌘C) puts the whole alert on the clipboard as Markdown, to hand to a coding agent investigating it.",
+    ],
+  },
+  {
+    id: "search",
+    title: "Search every alert",
+    shot: "search",
+    alt: "Searching alerts across channels and clusters by the label namespace=payments.",
+    body: [
+      "Find any alert across channels and clusters by text in its name, summary or labels, by exact labels such as namespace=payments, by severity and by instance.",
+    ],
+  },
+  {
+    id: "silence",
+    title: "Silence it where it fires",
+    shot: "silence",
+    alt: "The silence button's menu on an alert: silence for 1 hour, 4 hours, 1 day or 1 week.",
+    body: [
+      "Silence an alert for an hour, a day or a week, on the Alertmanager it came from, so it is quiet for every receiver, not only here. Every alert shows whether it is silenced and until when, also when the silence was made in Alertmanager.",
+      "Change or end the alert's own silence later, or silence several alerts at once from a Home tile.",
+    ],
+  },
+  {
+    id: "notifications",
+    title: "Notifications that respect your attention",
+    shot: "notification",
+    alt: "A macOS notification for a new critical alert, with Mark as Read and Silence buttons.",
+    body: [
+      "New and resent critical alerts arrive as macOS notifications (warnings too, if you like), with Mark as Read and Silence right on them. The alert you are already looking at doesn't get a banner.",
+    ],
+  },
+  {
+    id: "menu-bar",
+    title: "Watching from the menu bar",
+    shot: "menu-bar",
+    alt: "achtunk8s in the macOS menu bar, showing what is firing.",
+    body: [
+      "Close the window and achtunk8s keeps watching from the menu bar, so notifications keep coming.",
+    ],
+  },
+] as const;
+
+const lifecycle = [
+  ["nothing yet", "firing", "fired", "A new alert, or a new occurrence of a known one."],
+  ["firing", "firing", "none", "The notification updates the alert in place. Nothing is new."],
+  ["firing, quiet for an hour", "firing", "resent", "A reminder that it still fires. Not counted as new."],
+  ["firing", "resolved", "resolved", "It updates in place, not as a new message."],
+  ["resolved", "firing", "reopened", "Alertmanager resolved it too early."],
+] as const;
+---
+
+<Base>
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="container hero-inner">
+      <div class="hero-text">
+        <p class="eyebrow"><span class="beacon" aria-hidden="true"></span>Open source · MIT · early development</p>
+        <h1 id="hero-title">{site.tagline}</h1>
+        <p class="lead">
+          <strong>{site.name}</strong> is a self-hosted alert inbox for Alertmanager and Kubernetes alerts, with a native
+          macOS app. Every alert keeps its identity and history, and you see at a glance what is new and what is still
+          broken.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="#self-host">Run your own</a>
+          <a class="button" href={site.repository}>View on GitHub</a>
+        </div>
+      </div>
+      <div class="hero-shot">
+        <Shot
+          name="achtung-demo"
+          eager
+          alt="A short tour of the macOS app with made-up alerts: Home with each Alertmanager's health, silencing two alerts from a tile, searching across channels by label, an alert's details and Copy for Agent, Unread only and Mark All as Read, then a new critical alert arriving in Live with its notification."
+        />
+        <p class="shot-caption">A tour of the app in demo mode, with made-up alerts.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section problem" id="problem" aria-labelledby="problem-title">
+    <div class="container">
+      <h2 id="problem-title">Chat is the wrong tool for alerts</h2>
+      <p class="section-lead">
+        Alertmanager posting into an MS Teams channel (or any chat) is how many teams get their alerts. It is bad to use
+        and bad to run.
+      </p>
+      <div class="problem-compare">
+        <div class="chat-mock" aria-hidden="true">
+          <p class="mock-label">In a chat channel</p>
+          <div class="chat-msg"><b>[FIRING:3]</b> KubePodCrashLooping (payments prod-eu)</div>
+          <div class="chat-msg"><b>[FIRING:3]</b> KubePodCrashLooping (payments prod-eu)</div>
+          <div class="chat-msg"><b>[RESOLVED]</b> KubePodCrashLooping (payments prod-eu)</div>
+          <div class="chat-msg"><b>[FIRING:1]</b> KubePodCrashLooping (payments prod-eu)</div>
+          <div class="chat-msg faded"><b>[FIRING:3]</b> KubePodCrashLooping (payments prod-eu)</div>
+        </div>
+        <div class="inbox-mock" aria-hidden="true">
+          <p class="mock-label">In an inbox</p>
+          <div class="inbox-row critical unread">
+            <span class="dot"></span><span class="name">KubePodCrashLooping</span><span class="tag">firing · 3 pods</span>
+          </div>
+          <div class="inbox-row warning">
+            <span class="dot"></span><span class="name">CPUThrottlingHigh</span><span class="tag">resent</span>
+          </div>
+          <div class="inbox-row resolved">
+            <span class="dot"></span><span class="name">KubeJobFailed</span><span class="tag">resolved</span>
+          </div>
+        </div>
+      </div>
+      <ul class="problem-list">
+        <li>
+          <h3>Hard to read</h3>
+          <p>Cards are hard to scan, firing and resolved look almost the same, and you can't tell what is new.</p>
+        </li>
+        <li>
+          <h3>Late or lost</h3>
+          <p>Teams throttles incoming webhooks, so alerts arrive late or not at all, often in the busiest incidents.</p>
+        </li>
+        <li>
+          <h3>Fiddly to set up</h3>
+          <p>Connectors and workflows are fragile to configure and break quietly.</p>
+        </li>
+        <li>
+          <h3>The wrong model</h3>
+          <p>
+            An alert is not a chat message. It has an identity, labels and a lifecycle from firing to resolved, and it
+            needs handling, not replies.
+          </p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="container">
+      <h2 id="features-title">Built for alerts</h2>
+      <p class="section-lead">
+        A server that tracks your alerts, and a native Mac app where UI and UX come first: calm, fast, keyboard-friendly,
+        and always clear about what is new and what is still broken.
+      </p>
+      <div class="features">
+        {
+          features.map((feature) => (
+            <article class="feature" id={feature.id} aria-labelledby={`${feature.id}-title`}>
+              <div class="feature-text">
+                <h3 id={`${feature.id}-title`}>{feature.title}</h3>
+                {feature.body.map((paragraph) => (
+                  <p>{paragraph}</p>
+                ))}
+              </div>
+              <Shot name={feature.shot} alt={feature.alt} />
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="section alt" id="how-it-works" aria-labelledby="how-title">
+    <div class="container">
+      <h2 id="how-title">How it works</h2>
+      <p class="section-lead">
+        Alertmanager stays the brain: routing, grouping and inhibition stay where they are. {site.name} is the inbox.
+      </p>
+
+      <figure class="flow" aria-labelledby="flow-caption">
+        <div class="flow-node">
+          <span class="flow-kicker">Each cluster</span>
+          <strong>Alertmanager</strong>
+          <span>a webhook receiver per channel</span>
+        </div>
+        <div class="flow-edge"><code>POST /ingest/<wbr />alertmanager/<wbr />&#123;instance&#125;/<wbr />&#123;channel&#125;</code></div>
+        <div class="flow-node server">
+          <span class="flow-kicker">One container</span>
+          <strong>{site.name} server</strong>
+          <span>Node.js, Fastify, PostgreSQL</span>
+        </div>
+        <div class="flow-edge"><code>REST API</code><span>change stream soon</span></div>
+        <div class="flow-node">
+          <span class="flow-kicker">On your Mac</span>
+          <strong>macOS app</strong>
+          <span>Swift, SwiftUI</span>
+        </div>
+        <figcaption id="flow-caption">
+          Alertmanager posts to the server, the server keeps every alert and its history in Postgres, and the Mac app
+          reads them through the API. The server also reads each Alertmanager's API for Home and silences, and Grafana
+          IRM's API for heartbeats.
+        </figcaption>
+      </figure>
+
+      <div class="how-grid">
+        <article class="how-card wide">
+          <h3>Alert identity</h3>
+          <p>
+            An alert is its source, its channel and, for Alertmanager, its fingerprint: a hash of the full label set. One
+            firing, from start to resolve, is an <em>occurrence</em>. Ingest is idempotent, because Alertmanager retries and
+            repeats every notification.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <caption>What a notification does to an occurrence</caption>
+              <thead>
+                <tr><th scope="col">Stored</th><th scope="col">Incoming</th><th scope="col">Event</th><th scope="col">Meaning</th></tr>
+              </thead>
+              <tbody>
+                {
+                  lifecycle.map(([stored, incoming, event, meaning]) => (
+                    <tr>
+                      <td>{stored}</td>
+                      <td>{incoming}</td>
+                      <td><code>{event}</code></td>
+                      <td>{meaning}</td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="more"><a href={adr("0007", "alert-identity-and-history")}>ADR 0007: alert identity and history</a></p>
+        </article>
+
+        <article class="how-card">
+          <h3>Silences through the server</h3>
+          <p>
+            The app asks the server, and the server creates, changes or ends the silence on the Alertmanager the alert came
+            from. The Mac never needs Alertmanager's credentials, and silences made in Alertmanager show up too.
+          </p>
+          <p class="more"><a href={adr("0008", "silences-through-the-server")}>ADR 0008: silences through the server</a></p>
+        </article>
+
+        <article class="how-card">
+          <h3>Delivery you can trust</h3>
+          <p>
+            Home compares what each Alertmanager has with what arrived. An alert still firing here that Alertmanager
+            dropped, a missed resolve, is resolved after five minutes and marked <code>vanished</code> in its history.
+          </p>
+          <p class="more"><a href={adr("0014", "resolve-vanished-occurrences")}>ADR 0014: vanished occurrences</a></p>
+        </article>
+
+        <article class="how-card">
+          <h3>Watchdog and IRM heartbeats</h3>
+          <p>
+            Each Home tile shows whether its Alertmanager's Watchdog fires and whether Grafana IRM still receives its
+            heartbeat. Alert names that fire forever by design stay out of the counts.
+          </p>
+          <p class="more"><a href={adr("0012", "irm-heartbeat")}>ADR 0012: IRM heartbeat</a></p>
+        </article>
+
+        <article class="how-card">
+          <h3>Search on the server</h3>
+          <p>
+            Search runs in Postgres across every channel and instance: free text in names, summaries and labels, exact
+            labels, severity and instance.
+          </p>
+          <p class="more"><a href={adr("0017", "search-occurrences")}>ADR 0017: search</a></p>
+        </article>
+
+        <article class="how-card">
+          <h3>Notifications on the Mac</h3>
+          <p>
+            The app polls every 30 seconds, with or without a window, and notifies about new and resent critical alerts.
+            What arrived while it was closed notifies once when it starts again within a day, and nothing is announced twice.
+          </p>
+          <p class="more">
+            <a href={adr("0013", "macos-notifications-and-background-polling")}>ADR 0013: notifications</a>
+          </p>
+        </article>
+
+        <article class="how-card">
+          <h3>No accounts, by design</h3>
+          <p>
+            There are no users and no login. Everyone who can reach the server sees every alert, so keep it inside your
+            network or VPN, or behind an authenticating proxy.
+          </p>
+          <p class="more"><a href={adr("0002", "no-authentication")}>ADR 0002: no authentication</a></p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="roadmap" aria-labelledby="roadmap-title">
+    <div class="container">
+      <h2 id="roadmap-title">In progress and next</h2>
+      <p class="section-lead">The decisions behind each step are written down as ADRs and plans in the repository.</p>
+      <ol class="roadmap">
+        <li class="roadmap-item">
+          <span class="status in-progress">In progress</span>
+          <h3>Live change stream</h3>
+          <p>
+            A Server-Sent Events stream tells the app the moment something changes: a new alert, a silence, a setting.
+            New alerts show up and notify within moments instead of at the next 30-second poll. The stream only says what
+            changed, so a client that misses an event loses nothing.
+          </p>
+        </li>
+        <li class="roadmap-item">
+          <span class="status planned">Planned</span>
+          <h3>Dead man's switch</h3>
+          <p>
+            Every alert today says that something fired. When the whole cluster, or the way out of it, is gone, nothing
+            fires and silence looks like health. A small witness outside the cluster expects heartbeats and alerts when they
+            stop. Deep heartbeats carry each Alertmanager's Watchdog and the last ingest, so a broken alert path is caught
+            too, not only total failure.
+          </p>
+        </li>
+        <li class="roadmap-item">
+          <span class="status planned">Planned</span>
+          <h3>Investigate with an agent</h3>
+          <p>
+            One button hands an alert to a coding agent. A worker on a machine you choose picks up the request, the agent
+            investigates read-only, and its findings come back into the alert for everyone to see. Alert data is treated as
+            untrusted input.
+          </p>
+        </li>
+        <li class="roadmap-item">
+          <span class="status planned">Planned</span>
+          <h3>Acknowledge, notes and more sources</h3>
+          <p>
+            Acknowledging alerts, flapping detection and per-alert notes, built on alert history. Alertmanager is the first
+            source; the server is built for others, such as Grafana, Uptime Kuma or your own scripts.
+          </p>
+        </li>
+        <li class="roadmap-item">
+          <span class="status future">Future</span>
+          <h3>Teams working on alerts together</h3>
+          <p>
+            Today there are no users and no sign-in: everyone who can reach the server sees the same inbox. Later, people
+            could sign in with your identity provider over OIDC and work on alerts together: notes on an alert, comments on
+            alerts and events in Live, maybe light messaging. That replaces the no-users decision, so it starts with a new ADR.
+          </p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section alt" id="self-host" aria-labelledby="self-host-title">
+    <div class="container">
+      <h2 id="self-host-title">Run your own</h2>
+      <p class="section-lead">
+        {site.name} is early. There are no published images or app downloads yet, so you build both from the repository.
+        It runs where your alerts are: one container and a Postgres database.
+      </p>
+      <ol class="steps">
+        <li class="step">
+          <h3>Build and run the server</h3>
+          <p>
+            One container image with no build step. It applies database migrations on start, writes nothing to disk and
+            runs with a read-only root filesystem. Needs PostgreSQL.
+          </p>
+          <pre><code>git clone {site.repository}.git
+cd {site.repository.split("/").at(-1)}
+docker build -t achtung .
+docker run -p 8080:8080 \
+  -e DATABASE_URL=postgres://achtung@db.example.internal:5432/achtung \
+  -e PGPASSWORD=… \
+  achtung</code></pre>
+        </li>
+        <li class="step">
+          <h3>Point Alertmanager at it</h3>
+          <p>
+            One webhook receiver per channel. The URL names the instance (usually the cluster) and the channel; a new URL
+            creates the channel.
+          </p>
+          <pre><code>receivers:
+  - name: payments
+    webhook_configs:
+      - url: http://achtung:8080/ingest/alertmanager/prod-eu/payments
+        send_resolved: true</code></pre>
+        </li>
+        <li class="step">
+          <h3>Let it read each Alertmanager</h3>
+          <p>
+            Optional, for Home and silences: tell the server where each instance's Alertmanager API is. Set it from a
+            secret when it holds credentials. For IRM heartbeats, add <code>IRM_API_URL</code> and
+            <code>IRM_API_TOKEN</code>, and the instance's <code>irmIntegrationId</code>.
+          </p>
+          <pre><code>ALERTMANAGERS='&#123;
+  "prod-eu": &#123;"url": "http://alertmanager:9093", "irmIntegrationId": "CABC123"&#125;,
+  "staging": &#123;"url": "https://alertmanager.staging.example.com",
+              "username": "achtung", "password": "…"&#125;
+&#125;'</code></pre>
+        </li>
+        <li class="step">
+          <h3>Install the Mac app</h3>
+          <p>
+            Needs macOS 27 and Xcode. Build it into <code>~/Applications</code>, then set the server address in Settings.
+            To look around first, <code>make demo</code> starts it against a fake server with made-up alerts.
+          </p>
+          <pre><code>brew install xcodegen
+make install</code></pre>
+        </li>
+      </ol>
+      <aside class="callout" aria-label="Security">
+        <p>
+          <strong>Keep it private.</strong> {site.name} has no login. Anyone who can reach the server sees every alert and
+          can post new ones. Restrict the ingress to your network or VPN, or put an authenticating proxy in front of it.
+        </p>
+      </aside>
+      <div class="actions center">
+        <a class="button primary" href={site.repository}>Get the source on GitHub</a>
+        <a class="button" href={repositoryFile("docs/architecture.md")}>Read the architecture</a>
+      </div>
+    </div>
+  </section>
+</Base>

@@ -1,0 +1,137 @@
+---
+import "../styles/global.css";
+import Wordmark from "../components/Wordmark.astro";
+import { repositoryFile, site } from "../site.ts";
+import coffeeBreakDark from "../../../macos/Icon/coffee-break/coffee-break-dark-small.gif?url";
+import coffeeBreakLight from "../../../macos/Icon/coffee-break/coffee-break-light-small.gif?url";
+
+interface Props {
+  /** The page's own title; the home page passes none and gets the brand and tagline. */
+  title?: string;
+  description?: string;
+  /** Leave the page out of search engines (the 404 page). */
+  noindex?: boolean;
+}
+
+const { title, description = site.description, noindex = false } = Astro.props;
+const fullTitle = title === undefined ? `${site.name}: ${site.tagline}` : `${title} · ${site.name}`;
+const canonical = new URL(Astro.url.pathname, site.url).href;
+const ogImage = new URL("/og.png", site.url).href;
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: site.name,
+  description: site.description,
+  url: site.url,
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "macOS",
+  license: "https://opensource.org/license/mit",
+  sameAs: [site.repository],
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    {noindex ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={canonical} />}
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f6f7f5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0b0a" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={`${site.name}: the pixel rat app icon and "alerts deserve an inbox"`} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(structuredData)} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="/" aria-label={`${site.name} home`}>
+          <img src="/favicon.svg" alt="" width="36" height="36" />
+          <Wordmark height={14} />
+        </a>
+        <nav aria-label="Main">
+          <ul>
+            <li><a href="/#features">Features</a></li>
+            <li><a href="/#how-it-works">How it works</a></li>
+            <li><a href="/#roadmap">Roadmap</a></li>
+            <li><a href="/#self-host">Self-host</a></li>
+            <li><a class="nav-github" href={site.repository}>GitHub</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+    <main id="main">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <figure class="coffee-break">
+          <picture>
+            <source srcset={coffeeBreakDark} media="(prefers-color-scheme: dark)" />
+            <img
+              src={coffeeBreakLight}
+              width="224"
+              height="120"
+              alt="The pixel rat sips its coffee next to an unused fire extinguisher and a framed green check mark."
+              loading="lazy"
+            />
+          </picture>
+          <figcaption>All caught up. This is what Live shows when nothing is new.</figcaption>
+        </figure>
+        <div class="footer-links">
+          <a class="brand" href="/" aria-label={`${site.name} home`}><Wordmark height={14} /></a>
+          <p>A self-hosted alert inbox. Open source under the <a href={repositoryFile("LICENSE")}>MIT license</a>.</p>
+          <ul>
+            <li><a href={site.repository}>Source on GitHub</a></li>
+            <li><a href={`${site.repository}/issues`}>Issues</a></li>
+            <li><a href="/#self-host">Self-host it</a></li>
+          </ul>
+        </div>
+      </div>
+    </footer>
+    <script>
+      // Clips play while they are on screen and keep their controls, so they can be
+      // paused. With reduced motion, or without JavaScript, they wait for a click.
+      const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const videos = document.querySelectorAll<HTMLVideoElement>("video[data-autoplay]");
+      if (!still && "IntersectionObserver" in window) {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            for (const { target, isIntersecting } of entries) {
+              const video = target as HTMLVideoElement;
+              if (isIntersecting) {
+                // Autoplay may be refused; the controls are there.
+                video.play().catch(() => undefined);
+              } else {
+                video.pause();
+              }
+            }
+          },
+          { threshold: 0.25 },
+        );
+        for (const video of videos) {
+          observer.observe(video);
+        }
+      }
+    </script>
+  </body>
+</html>

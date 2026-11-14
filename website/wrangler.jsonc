@@ -1,0 +1,13 @@
+// Cloudflare Workers static assets: no Worker code, only the built site in dist/.
+// Deployed by .github/workflows/website.yml; setup: README.md.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "achtunk8s-website",
+  "compatibility_date": "2026-11-14",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  },
+  "routes": [{ "pattern": "achtunk8s.io", "custom_domain": true }]
+}

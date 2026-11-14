@@ -1,0 +1,45 @@
+name: Website
+
+# Deploys achtunk8s.io to Cloudflare after the website check passes. Setup and the API
+# token's permissions: website/README.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - website/**
+      - docs/media/**
+      - macos/Icon/**
+      - pnpm-lock.yaml
+      - .github/workflows/website.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time. A running deploy is never cancelled; a waiting one is replaced by
+# a newer push, so the latest commit always ends up deployed.
+concurrency:
+  group: website-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Check and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .tool-versions
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Builds website/dist/, which the deploy uploads.
+      - run: pnpm --dir website run check
+      - name: Deploy
+        run: pnpm --dir website exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

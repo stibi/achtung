@@ -1,0 +1,25 @@
+---
+// The brand in pixel letters: "achtun" in the text colour and "k8s" in green.
+import { glyphHeight, textPath, textWidth } from "../lib/pixel-font.ts";
+
+interface Props {
+  /** Height in CSS pixels. */
+  height: number;
+}
+
+const { height } = Astro.props;
+const width = textWidth("achtunk8s");
+const k8sLeft = textWidth("achtun") + 1;
+---
+
+<svg
+  class="wordmark"
+  viewBox={`0 0 ${width} ${glyphHeight}`}
+  width={(height * width) / glyphHeight}
+  height={height}
+  aria-hidden="true"
+  shape-rendering="crispEdges"
+>
+  <path d={textPath("achtun")} fill="currentColor"></path>
+  <path d={textPath("k8s", k8sLeft)} fill="var(--accent-ink)"></path>
+</svg>

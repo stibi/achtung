@@ -1,219 +1,311 @@
 # Achtung
 
-A self-hosted alert inbox with a native macOS client.
+**A self-hosted alert inbox for Prometheus Alertmanager, with a native macOS app.** It
+replaces alerts in Microsoft Teams or Slack channels with a tool built for alerts: one
+entry per alert with its history, unread state, search, macOS notifications, and
+Alertmanager silences one click away. The server runs as a single container on
+Kubernetes, next to your Alertmanagers.
 
-![The macOS client in demo mode: Home with each Alertmanager's health, silencing two alerts from a tile, searching across channels by label, an alert's details and Copy for Agent, the Unread only switch and Mark All as Read, then a new critical alert arriving in Live with its notification](docs/media/achtung-demo.gif)
+![The macOS app in demo mode: Home with each Alertmanager's health, silencing two alerts from a tile, searching across channels by label, an alert's details and Copy for Agent, the Unread only switch and Mark All as Read, then a new critical alert arriving in Live with its macOS notification](docs/media/achtung-demo.gif)
 
-A 30-second tour of the client in demo mode, with made-up alerts (`make demo`).
+A 43-second tour of the macOS app in demo mode, with made-up alerts (`make demo`).
 [Full-quality video (MP4)](docs/media/achtung-demo.mp4).
 
-> **Status:** early development. The server ingests Alertmanager webhooks into Postgres
-> and serves a read-only client API ([`api/openapi.yaml`](api/openapi.yaml)). Live
-> updates (SSE), acknowledgement and the macOS client's API connection are next. Open
-> questions are listed at the end.
+> **Status:** early development, used daily by its author. Alertmanager is the only
+> source so far. The server and the macOS app work end to end: ingest, Home, search,
+> silences, notifications. Live updates over Server-Sent Events are being built (see
+> [Roadmap](#roadmap)).
 
-## The problem
+## Why: chat channels are bad at alerts
 
-I run, maintain and support a number of systems across several apps and environments.
-Their Prometheus alerts are currently sent by Alertmanager to MS Teams channels. That
-setup is bad to use and bad to run:
+Sending Alertmanager to a Microsoft Teams (or Slack) channel is the default setup, and
+it fails at the job:
 
-- **UI/UX.** The cards look bad, they are hard to scan, and you can't tell what is new.
-  Firing and resolved alerts look almost the same. The client is slow.
-- **Delivery.** Teams throttles incoming webhooks, so notifications arrive late or not
-  at all, often during the busiest incidents.
-- **Configuration.** Setting up connectors and workflows is fiddly and fragile.
-- **Model mismatch.** Teams is a chat tool. An alert is not a chat message. It has a
-  lifecycle (firing → resolved), an identity and labels, and it needs to be acknowledged.
+- **You can't tell what's new.** Every repeat is another card. Firing and resolved look
+  almost the same, and the cards are hard to scan.
+- **Delivery breaks when it matters.** Teams throttles incoming webhooks, so alerts
+  arrive late or not at all, often during the busiest incidents.
+- **Setup is fragile.** Connectors and workflows are fiddly to configure and break
+  quietly.
+- **Wrong model.** A chat message is fire and forget. An alert has an identity, labels
+  and a lifecycle (firing, resolved, firing again), and you need to act on it.
 
-## What Achtung is
-
-Achtung replaces the "alerts in a chat channel" setup with a tool built for alerts:
-
-- A **server** that receives alert notifications from monitoring systems by webhook,
-  normalizes them, stores them and tracks their state. It serves an API to clients.
-- A **native macOS client** for viewing alerts and working with them. UI and UX are the
-  top priority.
-
-It started as a tool for my own needs and is open source from the start. Anyone can run
-their own instance.
+Achtung keeps Alertmanager as the brain (routing, grouping, inhibition) and becomes the
+inbox: it tracks each alert's state, shows what changed since you last looked, and lets
+you silence it where it came from.
 
 ## Features
 
-- **One alert, with its history.** Achtung recognizes the same alert every time it fires
-  (for Alertmanager, the same label set in the same channel). A repeat notification
-  updates the alert instead of adding a message. An alert that keeps firing resurfaces as
-  **resent**, at most once an hour, marked differently from a new one
-  ([ADR 0009](docs/adr/0009-resends-resurface-alerts.md)). A new firing becomes a new
-  **occurrence** of the same alert, and each occurrence lists the alert's other
-  occurrences (newest first, up to 20) with their status and start time. Planned features such as flapping detection and per-alert
-  notes build on this
-  ([ADR 0007](docs/adr/0007-alert-identity-and-history.md)).
-- **Channels grouped by where they come from.** Each Alertmanager is an instance (for
-  example one Kubernetes cluster), and its channels sit under it in the client's sidebar.
-- **What's new since you last looked**, per occurrence and per channel, kept on your Mac.
-  Each channel and Live list only new alerts and resends, until you switch
-  "Unread only" off there, and "Mark All as Read" (⇧⌘K) clears a list in one go.
-- **Home:** each Alertmanager as a tile, counted by the Alertmanager itself: open alerts
-  by severity, silenced and inhibited ones, its Watchdog, whether Grafana IRM receives its
-  heartbeat, and alerts that never reached Achtung or never resolved in it. Click a tile
-  for its alerts by severity. Below, silences ending soon and the noisiest and longest
-  firing alerts. Alert names you ignore in Settings (Watchdog, say) stay out of Home's
-  counts and lists, for everyone; channels and Live still show them.
-- **Live view:** every channel's alerts in one stream, newest change first.
-- **Notifications** for new and resent critical alerts (warning too, if you like), with
-  Mark as Read and Silence right on them. Achtung keeps watching from the menu bar after
-  you close its window ([ADR 0013](docs/adr/0013-macos-notifications-and-background-polling.md)).
-- **Home view** (server API, `GET /api/home`): each Alertmanager at a glance, what it has
-  open by severity, silenced and inhibited, read from the Alertmanager itself, and whether
-  its Watchdog fires. It also flags delivery problems: alerts Alertmanager should have
-  sent Achtung but didn't, and alerts still firing in Achtung that Alertmanager has
-  dropped (a missed resolve). The server resolves those once they stay gone for 5 minutes,
-  marked `vanished` in their history ([ADR 0014](docs/adr/0014-resolve-vanished-occurrences.md)). Plus the active silences, the
-  noisiest alerts of the last day and the longest firing ones
-  ([ADR 0010](docs/adr/0010-home-view.md)).
-- **IRM heartbeat on Home** (server API, `irm` on each `/api/home` tile): whether Grafana
-  IRM actually receives the heartbeat the Alertmanager sends it, read from IRM's
-  `OnCallHeartBeatMissing` alert groups at most once a minute, with the last missed
-  heartbeat. Needs `IRM_API_URL`, `IRM_API_TOKEN` and the instance's `irmIntegrationId`
-  ([ADR 0012](docs/adr/0012-irm-heartbeat.md)).
-- **Ignored alert names** (server API, `/api/settings/ignored-alerts`): alerts that fire
-  forever by design, such as `Watchdog`, `InfoInhibitor` and `grafana-irm-heartbeat` (the
-  defaults), are left out of Home's counts, tile lists and delivery check. One list,
-  shared by every client and editable by anyone who can reach the API; the inbox still
-  shows these alerts, and the Watchdog heart still watches `Watchdog`
-  ([ADR 0011](docs/adr/0011-ignored-alert-names.md)).
-- **Zero setup per channel:** pointing a receiver at a new URL creates the channel.
-- **Readable alerts:** the summary and description as prose, links as buttons, and every
-  annotation and label on its own row, a hover away from copying. **Copy for Agent**
-  (⇧⌘C) puts the whole alert on the clipboard as Markdown, to hand to an agent
-  investigating it.
-- **Search** every alert across channels and instances by text in its name, summary or
-  labels, by exact labels such as `namespace=payments`, by severity and by instance
-  (server API, [ADR 0017](docs/adr/0017-search-occurrences.md)).
-- **Silence an alert** for a while, on the Alertmanager it came from. Every alert shows
-  whether it is silenced and until when, including silences made in Alertmanager itself
-  ([ADR 0008](docs/adr/0008-silences-through-the-server.md)). A silence mutes the alert
-  for every receiver of that Alertmanager, not only in Achtung. The alert's own silence
-  can be changed or ended from Achtung; broader ones stay Alertmanager's
-  ([ADR 0015](docs/adr/0015-change-and-end-silences.md)). From a Home tile's list,
-  several alerts can be silenced at once, each with its own silence
-  ([ADR 0016](docs/adr/0016-silence-alertmanager-alerts-in-bulk.md)).
+- **One entry per alert, with its history.** Repeats update it instead of piling up.
+  Every firing is kept, so you see how often an alert came back.
+- **New since you last looked.** Unread badges per channel, an "Unread only" view and
+  Mark All as Read (⇧⌘K).
+- **Resends resurface.** An alert still firing after an hour comes back as *resent*,
+  marked apart from new ones.
+- **Home:** every Alertmanager at a glance: open alerts by severity, silenced, inhibited,
+  its Watchdog, the Grafana IRM heartbeat, and alerts that never reached the inbox.
+- **Live:** every channel in one stream, beside a 24-hour timeline.
+- **Silences** for one alert, or many from a Home tile, created on the Alertmanager the
+  alert came from. Change or end them later.
+- **Search** across all channels by text, exact labels (`namespace=prod`), severity and
+  instance.
+- **macOS notifications** for critical alerts, with Mark as Read and Silence on the
+  banner. They keep coming from the menu bar with the window closed, and what fired
+  while the app was closed notifies on the next launch.
+- **Readable alerts:** summary and description as prose, links as buttons, every label
+  a hover away from copying. **Copy for Agent** (⇧⌘C) puts the whole alert on the
+  clipboard as Markdown for an AI agent.
+- **Zero setup per channel:** point an Alertmanager receiver at a new URL and the
+  channel exists.
+- **Self-hosted and small:** one container, one Postgres, no accounts.
 
-## Core use case
+## How it works
 
-1. Alertmanager fires an alert and POSTs it to an Achtung webhook. Each channel gets its
-   own webhook.
-2. The server stores the alert under the right channel. If it already knows the alert
-   (same fingerprint), it updates it instead of creating a duplicate.
-3. The macOS client shows the new alert right away, with an unread marker and,
-   optionally, a system notification.
-4. I open the app and see straight away **what is new since I last looked**, what is
-   **still firing**, and what has **resolved**.
-5. I acknowledge the alert, follow its links (Prometheus expression, runbook, dashboard)
-   and move on. When the alert resolves, it updates in place and does not appear as a
-   new message.
+```
+Alertmanager ──webhook──▶ server ──▶ PostgreSQL
+     ▲                      │
+     └── silences, alerts ──┤  REST API (OpenAPI)
+Grafana IRM ◀── heartbeats ─┤
+                            ▼
+                      macOS app (polls every 30 s; SSE in progress)
+```
 
-## Concepts
+- **Server:** TypeScript on Node.js, Fastify, PostgreSQL
+  ([ADR 0001](docs/adr/0001-tech-stack.md)). One container image with no build step,
+  runs with a read-only root filesystem and applies its migrations on startup.
+- **Ingest:** each Alertmanager receiver posts to
+  `POST /ingest/alertmanager/{instance}/{channel}`. The *instance* is the sending system
+  (one cluster's Alertmanager), the *channel* a stream of alerts under it (an app or a
+  team). Both are created by their first notification
+  ([ADR 0005](docs/adr/0005-ingest-channels-and-migrations.md),
+  [ADR 0006](docs/adr/0006-channel-instances.md)). Each source is an adapter that maps
+  its payload to one internal model, so more sources can follow.
+- **Client API:** described in [`api/openapi.yaml`](api/openapi.yaml), generated from
+  the server's schemas. The macOS app's API client is generated from the same file.
+- **macOS app:** Swift 6, SwiftUI, latest macOS. Read state lives on your Mac, so the
+  server keeps no per-user state.
+
+[`docs/architecture.md`](docs/architecture.md) has the layers and the data flow in
+detail, and [`docs/adr/`](docs/adr/) has the reasons behind each decision.
+
+### Concepts
 
 | Concept | Meaning |
 |---|---|
-| **Source** | A system that sends alerts. Alertmanager is the first one, and the design must allow others (Grafana, Uptime Kuma, GitHub, cron/backup jobs, custom scripts…). Each source has an adapter that converts its payload to the internal model. |
-| **Channel** | A named stream of alerts, usually one per app or environment (`crm-prod`, `legal-machine-dev`, …). Each channel has its own webhook endpoint. |
-| **Alert** | The normalized internal record. It has a stable identity (for Alertmanager, the `fingerprint`), a status (`firing` / `resolved`), severity, labels, annotations, timestamps and links back to the source. |
-| **Occurrence** | One firing of an alert, from when it starts until it resolves. An alert that fires again gets a new occurrence, and together they are its history. |
-| **Event** | Something that happened to an alert: it started firing, it resolved, it fired again, or it was resent while still firing (at most hourly; acknowledgement is planned). Events make up an occurrence's history. |
-| **Read state** | What this client has already seen, per channel. It is stored locally in the macOS app and powers "new since last time". |
+| **Instance** | A system that sends alerts, e.g. one Kubernetes cluster's Alertmanager. |
+| **Channel** | A stream of alerts within an instance, one webhook URL each. |
+| **Alert** | Identified by its source, channel and key (for Alertmanager the `fingerprint`, a hash of its labels). |
+| **Occurrence** | One firing of an alert, from start to resolve. A new firing is a new occurrence. |
+| **Event** | What happened to an occurrence: fired, resolved, reopened or resent. |
+| **Read state** | What this Mac has seen. Stored locally, never on the server. |
 
-## Server
+## Alert identity and history
 
-- TypeScript on Node.js, Fastify, PostgreSQL (see [ADR 0001](docs/adr/0001-tech-stack.md)).
-- **Ingest:** one HTTP endpoint per source type, scoped to a channel, for example
-  `POST /ingest/alertmanager/{instance}/{channel}`, where the instance is the sending
-  system (e.g. one cluster). Ingest must be fast and
-  idempotent, because Alertmanager retries and sends the same alert again every
-  `repeat_interval`.
-- **Source adapters:** each source is a module that validates its payload and maps it to
-  the internal model. Adding a source should not require changes to the core.
-- **Storage:** alerts, events, channels and read state.
-- **Client API:** list and filter alerts per channel, alert detail and history,
-  acknowledge. Server-Sent Events deliver new alerts and state changes to clients without
-  polling.
-- **Deployment:** a single container on Kubernetes, exposed through an ingress, with an
-  external Postgres.
+![An alert's detail in the macOS app: summary and description, runbook and dashboard links as buttons, labels one per row, and beside them the occurrence's events and the alert's earlier occurrences](docs/media/alert-detail.png)
+
+Alertmanager repeats a firing alert every `repeat_interval` and retries failed
+deliveries, so ingest is idempotent: a notification for an occurrence that already
+fires updates it in place and counts as nothing new. An alert is recognized by
+`(source, channel, fingerprint)`, and each firing (a new `startsAt`) becomes a new
+occurrence of it. The detail lists the alert's other occurrences, newest first, so a
+flapping alert shows as one. One transaction per notification, with rows locked in a
+fixed order, keeps an Alertmanager HA pair delivering the same notification from
+counting it twice. [ADR 0007](docs/adr/0007-alert-identity-and-history.md).
+
+If Alertmanager drops an alert without sending the resolve (a silence, a restart), the
+server notices: an occurrence still firing in the inbox but gone from its Alertmanager
+for 5 minutes is resolved and marked *Gone from Alertmanager*
+([ADR 0014](docs/adr/0014-resolve-vanished-occurrences.md)).
+
+## Resends resurface alerts
+
+![A channel in the macOS app with a resent alert: a circular arrow instead of the unread dot, and a "Resent" pill with the time in its header](docs/media/resent.png)
+
+A chat channel shows every repeat; a plain inbox would show none, and a long-firing
+alert would sink out of sight. The middle ground: once an hour without other events, a
+repeat records a `resent` event. The alert becomes unread again, with a circular arrow
+instead of the dot, and can notify again.
+[ADR 0009](docs/adr/0009-resends-resurface-alerts.md).
+
+## Unread, Live and the timeline
+
+![Live in the macOS app: alert cards from every channel, newest change first, beside a 24-hour timeline with a marker where each alert fired and resolved, coloured by severity](docs/media/live.png)
+
+The sidebar groups channels under their instance, with unread and unread-critical
+badges. Channels and Live show only unread alerts by default, until you switch
+"Unread only" off for that list. Mark All as Read (⇧⌘K) clears a list without moving any
+baseline, so a later change stays unread. Live puts every channel in one stream next to a
+timeline of the last 24 hours. When it is all caught up, the app's rat takes a coffee
+break:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="macos/Icon/coffee-break/coffee-break-dark-small.gif">
+  <img src="macos/Icon/coffee-break/coffee-break-light-small.gif" alt="Pixel-art animation shown when Live is all caught up: a rat at a table sipping coffee, an unused fire extinguisher in the corner">
+</picture>
+
+## Home: every Alertmanager's health
+
+![Home in the macOS app: a tile per Alertmanager with its open alerts by severity, silenced and inhibited counts, Watchdog and IRM hearts and a delivery warning, then silences ending soon, the noisiest alerts and the longest firing ones](docs/media/home.png)
+
+Home answers "is my alerting healthy?" rather than "what fired?". Each configured
+Alertmanager is a tile, with numbers read from the Alertmanager's own API (at most every
+30 seconds, cached on the server):
+
+- open alerts by severity, and what is silenced or inhibited;
+- a heart for its `Watchdog` alert;
+- a second heart for **Grafana IRM**: whether IRM actually receives the heartbeat this
+  Alertmanager sends it, from IRM's `OnCallHeartBeatMissing` alert groups
+  ([ADR 0012](docs/adr/0012-irm-heartbeat.md));
+- **delivery problems**: alerts Alertmanager should have sent but the inbox doesn't have,
+  and alerts the inbox still shows as firing that Alertmanager has dropped.
+
+Below the tiles: silences ending soon, the noisiest alerts of the last day and the
+longest firing ones. Alerts that fire forever by design (`Watchdog`, `InfoInhibitor`,
+`grafana-irm-heartbeat` by default) are left out of Home through a shared list of ignored
+alert names, editable in Settings ([ADR 0010](docs/adr/0010-home-view.md),
+[ADR 0011](docs/adr/0011-ignored-alert-names.md)).
+
+## Silences through the server
+
+![Silencing an alert in the macOS app: the silence button's menu with 1h, 4h, 1d and 1w, then the alert's header showing "Silenced until" and the menu to change or end it](docs/media/silence.gif)
+
+Alertmanager stays the source of truth: the inbox stores no silences. Silencing an alert
+creates a silence on the Alertmanager it came from, with an exact matcher for each of
+its labels, for 1 hour to 1 week. Every alert shows whether it is silenced and until
+when, including by silences made in Alertmanager itself. The alert's own silence can be
+changed or ended from the app; broader ones stay Alertmanager's. A silence mutes the
+alert for every receiver of that Alertmanager, not only in the inbox
+([ADR 0008](docs/adr/0008-silences-through-the-server.md),
+[ADR 0015](docs/adr/0015-change-and-end-silences.md)).
+
+![An Alertmanager's detail opened from its Home tile: alerts grouped by severity with checkboxes, and "Silence 2 Selected…" asking for confirmation](docs/media/home-silence.gif)
+
+From a Home tile you can silence several alerts at once, each with its own exact
+silence, including alerts Alertmanager has but the inbox never received
+([ADR 0016](docs/adr/0016-silence-alertmanager-alerts-in-bulk.md)).
+
+## Search
+
+![Searching in the macOS app: typing a query, a label filter turning into a token, and results from several channels with each row's channel](docs/media/search.gif)
+
+⌘F searches every channel and instance on the server: free text in an alert's name,
+summary or labels, exact label filters (`namespace=prod`), `severity:critical` and
+`instance:<name>`. Filters become tokens as you type. Results stay live like any list,
+and a label's context menu in an alert's details searches for it
+([ADR 0017](docs/adr/0017-search-occurrences.md)).
+
+## Notifications that survive restarts
+
+![A macOS notification for a new critical alert, its Options menu with Mark as Read and Silence 1h, 4h, 1d and 1w, then the alert opening in the app](docs/media/notification.gif)
+
+New, reopened and resent critical alerts (warning too, if you choose) post a macOS
+notification with Mark as Read and Silence on it. More than three at once become one
+summary. Closing the window leaves the app in the menu bar with a count of unread
+critical alerts, and it keeps polling the server
+([ADR 0013](docs/adr/0013-macos-notifications-and-background-polling.md)).
+
+![The menu bar item: a bell with the unread critical count, the newest critical alerts, Mark Critical Alerts as Read and Pause Notifications](docs/media/menu-bar.png)
+
+The notification state is saved per server, so what fired while the app was closed
+(an update, a crash, a reboot) notifies on the next launch, once. After more than a day
+away, the app starts fresh instead of flooding you. The alert already open on screen
+gets no banner ([ADR 0018](docs/adr/0018-notifications-survive-restarts.md)).
+Notifications need the Mac awake and the app running: they are not a pager, and paging
+stays with Alertmanager's own receivers.
+
+## Roadmap
+
+- **Live change stream** (in progress). `GET /api/events`, a Server-Sent Events stream
+  that says *what kind* of thing changed (alerts, silences, settings), so clients re-read
+  at once instead of waiting up to 30 seconds for their next poll. The server side is
+  built and waiting to be merged. The macOS app doesn't use it yet. Polling stays as a
+  slower fallback.
+- **Dead man's switch** (planned). A witness outside the cluster the inbox runs in, which
+  alerts when expected heartbeats *stop*: silence otherwise looks like health. The
+  inbox would send a deep heartbeat (each Watchdog seen, time of the last ingest) and show
+  the switches on Home.
+- **Investigate with an agent** (planned). One button in an alert's detail that hands
+  the alert to a coding agent, which investigates read-only and posts its findings back
+  to the alert. It builds on the change stream and on today's Copy for Agent.
+- **Acknowledgement** (planned): mark an alert as being worked on, for everyone.
+- **More sources** beyond Alertmanager, such as Grafana, Uptime Kuma or cron and backup
+  jobs.
+
+## Quick start
+
+There is no published container image or app build yet: build both from source.
+
+**Server.** Requirements: a PostgreSQL database and a place to run a container (in
+practice Kubernetes, behind an ingress).
+
+```bash
+docker build -t achtung .        # the server image, from the root Dockerfile
+docker run -p 8080:8080 \
+  -e DATABASE_URL=postgres://achtung@db.example.com/achtung -e PGPASSWORD=… \
+  -e ALERTMANAGERS='{"prod": {"url": "http://alertmanager.example.com:9093"}}' \
+  achtung
+```
+
+| Variable | |
+|---|---|
+| `DATABASE_URL` | Required. Standard libpq variables such as `PGPASSWORD` fill in the rest. |
+| `ALERTMANAGERS` | Optional JSON: instance name → `{ "url", "username", "password", "irmIntegrationId" }`. Enables silences and Home for that instance. Holds credentials, so set it from a secret. |
+| `IRM_API_URL`, `IRM_API_TOKEN` | Optional, together: the Grafana IRM heartbeat on Home tiles. |
+| `HOST`, `PORT`, `LOG_LEVEL` | Defaults `0.0.0.0`, `8080`. |
+
+`/healthz` and `/readyz` are the liveness and readiness probes.
+
+**Alertmanager.** Add a webhook receiver per channel. The URL names the instance and the
+channel (lowercase letters, digits and dashes):
+
+```yaml
+receivers:
+  - name: payments
+    webhook_configs:
+      - url: http://achtung.example.com/ingest/alertmanager/prod/payments
+        send_resolved: true
+```
+
+You can add it next to an existing Teams or Slack receiver and compare.
+
+**macOS app.** On a Mac with Xcode, `brew install xcodegen swiftlint periphery`, then
+`macos/scripts/install.sh` builds a Release app into `~/Applications`. Set the server's
+address in Settings. To try the app without a server, `make demo` runs it against a fake
+server with made-up alerts.
 
 ### Security model
 
-Achtung has **no authentication and no users** (see
-[ADR 0002](docs/adr/0002-no-authentication.md)). Everyone who can reach an instance sees
-all alerts and can acknowledge them, and anyone who can reach the ingest endpoints can
-post alerts. **Do not expose it to the internet unprotected.** Restrict the ingress to
-your network or VPN, or put an authenticating proxy (oauth2-proxy, basic auth) in front
-of it.
+There is **no authentication and no users**
+([ADR 0002](docs/adr/0002-no-authentication.md)). Anyone who can reach an instance sees
+every alert, and anyone who can reach the ingest endpoints can post alerts. **Don't
+expose it to the internet unprotected.** Restrict the ingress to your network or VPN, or
+put an authenticating proxy (oauth2-proxy, basic auth) in front of it.
 
-### Alertmanager specifics
+## Non-goals
 
-Alertmanager's webhook sends a group notification (payload version `4`): `status`,
-`groupKey`, `groupLabels`, `commonLabels`, `commonAnnotations`, `externalURL`, and an
-array of `alerts`. Each alert has `status`, `labels`, `annotations`, `startsAt`,
-`endsAt`, `generatorURL` and `fingerprint`. Achtung tracks individual alerts by
-`fingerprint` and can still show the group context. See the
-[Alertmanager webhook docs](https://prometheus.io/docs/alerting/latest/configuration/#webhook_config).
-
-## macOS client
-
-- Native, built with Swift and SwiftUI.
-- **UX goals**, in priority order:
-  1. **New since last visit is unmistakable.** Unread counts per channel and a clear
-     marker on new items.
-  2. **State is obvious at a glance.** Firing and resolved look clearly different, and
-     severity is shown by color and position, not only by text.
-  3. **Fast and keyboard-friendly.** It opens instantly, you can move through the list
-     and acknowledge alerts with the keyboard, and search is quick.
-  4. **Calm.** Repeat notifications for an alert that is already firing don't create
-     noise: at most an hourly reminder that it still fires. A resolution updates the
-     existing item.
-  5. **Good defaults over configurability.** The first goal is one very good default
-     view. Customization comes later, if it's needed at all.
-- A menu bar presence with an unread or firing badge, and optional macOS notifications.
-- Layout: channels in a sidebar, then the alert list, then alert details (a standard
-  three-column macOS layout).
-- **Demo mode:** `make demo` starts the client against a fake server with made-up alerts
-  (`macos/scripts/demo-server.py`), to try it or record it without a server or real
-  data. A new critical alert fires 45 seconds in. Quitting the app ends the demo.
-
-## Non-goals (for now)
-
-- Replacing Alertmanager's routing, grouping, inhibition or silencing. Alertmanager stays
-  the brain, and Achtung is the inbox. Achtung can create, change and end a silence on it
-  for one alert ([ADR 0008](docs/adr/0008-silences-through-the-server.md),
-  [ADR 0015](docs/adr/0015-change-and-end-silences.md)), but managing other silences
-  stays in Alertmanager.
-- On-call scheduling, escalation and paging (PagerDuty/Grafana OnCall territory).
-- iOS, web or Windows clients. The API should not prevent them, but they are not planned.
+- Replacing Alertmanager's routing, grouping, inhibition or silencing. Alertmanager is
+  the brain, the inbox is the inbox.
+- On-call scheduling, escalation and paging (PagerDuty and Grafana IRM territory).
+- iOS, web or Windows clients for now. The API doesn't prevent them.
 - Multi-tenant SaaS, user accounts and login.
-
-## Open questions
-
-- **Notifications when the app is closed:** APNs push needs an Apple Developer account and
-  a relay. Without APNs, system notifications only arrive while the client is running.
-- **Retention:** how long resolved alerts and their history are kept, and whether to keep
-  raw payloads for debugging (not stored for now, because repeat notifications would
-  make them grow without bound).
 
 ## Development
 
-Requirements: Node.js and pnpm (versions in `.tool-versions` and `package.json`), Docker
-for the tests (they run against a real Postgres), and a Mac for the client.
+Tool versions are pinned in `.tool-versions`. Use pnpm. Tests need Docker: they run
+against a real Postgres with Testcontainers.
 
 ```bash
-pnpm install                  # dependencies and git hooks
-pnpm --dir server run check   # all quality checks and tests
-DATABASE_URL=postgres://… pnpm --dir server run dev   # run the server on :8080
+pnpm install                        # dependencies and git hooks
+pnpm --dir server run check         # typecheck, lint, architecture, migrations, tests
+pnpm --dir server run fix           # auto-fix formatting and lint
+DATABASE_URL=postgres://… pnpm --dir server run dev   # run the server locally on :8080
+make help                           # the macOS app's shortcuts: run, demo, install, check, test, xcode
+macos/scripts/check.sh              # the macOS app's format, lint, tests, build and dead code
 ```
 
 The project is developed mostly by coding agents. Their rules are in
 [`AGENTS.md`](AGENTS.md) (`CLAUDE.md` is a symlink to it). Code quality is enforced by
-tooling rather than by convention. [ADR 0003](docs/adr/0003-quality-enforcement.md)
-explains how, [`docs/architecture.md`](docs/architecture.md) describes the structure,
-and [`docs/golden-principles.md`](docs/golden-principles.md) covers the judgement calls.
+tooling rather than convention ([ADR 0003](docs/adr/0003-quality-enforcement.md),
+[ADR 0004](docs/adr/0004-macos-client-tooling.md));
+[`docs/architecture.md`](docs/architecture.md) describes the structure and
+[`docs/golden-principles.md`](docs/golden-principles.md) the judgement calls.

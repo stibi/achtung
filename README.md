@@ -57,7 +57,8 @@ you silence it where it came from.
   clipboard as Markdown for an AI agent.
 - **Zero setup per channel:** point an Alertmanager receiver at a new URL and the
   channel exists.
-- **Self-hosted and small:** one container, one Postgres, no accounts.
+- **Self-hosted, small and open source:** one container, one Postgres, no accounts. MIT
+  licensed.
 
 ## How it works
 
@@ -309,3 +310,7 @@ tooling rather than convention ([ADR 0003](docs/adr/0003-quality-enforcement.md)
 [ADR 0004](docs/adr/0004-macos-client-tooling.md));
 [`docs/architecture.md`](docs/architecture.md) describes the structure and
 [`docs/golden-principles.md`](docs/golden-principles.md) the judgement calls.
+
+## License
+
+Open source under the [MIT License](LICENSE).

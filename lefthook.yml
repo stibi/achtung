@@ -6,6 +6,14 @@ pre-commit:
       root: server/
       glob: "server/**"
       run: pnpm run check
+    - name: website
+      # The site also shows the app's media and icon. No `root:` here: lefthook would
+      # then drop the staged files outside website/ before matching these globs.
+      glob:
+        - "website/**"
+        - "docs/media/**"
+        - "macos/Icon/**"
+      run: pnpm --dir website run check
     - name: macos
       root: macos/
       glob: "macos/**"

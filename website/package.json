@@ -1,0 +1,24 @@
+{
+  "name": "achtung-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "astro": "NODE_OPTIONS=\"--import=./scripts/compiler-fallback.mjs $NODE_OPTIONS\" astro",
+    "dev": "pnpm run astro dev",
+    "build": "pnpm run astro build",
+    "preview": "pnpm run astro preview",
+    "check": "pnpm run astro check && pnpm run build && html-validate \"dist/**/*.html\" && linkinator dist --recurse --check-fragments --skip \"^https?://(?!127\\.0\\.0\\.1|localhost)\""
+  },
+  "dependencies": {
+    "astro": "7.4.4",
+    "sharp": "0.35.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.12",
+    "@astrojs/sitemap": "3.7.4",
+    "html-validate": "11.17.0",
+    "linkinator": "8.1.0",
+    "typescript": "6.0.3",
+    "wrangler": "4.156.0"
+  }
+}

@@ -26,6 +26,16 @@ pnpm --dir server run dev           # run the server locally (needs DATABASE_URL
 pnpm --dir server run test:mutation # mutation tests (slow; runs nightly in CI)
 ```
 
+The public website (achtunk8s.io) is an Astro static site in `website/`, deployed to
+Cloudflare by hand or by Cloudflare's own builds, never from here. Read
+`website/README.md` before changing it; it is public, so no real hostnames.
+
+```bash
+pnpm --dir website run dev          # dev server on :4321
+pnpm --dir website run check        # astro check, build, html-validate, link check (must pass for website changes)
+pnpm --dir website run astro …      # any other astro command (loads the no-AVX2 compiler fallback)
+```
+
 Tests need Docker: they start a real Postgres with Testcontainers.
 
 The server image is built from the root `Dockerfile` (`docker build .`). It holds the

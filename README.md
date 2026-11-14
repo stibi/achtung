@@ -229,6 +229,10 @@ stays with Alertmanager's own receivers.
   the alert to a coding agent, which investigates read-only and posts its findings back
   to the alert. It builds on the change stream and on today's Copy for Agent.
 - **Acknowledgement** (planned): mark an alert as being worked on, for everyone.
+- **Users and collaboration** (future direction). Sign-in through OIDC, notes on an
+  alert, comments on alerts and events in Live, perhaps very light messaging. Today
+  there are no users or sign-in by design
+  ([ADR 0002](docs/adr/0002-no-authentication.md)), so this needs a new decision first.
 - **More sources** beyond Alertmanager, such as Grafana, Uptime Kuma or cron and backup
   jobs.
 
@@ -276,7 +280,7 @@ server with made-up alerts.
 
 ### Security model
 
-There is **no authentication and no users**
+Today there is **no authentication and no users**
 ([ADR 0002](docs/adr/0002-no-authentication.md)). Anyone who can reach an instance sees
 every alert, and anyone who can reach the ingest endpoints can post alerts. **Don't
 expose it to the internet unprotected.** Restrict the ingress to your network or VPN, or
@@ -288,7 +292,7 @@ put an authenticating proxy (oauth2-proxy, basic auth) in front of it.
   the brain, the inbox is the inbox.
 - On-call scheduling, escalation and paging (PagerDuty and Grafana IRM territory).
 - iOS, web or Windows clients for now. The API doesn't prevent them.
-- Multi-tenant SaaS, user accounts and login.
+- Multi-tenant SaaS.
 
 ## Development
 

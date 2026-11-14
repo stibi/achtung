@@ -22,7 +22,7 @@ services ──▶ clients ──GET silences, GET alerts (each ≤ 1 per 30 s p
                      ──GET alert_groups (≤ 1 per minute per integration)──────────▶ Grafana IRM API
 ```
 
-Planned parts not built yet: SSE and acknowledgement. When you add one, follow the layer
+Planned parts not built yet: acknowledgement. When you add one, follow the layer
 rules below and update this file.
 
 ## Server layers (`server/src/`)
@@ -223,6 +223,11 @@ The identity below is a contract that features build on
   instance's silences at most every 30 seconds, keeps the last ones when Alertmanager
   can't be read (and logs a warning), and `domain/silence.ts` evaluates the matchers.
   The home view's alerts are read the same way, and a failed read is logged the same way.
+- `GET /api/events` (`src/http/events.ts`) is a Server-Sent Events stream of what changed
+  (ADR 0019): `ready` on connect, then `changed` with `occurrences`, `silences` or
+  `settings`. It carries no data; clients re-read through the routes above. The services
+  publish each change to `services/changes.ts` (`servicesFor` wraps the changing use
+  cases; the reconciler publishes what it resolved), in memory, so one replica only.
 - Errors are `{ "error": "…" }`: 400 for invalid input (including a cursor the server
   never issued), 404 for an unknown channel or occurrence.
 - "New since last visit" is computed by the client from `lastEventAt` and its own read

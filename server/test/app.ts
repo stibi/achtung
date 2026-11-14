@@ -3,6 +3,8 @@ import { onTestFinished } from "vitest";
 import type { AlertmanagerEndpoint } from "../src/clients/alertmanager.ts";
 import type { IrmEndpoint } from "../src/clients/irm.ts";
 import { buildApp, type Services } from "../src/http/app.ts";
+import type { EventStreamOptions } from "../src/http/events.ts";
+import { changesFeed } from "../src/services/changes.ts";
 import { type AlertmanagerAlertsOptions, alertmanagerAlertsFrom } from "../src/services/home.ts";
 import { servicesFor } from "../src/services/index.ts";
 import { type IrmHeartbeatsOptions, irmHeartbeatsFrom } from "../src/services/irm-heartbeats.ts";
@@ -15,6 +17,7 @@ const unused = () => Promise.reject(new Error("this test uses no services"));
 
 /** For tests that never reach a service (health checks, the OpenAPI document). */
 export const unusedServices: Services = {
+  changes: changesFeed(),
   ingest: unused,
   listChannels: unused,
   listChannelOccurrences: unused,
@@ -43,6 +46,8 @@ export interface TestAppOptions {
     readonly integrations: Readonly<Record<string, string>>;
     readonly options?: IrmHeartbeatsOptions;
   };
+  /** The change stream's timing and limit. */
+  readonly events?: EventStreamOptions;
   /** The clock of the services themselves, e.g. the home view's last 24 hours. */
   readonly now?: () => Date;
 }
@@ -55,6 +60,7 @@ export async function appWithDatabase(
   const { db } = await createTestDatabase();
   const endpoints = new Map(Object.entries(options.alertmanagers ?? {}));
   const alerts = alertmanagerAlertsFrom(endpoints, options.alerts);
+  const changes = changesFeed();
   const services = servicesFor(
     db,
     {
@@ -65,6 +71,7 @@ export async function appWithDatabase(
         new Map(Object.entries(options.irm?.integrations ?? {})),
         options.irm?.options,
       ),
+      changes,
     },
     options.now,
   );
@@ -74,7 +81,8 @@ export async function appWithDatabase(
     sources: [alertmanagerSource],
     services,
     checkReady: async () => {},
+    ...(options.events === undefined ? {} : { events: options.events }),
   });
   onTestFinished(() => app.close());
-  return { app, services, reconciler: reconcilerFor(db, alerts, options.now) };
+  return { app, services, reconciler: reconcilerFor(db, alerts, changes, options.now) };
 }

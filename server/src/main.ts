@@ -2,6 +2,7 @@ import { loadConfig } from "./config.ts";
 import { openDatabase, ping } from "./db/client.ts";
 import { migrateDatabase } from "./db/migrate.ts";
 import { buildApp } from "./http/app.ts";
+import { changesFeed } from "./services/changes.ts";
 import { alertmanagerAlertsFrom } from "./services/home.ts";
 import { servicesFor } from "./services/index.ts";
 import { irmHeartbeatsFrom } from "./services/irm-heartbeats.ts";
@@ -34,16 +35,17 @@ const heartbeats = irmHeartbeatsFrom(
       app.log.warn({ integrationId, err: error }, "could not read heartbeats from Grafana IRM"),
   },
 );
+const changes = changesFeed();
 const app = buildApp({
   logLevel: config.logLevel,
   sources: [alertmanagerSource],
-  services: servicesFor(db, { silences, alerts, heartbeats }),
+  services: servicesFor(db, { silences, alerts, heartbeats, changes }),
   checkReady: () => ping(pool),
 });
 
 // Resolves what is gone from its Alertmanager (ADR 0014). One run at a time: a slow one
 // delays the next rather than overlapping it.
-const reconciler = reconcilerFor(db, alerts);
+const reconciler = reconcilerFor(db, alerts, changes);
 const reconcileEveryMs = 60_000;
 let reconciling: ReturnType<typeof setTimeout> | undefined;
 let running: Promise<void> | undefined;

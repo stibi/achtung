@@ -638,6 +638,18 @@ components:
       required:
         - alerts
       description: One entry per fingerprint asked for, in that order
+    ChangeEvent:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            - occurrences
+            - silences
+            - settings
+      required:
+        - kind
+      description: What changed
     IngestSummary:
       type: object
       properties:
@@ -728,6 +740,41 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/events:
+    get:
+      operationId: streamChanges
+      summary: What changed, as it happens
+      tags:
+        - client
+      description: >-
+        A `text/event-stream` (Server-Sent Events) that stays open. Events:
+
+
+        - `ready`: sent once the stream is open. Re-read everything: changes
+        made while the client wasn't connected were not sent.
+
+        - `changed`: data `{"kind": "occurrences" | "silences" | "settings"}`.
+        Re-read that part: occurrences (a notification arrived, or one resolved
+        as vanished), silences set or ended through Achtung, or the shared
+        settings.
+
+
+        A comment line keeps the stream open every so often. Silences changed in
+        Alertmanager itself are not announced, so clients still poll, slower, as
+        long as the stream is open. 503: too many streams are open.
+      responses:
+        "200":
+          description: The event stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/ChangeEvent"
+        "503":
           description: Default Response
           content:
             application/json:

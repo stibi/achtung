@@ -5,6 +5,7 @@ import type { Occurrence } from "../domain/occurrence.ts";
 import { type AlertmanagerAlert, goneFromAlertmanager } from "../domain/overview.ts";
 import { type Absences, trackAbsences } from "../domain/vanished.ts";
 import { alertmanagerSource } from "../sources/alertmanager/index.ts";
+import type { Changes } from "./changes.ts";
 import type { AlertmanagerAlerts } from "./home.ts";
 
 interface ReconcileSummary {
@@ -18,7 +19,7 @@ interface ReconcileSummary {
  * it reads each Alertmanager through the shared cache, and resolves an occurrence once
  * every successful read for `vanishAfterMs` lacked it. It remembers absences in memory,
  * per instance; a failed read, or one listing no alerts at all, forgets that instance's,
- * so the count starts over.
+ * so the count starts over. A run that resolved any publishes it to `changes` (ADR 0019).
  */
 export interface Reconciler {
   run(): Promise<ReconcileSummary>;
@@ -27,6 +28,7 @@ export interface Reconciler {
 export function reconcilerFor(
   db: Database,
   alerts: AlertmanagerAlerts,
+  changes: Changes,
   now: () => Date = () => new Date(),
 ): Reconciler {
   const absencesByInstance = new Map<string, Absences>();
@@ -75,6 +77,9 @@ export function reconcilerFor(
           continue;
         }
         resolved.push(...(await reconcileInstance(instance, reading.last, firing)));
+      }
+      if (resolved.length > 0) {
+        changes.publish("occurrences");
       }
       return { resolved };
     },

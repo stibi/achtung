@@ -6,14 +6,16 @@ import {
   validatorCompiler,
 } from "fastify-type-provider-zod";
 import type { Config } from "../config.ts";
+import type { Changes } from "../services/changes.ts";
 import type { SourceAdapter } from "../sources/source-adapter.ts";
 import { type Inbox, registerApiRoutes } from "./api.ts";
+import { type EventStreamOptions, registerEventRoutes } from "./events.ts";
 import { registerHealthRoutes } from "./health.ts";
 import { type Ingest, registerIngestRoutes } from "./ingest.ts";
 import { openApiTransform, openApiTransformObject } from "./openapi.ts";
 
 /** The use cases the routes call; src/main.ts binds them to the database. */
-export type Services = Inbox & { readonly ingest: Ingest };
+export type Services = Inbox & { readonly ingest: Ingest; readonly changes: Changes };
 
 export interface AppOptions {
   readonly logLevel: Config["logLevel"] | "silent";
@@ -22,6 +24,8 @@ export interface AppOptions {
   readonly checkReady: () => Promise<void>;
   /** Where log lines go; stdout when absent. Tests pass a stream to assert on logs. */
   readonly logStream?: { write(line: string): void };
+  /** The change stream's timing and limit; its defaults otherwise. */
+  readonly events?: EventStreamOptions;
 }
 
 export function buildApp(options: AppOptions): FastifyInstance {
@@ -62,6 +66,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
     registerHealthRoutes(routes, options.checkReady);
     registerIngestRoutes(routes, options.sources, options.services.ingest);
     registerApiRoutes(routes, options.services);
+    registerEventRoutes(routes, options.services.changes, options.events);
   });
   return app;
 }

@@ -26,8 +26,8 @@ pnpm --dir server run dev           # run the server locally (needs DATABASE_URL
 pnpm --dir server run test:mutation # mutation tests (slow; runs nightly in CI)
 ```
 
-The public website (achtunk8s.io) is an Astro static site in `website/`, deployed to
-Cloudflare by hand or by Cloudflare's own builds, never from here. Read
+The public website (achtunk8s.io) is an Astro static site in `website/`. Pushes to `main`
+that touch it deploy it to Cloudflare (`.github/workflows/website.yml`, after its check). Read
 `website/README.md` before changing it; it is public, so no real hostnames.
 
 ```bash

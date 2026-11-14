@@ -24,7 +24,7 @@ pnpm --dir website run check      # astro check, build, html-validate, link and 
 ```
 
 `check` runs in the Stop hook and the pre-commit hook (for changes in `website/`,
-`docs/media/` and `macos/Icon/`) and in CI. Its link check covers every link inside the site, including
+`docs/media/` and `macos/Icon/`), in CI, and before every deploy. Its link check covers every link inside the site, including
 `#fragments`; links to GitHub and other sites are skipped, so it works offline.
 
 On x86-64 Linux CPUs without AVX2, Astro's native compiler crashes with "Illegal
@@ -74,24 +74,43 @@ a placeholder. The build prints a line for each placeholder. The names follow
 
 ## Deploying to Cloudflare
 
-Nothing is deployed yet. Steps, once:
+Every push to `main` that touches `website/`, `docs/media/`, `macos/Icon/` or the
+lockfile runs `.github/workflows/website.yml`: the same `check` as CI, then
+`wrangler deploy` of the built `dist/`. If the check fails, nothing is deployed. Deploys
+never overlap; a newer push waits for the running one. Run it by hand from the Actions tab
+(**Run workflow**) to redeploy.
+
+The deploy creates or updates the Worker `achtunk8s-website` (static assets only) and the
+custom domain `achtunk8s.io` from `routes` in `wrangler.jsonc`; Cloudflare adds the DNS
+record and the certificate. Unknown paths get `404.html` with status 404.
+
+Setup, once:
 
 1. **Domain.** Add `achtunk8s.io` to the Cloudflare account as a zone and point the
-   registrar's nameservers at Cloudflare. A Workers custom domain needs an active zone,
-   and the hostname must not already have a CNAME record.
-2. **First deploy, from a machine with a browser:**
+   registrar's nameservers at Cloudflare. Wait until the zone is **Active**: a Workers
+   custom domain needs an active zone, and the hostname must not already have a CNAME
+   record.
+2. **API token.** My Profile → API Tokens → Create Token → Custom token, named
+   "achtunk8s.io deploy", with only these permissions:
 
-   ```bash
-   pnpm install
-   pnpm --dir website run build
-   pnpm --dir website exec wrangler login
-   pnpm --dir website exec wrangler deploy
-   ```
+   | Scope | Permission | Access |
+   |---|---|---|
+   | Account | Workers Scripts | Edit |
+   | Account | Account Settings | Read |
+   | Zone | Workers Routes | Edit |
 
-   This creates the Worker `achtunk8s-website` with only static assets, and the custom
-   domain `achtunk8s.io` from `routes` in `wrangler.jsonc` (Cloudflare adds the DNS
-   record and the certificate). Unknown paths get `404.html` with status 404.
-3. **Redirect `www`.** `www.achtunk8s.io` answers with a 301 to `https://achtunk8s.io`,
+   Account resources: only this account. Zone resources: Specific zone → `achtunk8s.io`.
+   These are the account and zone permissions of the token Cloudflare's own Workers
+   Builds creates. Workers Scripts: Edit uploads the Worker and its assets and attaches
+   the custom domain; Workers Routes: Edit covers the zone.
+3. **GitHub secrets.** Repository → Settings → Secrets and variables → Actions → New
+   repository secret:
+   - `CLOUDFLARE_API_TOKEN`: the token.
+   - `CLOUDFLARE_ACCOUNT_ID`: the account ID (Workers & Pages overview, or the zone's
+     overview page, right column).
+4. **First deploy.** Actions → Website → Run workflow, on `main`. No `wrangler login` is
+   needed anywhere. Then <https://achtunk8s.io> serves the site.
+5. **Redirect `www`.** `www.achtunk8s.io` answers with a 301 to `https://achtunk8s.io`,
    keeping the path and the query string. A Cloudflare Redirect Rule does this at the edge,
    before the Worker; nothing in this repository is involved.
    - DNS → Records → add `AAAA`, name `www`, IPv6 address `100::`, **Proxied**. A Redirect
@@ -100,18 +119,14 @@ Nothing is deployed yet. Steps, once:
      - When incoming requests match: wildcard pattern, request URL `https://www.achtunk8s.io/*`
      - Then: target URL `https://achtunk8s.io/${1}`, status code **301**, **Preserve query
        string** on.
+   - SSL/TLS → Edge Certificates → turn on **Always Use HTTPS**, so `http://www…` is
+     upgraded first.
    - Check: `curl -sI 'https://www.achtunk8s.io/a/b?c=d'` gives `301` and
-     `location: https://achtunk8s.io/a/b?c=d`. `http://www…` is upgraded to HTTPS by the
-     zone first if "Always Use HTTPS" is on (SSL/TLS → Edge Certificates); turn it on.
-4. **Deploy on push, pick one:**
-   - **Workers Builds** (no secret in GitHub): Workers & Pages → the Worker → Settings →
-     Builds → connect the GitHub repository. Root directory `website`, build command
-     `pnpm run build`, deploy command `pnpm exec wrangler deploy`, branch `main`. Add build
-     watch paths `website/*`, `docs/media/*` and `macos/Icon/*` if offered, so server-only
-     pushes don't redeploy.
-   - **GitHub Actions**: a job like the CI's `website` job, followed by
-     `pnpm --dir website exec wrangler deploy` with a `CLOUDFLARE_API_TOKEN` secret
-     (permission "Workers Scripts: Edit") and `CLOUDFLARE_ACCOUNT_ID`, on pushes to `main`.
+     `location: https://achtunk8s.io/a/b?c=d`.
+
+The alternative to the workflow is Cloudflare's Workers Builds (the Worker → Settings →
+Builds: root directory `website`, deploy command `pnpm exec wrangler deploy`); use one or
+the other, not both.
 
 `compatibility_date` in `wrangler.jsonc` doesn't matter for static assets; leave it.
 

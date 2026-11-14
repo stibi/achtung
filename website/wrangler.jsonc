@@ -1,5 +1,5 @@
 // Cloudflare Workers static assets: no Worker code, only the built site in dist/.
-// Deployment steps: README.md.
+// Deployed by .github/workflows/website.yml; setup: README.md.
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "achtunk8s-website",

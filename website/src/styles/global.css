@@ -819,6 +819,11 @@ th {
   color: var(--muted);
 }
 
+/* Further out than planned: not designed yet. */
+.status.future {
+  border-style: dashed;
+}
+
 .status.in-progress {
   border-color: var(--accent);
   background: var(--accent-soft);
